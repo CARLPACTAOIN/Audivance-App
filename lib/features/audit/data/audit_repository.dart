@@ -57,4 +57,10 @@ abstract class AuditRepository {
 
   Future<void> appendAuditLog(AuditLogEntry entry);
   Future<List<AuditLogEntry>> listAuditLogs();
+
+  Future<void> appendExportHistory(ExportHistoryEntry entry);
+  Future<List<ExportHistoryEntry>> listExportHistory();
+
+  Future<void> appendBackupHistory(BackupHistoryEntry entry);
+  Future<List<BackupHistoryEntry>> listBackupHistory();
 }

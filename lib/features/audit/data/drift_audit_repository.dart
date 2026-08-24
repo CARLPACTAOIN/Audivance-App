@@ -1,3 +1,5 @@
+import 'package:drift/drift.dart';
+
 import '../../../core/domain/identity.dart';
 import '../../../core/domain/money.dart';
 import '../../../core/domain/validation_result.dart';
@@ -321,6 +323,50 @@ class DriftAuditRepository implements AuditRepository {
   @override
   Future<List<domain.AuditLogEntry>> listAuditLogs() async {
     final rows = await _database.select(_database.auditLogEntries).get();
+    return rows.map((row) => row.toDomain()).toList(growable: false);
+  }
+
+  @override
+  Future<void> appendExportHistory(domain.ExportHistoryEntry entry) {
+    return _database
+        .into(_database.exportHistoryEntries)
+        .insert(entry.toCompanion());
+  }
+
+  @override
+  Future<List<domain.ExportHistoryEntry>> listExportHistory() async {
+    final rows =
+        await (_database.select(_database.exportHistoryEntries)..orderBy([
+              (table) => OrderingTerm(
+                expression: table.createdAt,
+                mode: OrderingMode.desc,
+              ),
+              (table) =>
+                  OrderingTerm(expression: table.id, mode: OrderingMode.desc),
+            ]))
+            .get();
+    return rows.map((row) => row.toDomain()).toList(growable: false);
+  }
+
+  @override
+  Future<void> appendBackupHistory(domain.BackupHistoryEntry entry) {
+    return _database
+        .into(_database.backupHistoryEntries)
+        .insert(entry.toCompanion());
+  }
+
+  @override
+  Future<List<domain.BackupHistoryEntry>> listBackupHistory() async {
+    final rows =
+        await (_database.select(_database.backupHistoryEntries)..orderBy([
+              (table) => OrderingTerm(
+                expression: table.createdAt,
+                mode: OrderingMode.desc,
+              ),
+              (table) =>
+                  OrderingTerm(expression: table.id, mode: OrderingMode.desc),
+            ]))
+            .get();
     return rows.map((row) => row.toDomain()).toList(growable: false);
   }
 

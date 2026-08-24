@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:audivance/core/storage/audit_storage_paths.dart';
+import 'package:audivance/features/audit/data/audit_database.dart';
 import 'package:audivance/features/backup/backup_package_io.dart';
 import 'package:audivance/features/backup/backup_restore_coordinator.dart';
 import 'package:audivance/features/backup/backup_service.dart';
@@ -57,7 +58,10 @@ void main() {
       expect(paths, contains('database/audivance.sqlite-wal'));
       expect(paths, contains('attachments/events/event-1/resolution.pdf'));
       expect(validation.isValid, isTrue);
-      expect(validation.manifest?['schemaVersion'], 3);
+      expect(
+        validation.manifest?['schemaVersion'],
+        AuditDatabase.currentSchemaVersion,
+      );
     },
   );
 

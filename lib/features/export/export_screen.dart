@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../app/ui/app_ui.dart';
 import '../audit/domain/audit_models.dart';
+import '../backup/backup_history_service.dart';
+import '../backup/backup_package_io.dart';
+import '../backup/backup_service.dart';
+import '../treasury/treasury_formatters.dart';
+import 'export_history_service.dart';
 import 'export_package_writer.dart';
 import 'export_service.dart';
 import 'pdf_report_actions.dart';
@@ -14,6 +19,10 @@ class ExportScreen extends StatefulWidget {
     this.writer = const FilePickerExportPackageWriter(),
     this.pdfWriter = const FilePickerPdfReportWriter(),
     this.pdfDispatcher = const PrintingPdfReportDispatcher(),
+    this.historyService,
+    this.backupHistoryService,
+    this.backupService,
+    this.backupWriter,
     this.asOf,
   });
 
@@ -21,6 +30,10 @@ class ExportScreen extends StatefulWidget {
   final ExportPackageWriter writer;
   final PdfReportWriter pdfWriter;
   final PdfReportDispatcher pdfDispatcher;
+  final ExportHistoryService? historyService;
+  final BackupHistoryService? backupHistoryService;
+  final BackupService? backupService;
+  final BackupPackageWriter? backupWriter;
   final DateTime? asOf;
 
   @override
@@ -28,7 +41,7 @@ class ExportScreen extends StatefulWidget {
 }
 
 class _ExportScreenState extends State<ExportScreen> {
-  late Future<ExportCenterSnapshot> _snapshotFuture;
+  late Future<_ExportScreenData> _screenDataFuture;
   ExportPackagePreview? _preview;
   ExportArchivePackage? _archive;
   ExportWriteResult? _writeResult;
@@ -44,7 +57,7 @@ class _ExportScreenState extends State<ExportScreen> {
   @override
   void initState() {
     super.initState();
-    _snapshotFuture = _loadSnapshot();
+    _screenDataFuture = _loadScreenData();
   }
 
   @override
@@ -54,8 +67,12 @@ class _ExportScreenState extends State<ExportScreen> {
         oldWidget.asOf != widget.asOf ||
         oldWidget.writer != widget.writer ||
         oldWidget.pdfWriter != widget.pdfWriter ||
-        oldWidget.pdfDispatcher != widget.pdfDispatcher) {
-      _snapshotFuture = _loadSnapshot();
+        oldWidget.pdfDispatcher != widget.pdfDispatcher ||
+        oldWidget.historyService != widget.historyService ||
+        oldWidget.backupHistoryService != widget.backupHistoryService ||
+        oldWidget.backupService != widget.backupService ||
+        oldWidget.backupWriter != widget.backupWriter) {
+      _screenDataFuture = _loadScreenData();
       _preview = null;
       _archive = null;
       _writeResult = null;
@@ -68,14 +85,26 @@ class _ExportScreenState extends State<ExportScreen> {
     }
   }
 
-  Future<ExportCenterSnapshot> _loadSnapshot() {
-    return widget.service.loadSnapshot(asOf: widget.asOf ?? DateTime.now());
+  Future<_ExportScreenData> _loadScreenData() async {
+    final asOf = widget.asOf ?? DateTime.now();
+    final snapshot = await widget.service.loadSnapshot(asOf: asOf);
+    final exportHistory =
+        await widget.historyService?.listHistory() ??
+        const <ExportHistoryEntry>[];
+    final backupHistory =
+        await widget.backupHistoryService?.listHistory() ??
+        const <BackupHistoryEntry>[];
+    return _ExportScreenData(
+      snapshot: snapshot,
+      exportHistory: exportHistory,
+      backupHistory: backupHistory,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<ExportCenterSnapshot>(
-      future: _snapshotFuture,
+    return FutureBuilder<_ExportScreenData>(
+      future: _screenDataFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
           return const AppStateView.loading(
@@ -89,7 +118,7 @@ class _ExportScreenState extends State<ExportScreen> {
             message: snapshot.error.toString(),
             onAction: () {
               setState(() {
-                _snapshotFuture = _loadSnapshot();
+                _screenDataFuture = _loadScreenData();
                 _preview = null;
                 _previewError = null;
                 _archive = null;
@@ -98,9 +127,10 @@ class _ExportScreenState extends State<ExportScreen> {
             },
           );
         }
+        final data = snapshot.data;
         return _ExportContent(
           snapshot:
-              snapshot.data ??
+              data?.snapshot ??
               const ExportCenterSnapshot(
                 organizationName: 'Audivance Workspace',
                 term: 'No organization profile',
@@ -110,6 +140,8 @@ class _ExportScreenState extends State<ExportScreen> {
                 attachments: [],
                 packageFiles: [],
               ),
+          exportHistory: data?.exportHistory ?? const [],
+          backupHistory: data?.backupHistory ?? const [],
           preview: _preview,
           archive: _archive,
           writeResult: _writeResult,
@@ -163,15 +195,62 @@ class _ExportScreenState extends State<ExportScreen> {
   }
 
   Future<void> _generateArchive() async {
+    final asOf = widget.asOf ?? DateTime.now();
+    var backupReminderStatus = BackupReminderStatus.notChecked;
+    var sameDayBackupFound = true;
+    if (widget.historyService != null) {
+      sameDayBackupFound = await widget.historyService!.hasSameDayBackup(asOf);
+      if (sameDayBackupFound) {
+        backupReminderStatus = BackupReminderStatus.satisfied;
+      } else {
+        if (!mounted) {
+          return;
+        }
+        final choice = await showDialog<_BackupReminderChoice>(
+          context: context,
+          builder: (context) => const _BackupReminderDialog(),
+        );
+        if (!mounted ||
+            choice == null ||
+            choice == _BackupReminderChoice.cancel) {
+          return;
+        }
+        if (choice == _BackupReminderChoice.generateBackup) {
+          final backupCreated = await _generateBackupBeforeExport();
+          if (!mounted || !backupCreated) {
+            return;
+          }
+          sameDayBackupFound = true;
+          backupReminderStatus = BackupReminderStatus.satisfied;
+        } else {
+          backupReminderStatus = BackupReminderStatus.overridden;
+        }
+      }
+    }
     setState(() {
       _isGeneratingArchive = true;
       _archiveError = null;
       _archive = null;
       _writeResult = null;
     });
-    final asOf = widget.asOf ?? DateTime.now();
+    var blockerCount = 0;
+    var warningCount = 0;
     final validation = await widget.service.validateCanExport(asOf: asOf);
+    final latestSnapshot = await widget.service.loadSnapshot(asOf: asOf);
+    blockerCount = latestSnapshot.blockerCount;
+    warningCount = latestSnapshot.warningCount;
     if (validation.isInvalid) {
+      await widget.historyService?.recordResult(
+        archive: null,
+        writeResult: null,
+        status: ExportHistoryStatus.failed,
+        backupReminderStatus: backupReminderStatus,
+        sameDayBackupFound: sameDayBackupFound,
+        blockerCount: blockerCount,
+        warningCount: warningCount,
+        generatedAt: asOf,
+        errorMessage: validation.summary,
+      );
       if (!mounted) {
         return;
       }
@@ -179,11 +258,23 @@ class _ExportScreenState extends State<ExportScreen> {
         _archiveError = validation.summary;
         _isGeneratingArchive = false;
       });
+      await _refreshScreenData();
       return;
     }
     try {
       final archive = await widget.service.buildArchive(asOf: asOf);
       final writeResult = await widget.writer.save(archive);
+      await widget.historyService?.recordResult(
+        archive: archive,
+        writeResult: writeResult,
+        status: writeResult.wasSaved
+            ? ExportHistoryStatus.success
+            : ExportHistoryStatus.canceled,
+        backupReminderStatus: backupReminderStatus,
+        sameDayBackupFound: sameDayBackupFound,
+        blockerCount: blockerCount,
+        warningCount: warningCount,
+      );
       if (!mounted) {
         return;
       }
@@ -192,7 +283,19 @@ class _ExportScreenState extends State<ExportScreen> {
         _writeResult = writeResult;
         _isGeneratingArchive = false;
       });
+      await _refreshScreenData();
     } on Object catch (error) {
+      await widget.historyService?.recordResult(
+        archive: null,
+        writeResult: null,
+        status: ExportHistoryStatus.failed,
+        backupReminderStatus: backupReminderStatus,
+        sameDayBackupFound: sameDayBackupFound,
+        blockerCount: blockerCount,
+        warningCount: warningCount,
+        generatedAt: asOf,
+        errorMessage: error.toString(),
+      );
       if (!mounted) {
         return;
       }
@@ -200,7 +303,72 @@ class _ExportScreenState extends State<ExportScreen> {
         _archiveError = 'Export ZIP could not be generated.\n$error';
         _isGeneratingArchive = false;
       });
+      await _refreshScreenData();
     }
+  }
+
+  Future<bool> _generateBackupBeforeExport() async {
+    final backupService = widget.backupService;
+    final backupWriter = widget.backupWriter;
+    if (backupService == null || backupWriter == null) {
+      setState(() {
+        _archiveError =
+            'Backup service is not available from the Export Center.';
+      });
+      return false;
+    }
+    setState(() {
+      _isGeneratingArchive = true;
+      _archiveError = null;
+    });
+    try {
+      final backup = await backupService.buildBackup();
+      final writeResult = await backupWriter.save(backup);
+      await widget.backupHistoryService?.recordSuccess(
+        backup: backup,
+        writeResult: writeResult,
+      );
+      if (!mounted) {
+        return false;
+      }
+      if (!writeResult.wasSaved) {
+        setState(() {
+          _archiveError =
+              'Backup save was canceled. Export ZIP was not generated.';
+          _isGeneratingArchive = false;
+        });
+        await _refreshScreenData();
+        return false;
+      }
+      setState(() {
+        _isGeneratingArchive = false;
+      });
+      await _refreshScreenData();
+      return true;
+    } on Object catch (error) {
+      await widget.backupHistoryService?.recordFailure(
+        generatedAt: DateTime.now(),
+        message: error.toString(),
+      );
+      if (!mounted) {
+        return false;
+      }
+      setState(() {
+        _archiveError = 'Backup could not be generated before export.\n$error';
+        _isGeneratingArchive = false;
+      });
+      await _refreshScreenData();
+      return false;
+    }
+  }
+
+  Future<void> _refreshScreenData() async {
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _screenDataFuture = _loadScreenData();
+    });
   }
 
   Future<void> _runPdfAction(String path, _PdfAction action) async {
@@ -277,9 +445,25 @@ class _ExportScreenState extends State<ExportScreen> {
 
 enum _PdfAction { save, share, print }
 
+enum _BackupReminderChoice { generateBackup, continueExport, cancel }
+
+class _ExportScreenData {
+  const _ExportScreenData({
+    required this.snapshot,
+    required this.exportHistory,
+    required this.backupHistory,
+  });
+
+  final ExportCenterSnapshot snapshot;
+  final List<ExportHistoryEntry> exportHistory;
+  final List<BackupHistoryEntry> backupHistory;
+}
+
 class _ExportContent extends StatelessWidget {
   const _ExportContent({
     required this.snapshot,
+    required this.exportHistory,
+    required this.backupHistory,
     required this.preview,
     required this.archive,
     required this.writeResult,
@@ -299,6 +483,8 @@ class _ExportContent extends StatelessWidget {
   });
 
   final ExportCenterSnapshot snapshot;
+  final List<ExportHistoryEntry> exportHistory;
+  final List<BackupHistoryEntry> backupHistory;
   final ExportPackagePreview? preview;
   final ExportArchivePackage? archive;
   final ExportWriteResult? writeResult;
@@ -359,6 +545,11 @@ class _ExportContent extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                   ],
+                  _ExportHistoryPanel(
+                    exportHistory: exportHistory,
+                    backupHistory: backupHistory,
+                  ),
+                  const SizedBox(height: 20),
                   _ReadinessSummary(snapshot: snapshot),
                   const SizedBox(height: 20),
                   if (isWide)
@@ -386,11 +577,7 @@ class _ExportContent extends StatelessWidget {
                   const SizedBox(height: 20),
                   _LiquidationReportsPanel(
                     paths: snapshot.packageFiles
-                        .where(
-                          (path) =>
-                              path.startsWith('reports/liquidation/') &&
-                              path.endsWith('.pdf'),
-                        )
+                        .where(isUsmOsaF46LiquidationReportPath)
                         .toList(growable: false),
                     pdfWriteResult: pdfWriteResult,
                     actionResult: pdfActionResult,
@@ -482,6 +669,189 @@ class _ExportHeader extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _BackupReminderDialog extends StatelessWidget {
+  const _BackupReminderDialog();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppDialogFrame(
+      title: 'Backup recommended before export',
+      maxWidth: 520,
+      status: const InlineStatusPanel(
+        title: 'Same-day backup not found',
+        message: 'Create a local backup before generating the COA ZIP so this encrypted workspace and attachments can be restored on this device if needed.',
+        tone: InlineStatusTone.warning,
+      ),
+      actions: [
+        TextButton(
+          key: const Key('exportBackupReminderCancelButton'),
+          onPressed: () => Navigator.pop(context, _BackupReminderChoice.cancel),
+          child: const Text('Cancel'),
+        ),
+        OutlinedButton.icon(
+          key: const Key('exportBackupReminderContinueButton'),
+          onPressed: () =>
+              Navigator.pop(context, _BackupReminderChoice.continueExport),
+          icon: const Icon(Icons.warning_amber_outlined),
+          label: const Text('Continue Export'),
+        ),
+        FilledButton.icon(
+          key: const Key('exportBackupReminderGenerateButton'),
+          onPressed: () =>
+              Navigator.pop(context, _BackupReminderChoice.generateBackup),
+          icon: const Icon(Icons.backup_outlined),
+          label: const Text('Generate Backup'),
+        ),
+      ],
+      children: const [
+        Text(
+          'You can continue without a same-day backup, but Audivance will record that the reminder was overridden in export history.',
+        ),
+      ],
+    );
+  }
+}
+
+class _ExportHistoryPanel extends StatelessWidget {
+  const _ExportHistoryPanel({
+    required this.exportHistory,
+    required this.backupHistory,
+  });
+
+  final List<ExportHistoryEntry> exportHistory;
+  final List<BackupHistoryEntry> backupHistory;
+
+  @override
+  Widget build(BuildContext context) {
+    final latestBackup = backupHistory.isEmpty ? null : backupHistory.first;
+    final recentExports = exportHistory.take(5).toList(growable: false);
+    return _Panel(
+      title: 'Export History',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (latestBackup == null)
+            const InlineStatusPanel(
+              title: 'No backup recorded',
+              message: 'Generate a same-day backup before COA export to avoid the reminder.',
+              tone: InlineStatusTone.warning,
+            )
+          else
+            InlineStatusPanel(
+              title: 'Latest backup',
+              message:
+                  '${_backupStatusLabel(latestBackup.status)} on ${formatDate(latestBackup.generatedAt)}.',
+              tone: _backupStatusTone(latestBackup.status),
+            ),
+          const SizedBox(height: 12),
+          if (exportHistory.isEmpty)
+            const _EmptyPanelMessage(
+              icon: Icons.history_outlined,
+              text: 'No COA ZIP export attempts have been recorded yet.',
+            )
+          else
+            Column(
+              children: [
+                for (final entry in recentExports)
+                  Padding(
+                    padding: EdgeInsets.only(
+                      bottom: entry == recentExports.last ? 0 : 8,
+                    ),
+                    child: _ExportHistoryRow(entry: entry),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExportHistoryRow extends StatelessWidget {
+  const _ExportHistoryRow({required this.entry});
+
+  final ExportHistoryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                StatusBadge(
+                  label: _exportStatusLabel(entry.status),
+                  tone: _exportStatusTone(entry.status),
+                  icon: _exportStatusIcon(entry.status),
+                ),
+                StatusBadge(
+                  label: _reminderStatusLabel(entry.backupReminderStatus),
+                  tone:
+                      entry.backupReminderStatus ==
+                          BackupReminderStatus.overridden
+                      ? InlineStatusTone.warning
+                      : InlineStatusTone.info,
+                ),
+                Text(
+                  formatDate(entry.generatedAt),
+                  style: theme.textTheme.bodySmall,
+                ),
+                Text(
+                  _formatBytes(entry.byteLength),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              entry.fileName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Readiness: ${entry.blockerCount} blockers, ${entry.warningCount} warnings',
+              style: theme.textTheme.bodySmall,
+            ),
+            if (entry.destinationUri?.isNotEmpty == true) ...[
+              const SizedBox(height: 4),
+              Text(
+                entry.destinationUri!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+            if (entry.errorMessage?.isNotEmpty == true) ...[
+              const SizedBox(height: 4),
+              Text(
+                entry.errorMessage!,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -729,11 +1099,11 @@ class _LiquidationReportsPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasActiveAction = activeActionKey != null;
     return _Panel(
-      title: 'Liquidation PDF Reports',
+      title: 'USM-OSA-F46 Liquidation Reports',
       child: paths.isEmpty
           ? const _EmptyPanelMessage(
               icon: Icons.picture_as_pdf_outlined,
-              text: 'Liquidation PDF reports will appear after events exist.',
+              text: 'USM-OSA-F46 liquidation reports will appear after events exist.',
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -803,10 +1173,18 @@ class _LiquidationReportActionRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
+          usmOsaF46ReportLabel,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
           path,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyMedium,
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -947,6 +1325,68 @@ class _ArchiveResultPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+String _exportStatusLabel(ExportHistoryStatus status) {
+  return switch (status) {
+    ExportHistoryStatus.success => 'Export saved',
+    ExportHistoryStatus.canceled => 'Save canceled',
+    ExportHistoryStatus.failed => 'Failed',
+  };
+}
+
+InlineStatusTone _exportStatusTone(ExportHistoryStatus status) {
+  return switch (status) {
+    ExportHistoryStatus.success => InlineStatusTone.success,
+    ExportHistoryStatus.canceled => InlineStatusTone.warning,
+    ExportHistoryStatus.failed => InlineStatusTone.error,
+  };
+}
+
+IconData _exportStatusIcon(ExportHistoryStatus status) {
+  return switch (status) {
+    ExportHistoryStatus.success => Icons.check_circle_outline,
+    ExportHistoryStatus.canceled => Icons.cancel_outlined,
+    ExportHistoryStatus.failed => Icons.error_outline,
+  };
+}
+
+String _reminderStatusLabel(BackupReminderStatus status) {
+  return switch (status) {
+    BackupReminderStatus.notChecked => 'Backup not checked',
+    BackupReminderStatus.satisfied => 'Same-day backup',
+    BackupReminderStatus.overridden => 'Backup reminder overridden',
+  };
+}
+
+String _backupStatusLabel(BackupHistoryStatus status) {
+  return switch (status) {
+    BackupHistoryStatus.success => 'Saved backup',
+    BackupHistoryStatus.canceled => 'Backup save canceled',
+    BackupHistoryStatus.failed => 'Backup failed',
+  };
+}
+
+InlineStatusTone _backupStatusTone(BackupHistoryStatus status) {
+  return switch (status) {
+    BackupHistoryStatus.success => InlineStatusTone.success,
+    BackupHistoryStatus.canceled => InlineStatusTone.warning,
+    BackupHistoryStatus.failed => InlineStatusTone.error,
+  };
+}
+
+String _formatBytes(int byteLength) {
+  if (byteLength <= 0) {
+    return '0 B';
+  }
+  if (byteLength < 1024) {
+    return '$byteLength B';
+  }
+  final kib = byteLength / 1024;
+  if (kib < 1024) {
+    return '${kib.toStringAsFixed(1)} KB';
+  }
+  return '${(kib / 1024).toStringAsFixed(1)} MB';
 }
 
 class _MetadataChip extends StatelessWidget {

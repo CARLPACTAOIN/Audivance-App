@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:audivance/core/attachments/attachment_picker.dart';
 import 'package:audivance/core/attachments/attachment_storage_service.dart';
@@ -9,11 +9,18 @@ import 'package:audivance/features/audit/data/audit_database.dart';
 import 'package:audivance/features/audit/data/drift_audit_repository.dart';
 import 'package:audivance/features/audit/domain/audit_models.dart';
 import 'package:audivance/features/export/export_service.dart';
+import 'package:audivance/features/export/pdf_report_service.dart';
 import 'package:archive/archive.dart';
 import 'package:drift/native.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(_registerTestLogoAsset);
+  tearDownAll(_clearTestLogoAsset);
+
   late AuditDatabase database;
   late DriftAuditRepository repository;
   late ExportService service;
@@ -97,6 +104,71 @@ void main() {
       }
     },
   );
+
+  test(
+    'USM logo asset is registered for USM-OSA-F46 report generation',
+    () async {
+      final data = await rootBundle.load(
+        UsmOsaF46TemplateAssets.defaultLogoAssetPath,
+      );
+
+      expect(
+        UsmOsaF46TemplateAssets.defaultLogoAssetPath,
+        'assets/images/logo/usm_logo.png',
+      );
+      expect(data.lengthInBytes, greaterThan(0));
+    },
+  );
+
+  test('liquidation PDF contains USM-OSA-F46 labels and mapped data', () async {
+    await _seedCompleteWorkspace(repository);
+
+    final reports = await service.buildReports(asOf: DateTime(2026, 8, 18, 12));
+    final liquidation = reports.files.singleWhere(
+      (file) =>
+          file.path == 'reports/liquidation/Leadership-Summit-event-1.pdf',
+    );
+    final body = _pdfExtractedText(liquidation.bytes);
+
+    expect(body, contains('UNIVERSITY OF SOUTHERN MINDANAO'));
+    expect(body, contains('Office of Student Affairs'));
+    expect(body, contains('STUDENT DEVELOPMENT SERVICES'));
+    expect(body, contains('LIQUIDATION REPORT'));
+    expect(body, contains('Name of Organization'));
+    expect(body, contains('Name of Activity/Project'));
+    expect(body, contains('Evidence'));
+    expect(body, contains('We hereby attest'));
+    expect(body, contains('COMMISSIONER'));
+    expect(body, contains('USM-OSA-F46-Rev.0.2025.05.05'));
+    expect(body, contains('JPIA'));
+    expect(body, contains('Leadership Summit'));
+    expect(body, contains('Campus Canteen'));
+    expect(body, contains('OR-100'));
+    expect(body, contains('Meals'));
+    expect(body, contains('Php 200.00'));
+    expect(body, contains('ARI SANTOS'));
+    expect(body, contains('BEA REYES'));
+  });
+
+  test('liquidation PDF generation constrains long dynamic values', () async {
+    await _seedCompleteWorkspace(
+      repository,
+      organizationName: 'Junior Philippine Institute of Accountants Local Chapter With Extended Official Registered Name',
+      eventName: 'Annual Leadership Summit, Financial Stewardship Congress, and Documentation Workshop',
+      payeeOrMerchant:
+          'North Campus Accredited Food Service Cooperative Incorporated',
+      lineDescription: 'Packed meals and seminar supplies with a very long liquidation description',
+    );
+
+    final reports = await service.buildReports(asOf: DateTime(2026, 8, 18, 12));
+    final liquidation = reports.files.singleWhere(
+      (file) => isUsmOsaF46LiquidationReportPath(file.path),
+    );
+
+    expect(liquidation.bytes.take(4), '%PDF'.codeUnits);
+    expect(liquidation.byteLength, greaterThan(0));
+    expect(liquidation.checksum, hasLength(64));
+  });
 
   test('generates liquidation PDFs for events without receipts', () async {
     await _seedWorkspaceWithoutLiquidation(repository);
@@ -191,6 +263,10 @@ void main() {
     expect(
       reportManifestEntries.map((file) => file['path']),
       contains('reports/budget_vs_actual.pdf'),
+    );
+    expect(
+      reportManifestEntries.map((file) => file['path']),
+      contains('reports/liquidation/Leadership-Summit-event-1.pdf'),
     );
   });
 
@@ -439,9 +515,55 @@ void main() {
   });
 }
 
+void _registerTestLogoAsset() {
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMessageHandler('flutter/assets', (message) async {
+        if (message == null) {
+          return null;
+        }
+        final key = utf8.decode(
+          message.buffer.asUint8List(
+            message.offsetInBytes,
+            message.lengthInBytes,
+          ),
+        );
+        if (key != UsmOsaF46TemplateAssets.defaultLogoAssetPath) {
+          return null;
+        }
+        final bytes = await File(key).readAsBytes();
+        return ByteData.sublistView(bytes);
+      });
+}
+
+void _clearTestLogoAsset() {
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMessageHandler('flutter/assets', null);
+}
+
+String _pdfExtractedText(List<int> bytes) {
+  final raw = latin1.decode(bytes, allowInvalid: true);
+  final buffer = StringBuffer();
+  final textObjects = RegExp(r'\[\((.*?)\)\]TJ', dotAll: true);
+  for (final match in textObjects.allMatches(raw)) {
+    final value = match
+        .group(1)!
+        .replaceAll(r'\(', '(')
+        .replaceAll(r'\)', ')')
+        .replaceAll(r'\\', '\\');
+    if (buffer.isNotEmpty) {
+      buffer.write(' ');
+    }
+    buffer.write(value);
+  }
+  return buffer.toString();
+}
+
 Future<void> _seedCompleteWorkspace(
   DriftAuditRepository repository, {
+  String organizationName = 'JPIA',
   String eventName = 'Leadership Summit',
+  String payeeOrMerchant = 'Campus Canteen',
+  String lineDescription = 'Meals',
   DateTime? eventEndDate,
   bool isLiquidated = true,
   ReimbursementStatus reimbursementStatus = ReimbursementStatus.paid,
@@ -449,9 +571,9 @@ Future<void> _seedCompleteWorkspace(
   AttachmentRef receiptAttachment = _attachment,
 }) async {
   await repository.saveOrganization(
-    const OrganizationProfile(
+    OrganizationProfile(
       id: 'org-1',
-      name: 'JPIA',
+      name: organizationName,
       type: 'Academic',
       adviser: 'Prof. Santos',
       semester: '1st Semester',
@@ -533,7 +655,7 @@ Future<void> _seedCompleteWorkspace(
     LiquidationReceipt(
       id: 'receipt-1',
       eventId: 'event-1',
-      payeeOrMerchant: 'Campus Canteen',
+      payeeOrMerchant: payeeOrMerchant,
       date: DateTime(2026, 8, 18),
       evidenceNumber: 'OR-100',
       receiptType: ReceiptType.officialReceipt,
@@ -543,10 +665,10 @@ Future<void> _seedCompleteWorkspace(
     ),
   );
   await repository.saveLiquidationLine(
-    const LiquidationLine(
+    LiquidationLine(
       id: 'line-1',
       receiptId: 'receipt-1',
-      description: 'Meals',
+      description: lineDescription,
       quantity: 2,
       unitCost: Money.centavos(10000),
     ),

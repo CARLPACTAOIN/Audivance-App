@@ -387,6 +387,81 @@ extension AuditLogRecordMapper on AuditLogRecord {
   }
 }
 
+extension ExportHistoryEntryMapper on domain.ExportHistoryEntry {
+  ExportHistoryEntriesCompanion toCompanion() {
+    return ExportHistoryEntriesCompanion.insert(
+      id: id,
+      fileName: fileName,
+      generatedAt: generatedAt,
+      byteLength: byteLength,
+      checksum: checksum,
+      destinationUri: Value(destinationUri),
+      status: status.name,
+      backupReminderStatus: backupReminderStatus.name,
+      sameDayBackupFound: sameDayBackupFound,
+      blockerCount: blockerCount,
+      warningCount: warningCount,
+      createdAt: createdAt,
+      errorMessage: Value(errorMessage),
+    );
+  }
+}
+
+extension ExportHistoryRecordMapper on ExportHistoryRecord {
+  domain.ExportHistoryEntry toDomain() {
+    return domain.ExportHistoryEntry(
+      id: id,
+      fileName: fileName,
+      generatedAt: generatedAt,
+      byteLength: byteLength,
+      checksum: checksum,
+      destinationUri: destinationUri,
+      status: _enumByName(domain.ExportHistoryStatus.values, status),
+      backupReminderStatus: _enumByName(
+        domain.BackupReminderStatus.values,
+        backupReminderStatus,
+      ),
+      sameDayBackupFound: sameDayBackupFound,
+      blockerCount: blockerCount,
+      warningCount: warningCount,
+      createdAt: createdAt,
+      errorMessage: errorMessage,
+    );
+  }
+}
+
+extension BackupHistoryEntryMapper on domain.BackupHistoryEntry {
+  BackupHistoryEntriesCompanion toCompanion() {
+    return BackupHistoryEntriesCompanion.insert(
+      id: id,
+      fileName: fileName,
+      generatedAt: generatedAt,
+      byteLength: byteLength,
+      checksum: checksum,
+      destinationUri: Value(destinationUri),
+      status: status.name,
+      createdAt: createdAt,
+      errorMessage: Value(errorMessage),
+    );
+  }
+}
+
+extension BackupHistoryRecordMapper on BackupHistoryRecord {
+  domain.BackupHistoryEntry toDomain() {
+    return domain.BackupHistoryEntry(
+      id: id,
+      fileName: fileName,
+      generatedAt: generatedAt,
+      byteLength: byteLength,
+      checksum: checksum,
+      destinationUri: destinationUri,
+      status: _enumByName(domain.BackupHistoryStatus.values, status),
+      createdAt: createdAt,
+      errorMessage: errorMessage,
+    );
+  }
+}
+
 List<String> _decodeStringList(String value) {
   return (jsonDecode(value) as List<dynamic>).cast<String>();
 }

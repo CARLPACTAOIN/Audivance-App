@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../app/ui/app_ui.dart';
+import '../audit/domain/audit_models.dart';
+import '../treasury/treasury_formatters.dart';
+import 'backup_history_service.dart';
 import 'backup_package_io.dart';
 import 'backup_service.dart';
 
@@ -11,12 +14,14 @@ class BackupRestoreScreen extends StatefulWidget {
     this.writer = const FilePickerBackupPackageWriter(),
     this.reader = const FilePickerBackupPackageReader(),
     this.onRestoreBackup,
+    this.historyService,
   });
 
   final BackupService service;
   final BackupPackageWriter writer;
   final BackupPackageReader reader;
   final BackupRestoreHandler? onRestoreBackup;
+  final BackupHistoryService? historyService;
 
   @override
   State<BackupRestoreScreen> createState() => _BackupRestoreScreenState();
@@ -28,10 +33,17 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   PickedBackupPackage? _pickedBackup;
   BackupValidationResult? _validation;
   RestoreExecutionResult? _restoreResult;
+  List<BackupHistoryEntry> _history = const [];
   String? _message;
   var _isGenerating = false;
   var _isValidating = false;
   var _isRestoring = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshHistory();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +119,8 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
               const SizedBox(height: 16),
               _RestoreResultPanel(result: _restoreResult!),
             ],
+            const SizedBox(height: 16),
+            _BackupHistoryPanel(history: _history),
           ],
         ),
       ],
@@ -126,6 +140,10 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     try {
       final backup = await widget.service.buildBackup();
       final writeResult = await widget.writer.save(backup);
+      await widget.historyService?.recordSuccess(
+        backup: backup,
+        writeResult: writeResult,
+      );
       if (!mounted) {
         return;
       }
@@ -134,7 +152,12 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         _writeResult = writeResult;
         _isGenerating = false;
       });
+      await _refreshHistory();
     } on Object catch (error) {
+      await widget.historyService?.recordFailure(
+        generatedAt: DateTime.now(),
+        message: error.toString(),
+      );
       if (!mounted) {
         return;
       }
@@ -142,6 +165,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         _message = 'Backup could not be generated.\n$error';
         _isGenerating = false;
       });
+      await _refreshHistory();
     }
   }
 
@@ -224,6 +248,16 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
 
   bool get _canRestore =>
       !_isBusy && _pickedBackup != null && (_validation?.isValid ?? false);
+
+  Future<void> _refreshHistory() async {
+    final history = await widget.historyService?.listHistory();
+    if (!mounted || history == null) {
+      return;
+    }
+    setState(() {
+      _history = history;
+    });
+  }
 }
 
 class _RestoreNotice extends StatelessWidget {
@@ -235,6 +269,111 @@ class _RestoreNotice extends StatelessWidget {
       title: 'Same-device restore',
       message: 'The database inside this backup is encrypted with this device workspace key. Restore requires the same local secure credential context; cross-device recovery remains a future recovery-key workflow.',
       tone: InlineStatusTone.warning,
+    );
+  }
+}
+
+class _BackupHistoryPanel extends StatelessWidget {
+  const _BackupHistoryPanel({required this.history});
+
+  final List<BackupHistoryEntry> history;
+
+  @override
+  Widget build(BuildContext context) {
+    if (history.isEmpty) {
+      return const InlineStatusPanel(
+        title: 'Backup history',
+        message: 'No backup attempts have been recorded yet.',
+        tone: InlineStatusTone.info,
+      );
+    }
+    final recent = history.take(5).toList(growable: false);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Recent Backup History',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 10),
+        for (final entry in recent)
+          Padding(
+            padding: EdgeInsets.only(bottom: entry == recent.last ? 0 : 8),
+            child: _BackupHistoryRow(entry: entry),
+          ),
+      ],
+    );
+  }
+}
+
+class _BackupHistoryRow extends StatelessWidget {
+  const _BackupHistoryRow({required this.entry});
+
+  final BackupHistoryEntry entry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                StatusBadge(
+                  label: _backupStatusLabel(entry.status),
+                  tone: _backupStatusTone(entry.status),
+                  icon: _backupStatusIcon(entry.status),
+                ),
+                Text(
+                  formatDate(entry.generatedAt),
+                  style: theme.textTheme.bodySmall,
+                ),
+                Text(
+                  _formatBytes(entry.byteLength),
+                  style: theme.textTheme.bodySmall,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              entry.fileName,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium,
+            ),
+            if (entry.destinationUri?.isNotEmpty == true) ...[
+              const SizedBox(height: 4),
+              Text(
+                entry.destinationUri!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
+            if (entry.errorMessage?.isNotEmpty == true) ...[
+              const SizedBox(height: 4),
+              Text(
+                entry.errorMessage!,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }
@@ -284,6 +423,44 @@ class _BackupResultPanel extends StatelessWidget {
       ],
     );
   }
+}
+
+String _backupStatusLabel(BackupHistoryStatus status) {
+  return switch (status) {
+    BackupHistoryStatus.success => 'Saved backup',
+    BackupHistoryStatus.canceled => 'Save canceled',
+    BackupHistoryStatus.failed => 'Failed',
+  };
+}
+
+InlineStatusTone _backupStatusTone(BackupHistoryStatus status) {
+  return switch (status) {
+    BackupHistoryStatus.success => InlineStatusTone.success,
+    BackupHistoryStatus.canceled => InlineStatusTone.warning,
+    BackupHistoryStatus.failed => InlineStatusTone.error,
+  };
+}
+
+IconData _backupStatusIcon(BackupHistoryStatus status) {
+  return switch (status) {
+    BackupHistoryStatus.success => Icons.check_circle_outline,
+    BackupHistoryStatus.canceled => Icons.cancel_outlined,
+    BackupHistoryStatus.failed => Icons.error_outline,
+  };
+}
+
+String _formatBytes(int byteLength) {
+  if (byteLength <= 0) {
+    return '0 B';
+  }
+  if (byteLength < 1024) {
+    return '$byteLength B';
+  }
+  final kib = byteLength / 1024;
+  if (kib < 1024) {
+    return '${kib.toStringAsFixed(1)} KB';
+  }
+  return '${(kib / 1024).toStringAsFixed(1)} MB';
 }
 
 class _ValidationPanel extends StatelessWidget {

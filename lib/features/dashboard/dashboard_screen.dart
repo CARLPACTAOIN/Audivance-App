@@ -586,9 +586,9 @@ class _StatusChip extends StatelessWidget {
 
 Color _toneColor(DashboardSignalTone tone) {
   return switch (tone) {
-    DashboardSignalTone.success => const Color(0xFF047857),
-    DashboardSignalTone.warning => const Color(0xFFA16207),
-    DashboardSignalTone.danger => const Color(0xFFDC2626),
-    DashboardSignalTone.neutral => const Color(0xFF1E3A8A),
+    DashboardSignalTone.success => const Color(0xFF10B981),
+    DashboardSignalTone.warning => const Color(0xFFF59E0B),
+    DashboardSignalTone.danger => const Color(0xFFEF4444),
+    DashboardSignalTone.neutral => const Color(0xFF38BDF8),
   };
 }

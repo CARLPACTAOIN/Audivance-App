@@ -41,7 +41,10 @@ class SetupScreen extends StatefulWidget {
 }
 
 class _SetupScreenState extends State<SetupScreen> {
-  final _formKey = GlobalKey<FormState>();
+  final _pageController = PageController();
+  final _step1FormKey = GlobalKey<FormState>();
+  final _step2FormKey = GlobalKey<FormState>();
+
   final _displayNameController = TextEditingController();
   final _emailOrStudentIdController = TextEditingController();
   final _pinController = TextEditingController();
@@ -52,6 +55,7 @@ class _SetupScreenState extends State<SetupScreen> {
   final _semesterController = TextEditingController(text: '1st Semester');
   final _schoolYearController = TextEditingController(text: '2026-2027');
   final _signatoryNamesController = TextEditingController();
+
   var _isSubmitting = false;
   String? _submitError;
 
@@ -59,6 +63,7 @@ class _SetupScreenState extends State<SetupScreen> {
 
   @override
   void dispose() {
+    _pageController.dispose();
     _displayNameController.dispose();
     _emailOrStudentIdController.dispose();
     _pinController.dispose();
@@ -72,167 +77,35 @@ class _SetupScreenState extends State<SetupScreen> {
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                constraints.maxWidth >= 800 ? 32 : 16,
-                24,
-                constraints.maxWidth >= 800 ? 32 : 16,
-                32,
-              ),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Center(
-                          child: BrandLogo(
-                            key: Key('setupBrandLogo'),
-                            size: 88,
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Text(
-                          'Set up Audivance',
-                          style: textTheme.headlineMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Create the local account and organization workspace for this device.',
-                        ),
-                        const SizedBox(height: 24),
-                        if (_submitError != null) ...[
-                          InlineStatusPanel(
-                            title: 'Workspace could not be created',
-                            message: _submitError!,
-                            tone: InlineStatusTone.error,
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        _SetupSection(
-                          title: 'Local Account',
-                          icon: Icons.person_outline,
-                          children: [
-                            _LabeledTextField(
-                              key: const Key('setupDisplayNameField'),
-                              controller: _displayNameController,
-                              label: 'Account name',
-                              textInputAction: TextInputAction.next,
-                            ),
-                            _LabeledTextField(
-                              key: const Key('setupEmailOrStudentIdField'),
-                              controller: _emailOrStudentIdController,
-                              label: 'Email or student ID',
-                              textInputAction: TextInputAction.next,
-                            ),
-                            _LabeledTextField(
-                              key: const Key('setupPinField'),
-                              controller: _pinController,
-                              label: 'PIN',
-                              helperText: 'Use at least 6 digits.',
-                              obscureText: true,
-                              keyboardType: TextInputType.number,
-                              validator: _pinValidator,
-                              textInputAction: TextInputAction.next,
-                            ),
-                            _LabeledTextField(
-                              key: const Key('setupPinConfirmationField'),
-                              controller: _pinConfirmationController,
-                              label: 'Confirm PIN',
-                              obscureText: true,
-                              keyboardType: TextInputType.number,
-                              validator: _pinConfirmationValidator,
-                              textInputAction: TextInputAction.next,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        _SetupSection(
-                          title: 'Organization Profile',
-                          icon: Icons.apartment_outlined,
-                          children: [
-                            _LabeledTextField(
-                              key: const Key('setupOrganizationNameField'),
-                              controller: _organizationNameController,
-                              label: 'Organization name',
-                              textInputAction: TextInputAction.next,
-                            ),
-                            _LabeledTextField(
-                              key: const Key('setupOrganizationTypeField'),
-                              controller: _organizationTypeController,
-                              label: 'Organization type',
-                              textInputAction: TextInputAction.next,
-                            ),
-                            _LabeledTextField(
-                              key: const Key('setupAdviserField'),
-                              controller: _adviserController,
-                              label: 'Adviser',
-                              textInputAction: TextInputAction.next,
-                            ),
-                            _LabeledTextField(
-                              key: const Key('setupSemesterField'),
-                              controller: _semesterController,
-                              label: 'Semester',
-                              textInputAction: TextInputAction.next,
-                            ),
-                            _LabeledTextField(
-                              key: const Key('setupSchoolYearField'),
-                              controller: _schoolYearController,
-                              label: 'School year',
-                              textInputAction: TextInputAction.next,
-                            ),
-                            _LabeledTextField(
-                              key: const Key('setupSignatoryNamesField'),
-                              controller: _signatoryNamesController,
-                              label: 'Signatory names',
-                              helperText:
-                                  'Separate multiple names with commas.',
-                              textInputAction: TextInputAction.done,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        FilledButton.icon(
-                          key: const Key('setupSubmitButton'),
-                          onPressed: _isSubmitting ? null : _submit,
-                          icon: _isSubmitting
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.check_circle_outline),
-                          label: const Text('Create Local Workspace'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
+  void _goToStep(int step) {
+    setState(() {
+      _submitError = null;
+    });
+    _pageController.animateToPage(
+      step,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeInOutCubic,
     );
+  }
+
+  void _onStep1Next() {
+    setState(() => _submitError = null);
+    if (!_step1FormKey.currentState!.validate()) {
+      return;
+    }
+    _goToStep(2);
   }
 
   Future<void> _submit() async {
     setState(() => _submitError = null);
-    if (!_formKey.currentState!.validate()) {
-      setState(() {
-        _submitError =
-            'Fix the highlighted fields before creating the workspace.';
-      });
+    final isStep1Valid = _step1FormKey.currentState?.validate() ?? true;
+    final isStep2Valid = _step2FormKey.currentState?.validate() ?? true;
+
+    if (!isStep1Valid) {
+      _goToStep(1);
+      return;
+    }
+    if (!isStep2Valid) {
       return;
     }
 
@@ -301,41 +174,715 @@ class _SetupScreenState extends State<SetupScreen> {
     }
     return null;
   }
-}
-
-class _SetupSection extends StatelessWidget {
-  const _SetupSection({
-    required this.title,
-    required this.icon,
-    required this.children,
-  });
-
-  final String title;
-  final IconData icon;
-  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Scaffold(
+      body: SafeArea(
+        child: PageView(
+          controller: _pageController,
+          physics: const NeverScrollableScrollPhysics(),
           children: [
-            Row(
-              children: [
-                Icon(icon, color: const Color(0xFF1E3A8A)),
-                const SizedBox(width: 10),
-                Text(title, style: Theme.of(context).textTheme.titleLarge),
-              ],
+            _WelcomeScreen(
+              onGetStarted: () => _goToStep(1),
             ),
-            const SizedBox(height: 16),
-            for (final child in children) ...[
-              child,
-              if (child != children.last) const SizedBox(height: 14),
-            ],
+            _Step1AccountScreen(
+              formKey: _step1FormKey,
+              displayNameController: _displayNameController,
+              emailOrStudentIdController: _emailOrStudentIdController,
+              pinController: _pinController,
+              pinConfirmationController: _pinConfirmationController,
+              pinValidator: _pinValidator,
+              pinConfirmationValidator: _pinConfirmationValidator,
+              onBack: () => _goToStep(0),
+              onNext: _onStep1Next,
+            ),
+            _Step2OrganizationScreen(
+              formKey: _step2FormKey,
+              organizationNameController: _organizationNameController,
+              organizationTypeController: _organizationTypeController,
+              adviserController: _adviserController,
+              semesterController: _semesterController,
+              schoolYearController: _schoolYearController,
+              signatoryNamesController: _signatoryNamesController,
+              isSubmitting: _isSubmitting,
+              submitError: _submitError,
+              onBack: () => _goToStep(1),
+              onSubmit: _submit,
+            ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SCREEN 0: WELCOME SPLASH
+// ---------------------------------------------------------------------------
+class _WelcomeScreen extends StatelessWidget {
+  const _WelcomeScreen({required this.onGetStarted});
+
+  final VoidCallback onGetStarted;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 540),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 20),
+                  // Centered Circular Brand Logo with Subtle Ambient Halo
+                  Center(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF161C26),
+                        border: Border.all(color: const Color(0xFF263345), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFD97706).withValues(alpha: 0.15),
+                            blurRadius: 36,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: const BrandLogo(
+                        key: Key('setupBrandLogo'),
+                        size: 96,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Text(
+                    'Set up Audivance',
+                    textAlign: TextAlign.center,
+                    style: textTheme.headlineMedium?.copyWith(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFF8FAFC),
+                      letterSpacing: -0.6,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Your offline student organization audit workspace.\nBuilt for security, financial correctness, and COA compliance.',
+                    textAlign: TextAlign.center,
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: const Color(0xFF94A3B8),
+                      height: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // 3 Key Trust Cards
+                  const _TrustFeatureCard(
+                    icon: Icons.shield_outlined,
+                    iconColor: Color(0xFF10B981),
+                    title: '100% Offline & Local',
+                    description: 'No internet connection or cloud servers required. All financial records stay safely on this device.',
+                  ),
+                  const SizedBox(height: 12),
+                  const _TrustFeatureCard(
+                    icon: Icons.lock_person_outlined,
+                    iconColor: Color(0xFFF59E0B),
+                    title: 'Encrypted Device Storage',
+                    description: 'Your treasury, events, and receipts are locked with SQLCipher hardware-grade encryption using your local PIN.',
+                  ),
+                  const SizedBox(height: 12),
+                  const _TrustFeatureCard(
+                    icon: Icons.folder_zip_outlined,
+                    iconColor: Color(0xFF38BDF8),
+                    title: 'COA Export Ready',
+                    description: 'One-tap package export generates verified PDFs, ledgers, and attachments ready for submission.',
+                  ),
+                  const SizedBox(height: 36),
+
+                  // Primary Get Started CTA
+                  FilledButton.icon(
+                    key: const Key('setupGetStartedButton'),
+                    onPressed: onGetStarted,
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: const Color(0xFFD97706),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+                    label: const Text(
+                      'Get Started',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.verified_outlined, size: 14, color: Color(0xFF10B981)),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Offline Workspace · One Organization Per Device',
+                          textAlign: TextAlign.center,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SCREEN 1: STEP 1 OF 2 — LOCAL ACCOUNT & PIN
+// ---------------------------------------------------------------------------
+class _Step1AccountScreen extends StatelessWidget {
+  const _Step1AccountScreen({
+    required this.formKey,
+    required this.displayNameController,
+    required this.emailOrStudentIdController,
+    required this.pinController,
+    required this.pinConfirmationController,
+    required this.pinValidator,
+    required this.pinConfirmationValidator,
+    required this.onBack,
+    required this.onNext,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final TextEditingController displayNameController;
+  final TextEditingController emailOrStudentIdController;
+  final TextEditingController pinController;
+  final TextEditingController pinConfirmationController;
+  final FormFieldValidator<String> pinValidator;
+  final FormFieldValidator<String> pinConfirmationValidator;
+  final VoidCallback onBack;
+  final VoidCallback onNext;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Form(
+            key: formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Step Progress Indicator
+                const _StepHeader(
+                  currentStep: 1,
+                  totalSteps: 2,
+                  title: 'Local Account',
+                  subtitle: 'Set up your local auditor identity and 6-digit access PIN.',
+                ),
+                const SizedBox(height: 24),
+
+                // Form Container
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161C26),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF263345)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.lock_person_outlined,
+                              color: Color(0xFFF59E0B),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Account & Security Details',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFF8FAFC),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      _LabeledTextField(
+                        key: const Key('setupDisplayNameField'),
+                        controller: displayNameController,
+                        label: 'Account name',
+                        prefixIcon: Icons.person_outline,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 14),
+                      _LabeledTextField(
+                        key: const Key('setupEmailOrStudentIdField'),
+                        controller: emailOrStudentIdController,
+                        label: 'Email or student ID',
+                        prefixIcon: Icons.badge_outlined,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 14),
+                      _LabeledTextField(
+                        key: const Key('setupPinField'),
+                        controller: pinController,
+                        label: 'PIN',
+                        helperText: 'Use at least 6 digits.',
+                        prefixIcon: Icons.password_outlined,
+                        obscureText: true,
+                        keyboardType: TextInputType.number,
+                        validator: pinValidator,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 14),
+                      _LabeledTextField(
+                        key: const Key('setupPinConfirmationField'),
+                        controller: pinConfirmationController,
+                        label: 'Confirm PIN',
+                        prefixIcon: Icons.lock_outline,
+                        obscureText: true,
+                        keyboardType: TextInputType.number,
+                        validator: pinConfirmationValidator,
+                        textInputAction: TextInputAction.done,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Navigation Actions
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: onBack,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                      icon: const Icon(Icons.arrow_back, size: 18),
+                      label: const Text('Back'),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const Key('setupContinueToOrgButton'),
+                        onPressed: onNext,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          backgroundColor: const Color(0xFFD97706),
+                          foregroundColor: Colors.white,
+                        ),
+                        icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                        label: const Text(
+                          'Continue to Organization',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SCREEN 2: STEP 2 OF 2 — ORGANIZATION PROFILE & SIGNATORIES
+// ---------------------------------------------------------------------------
+class _Step2OrganizationScreen extends StatelessWidget {
+  const _Step2OrganizationScreen({
+    required this.formKey,
+    required this.organizationNameController,
+    required this.organizationTypeController,
+    required this.adviserController,
+    required this.semesterController,
+    required this.schoolYearController,
+    required this.signatoryNamesController,
+    required this.isSubmitting,
+    required this.submitError,
+    required this.onBack,
+    required this.onSubmit,
+  });
+
+  final GlobalKey<FormState> formKey;
+  final TextEditingController organizationNameController;
+  final TextEditingController organizationTypeController;
+  final TextEditingController adviserController;
+  final TextEditingController semesterController;
+  final TextEditingController schoolYearController;
+  final TextEditingController signatoryNamesController;
+  final bool isSubmitting;
+  final String? submitError;
+  final VoidCallback onBack;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Form(
+            key: formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Step Progress Indicator
+                const _StepHeader(
+                  currentStep: 2,
+                  totalSteps: 2,
+                  title: 'Organization Profile',
+                  subtitle: 'Enter institutional details, adviser, and official signatories.',
+                ),
+                const SizedBox(height: 20),
+
+                if (submitError != null) ...[
+                  InlineStatusPanel(
+                    title: 'Workspace could not be created',
+                    message: submitError!,
+                    tone: InlineStatusTone.error,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
+                // Form Container
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF161C26),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFF263345)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.corporate_fare_outlined,
+                              color: Color(0xFF10B981),
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Organization Information',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFFF8FAFC),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      _LabeledTextField(
+                        key: const Key('setupOrganizationNameField'),
+                        controller: organizationNameController,
+                        label: 'Organization name',
+                        prefixIcon: Icons.domain_outlined,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 14),
+                      _LabeledTextField(
+                        key: const Key('setupOrganizationTypeField'),
+                        controller: organizationTypeController,
+                        label: 'Organization type',
+                        prefixIcon: Icons.category_outlined,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 14),
+                      _LabeledTextField(
+                        key: const Key('setupAdviserField'),
+                        controller: adviserController,
+                        label: 'Adviser',
+                        prefixIcon: Icons.school_outlined,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 14),
+                      _LabeledTextField(
+                        key: const Key('setupSemesterField'),
+                        controller: semesterController,
+                        label: 'Semester',
+                        prefixIcon: Icons.calendar_month_outlined,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 14),
+                      _LabeledTextField(
+                        key: const Key('setupSchoolYearField'),
+                        controller: schoolYearController,
+                        label: 'School year',
+                        prefixIcon: Icons.date_range_outlined,
+                        textInputAction: TextInputAction.next,
+                      ),
+                      const SizedBox(height: 14),
+                      _LabeledTextField(
+                        key: const Key('setupSignatoryNamesField'),
+                        controller: signatoryNamesController,
+                        label: 'Signatory names',
+                        prefixIcon: Icons.draw_outlined,
+                        helperText: 'Separate multiple names with commas.',
+                        textInputAction: TextInputAction.done,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Navigation Actions
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: isSubmitting ? null : onBack,
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
+                      icon: const Icon(Icons.arrow_back, size: 18),
+                      label: const Text('Back'),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FilledButton.icon(
+                        key: const Key('setupSubmitButton'),
+                        onPressed: isSubmitting ? null : onSubmit,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 15),
+                          backgroundColor: const Color(0xFFD97706),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: isSubmitting
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.2,
+                                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.check_circle_outline, size: 18),
+                        label: const Text(
+                          'Create Local Workspace',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.lock_outline, size: 13, color: Color(0xFF64748B)),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'All data is encrypted and stays strictly on this device.',
+                          textAlign: TextAlign.center,
+                          style: textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// REUSABLE STEP HEADER & PROGRESS BAR
+// ---------------------------------------------------------------------------
+class _StepHeader extends StatelessWidget {
+  const _StepHeader({
+    required this.currentStep,
+    required this.totalSteps,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final int currentStep;
+  final int totalSteps;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final progress = currentStep / totalSteps;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF382307),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.4)),
+              ),
+              child: Text(
+                'Step $currentStep of $totalSteps',
+                style: const TextStyle(
+                  color: Color(0xFFF59E0B),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Text(
+              '${(progress * 100).toInt()}% completed',
+              style: const TextStyle(
+                color: Color(0xFF94A3B8),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: progress,
+            backgroundColor: const Color(0xFF1E293B),
+            valueColor: const AlwaysStoppedAnimation(Color(0xFFD97706)),
+            minHeight: 5,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          title,
+          style: textTheme.headlineMedium?.copyWith(
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFFF8FAFC),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          subtitle,
+          style: textTheme.bodyMedium?.copyWith(
+            color: const Color(0xFF94A3B8),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// TRUST CARD COMPONENT
+// ---------------------------------------------------------------------------
+class _TrustFeatureCard extends StatelessWidget {
+  const _TrustFeatureCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String description;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161C26),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF263345)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFF8FAFC),
+                    fontSize: 14.5,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  description,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFF94A3B8),
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -346,6 +893,7 @@ class _LabeledTextField extends StatelessWidget {
     super.key,
     required this.controller,
     required this.label,
+    this.prefixIcon,
     this.helperText,
     this.obscureText = false,
     this.keyboardType,
@@ -355,6 +903,7 @@ class _LabeledTextField extends StatelessWidget {
 
   final TextEditingController controller;
   final String label;
+  final IconData? prefixIcon;
   final String? helperText;
   final bool obscureText;
   final TextInputType? keyboardType;
@@ -368,7 +917,13 @@ class _LabeledTextField extends StatelessWidget {
       obscureText: obscureText,
       keyboardType: keyboardType,
       textInputAction: textInputAction,
-      decoration: InputDecoration(labelText: label, helperText: helperText),
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: helperText,
+        prefixIcon: prefixIcon != null
+            ? Icon(prefixIcon, size: 20, color: const Color(0xFF64748B))
+            : null,
+      ),
       validator: validator ?? _requiredValidator,
     );
   }

@@ -189,6 +189,42 @@ class AuditLogEntries extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+@DataClassName('ExportHistoryRecord')
+class ExportHistoryEntries extends Table {
+  TextColumn get id => text()();
+  TextColumn get fileName => text()();
+  DateTimeColumn get generatedAt => dateTime()();
+  IntColumn get byteLength => integer()();
+  TextColumn get checksum => text()();
+  TextColumn get destinationUri => text().nullable()();
+  TextColumn get status => text()();
+  TextColumn get backupReminderStatus => text()();
+  BoolColumn get sameDayBackupFound => boolean()();
+  IntColumn get blockerCount => integer()();
+  IntColumn get warningCount => integer()();
+  DateTimeColumn get createdAt => dateTime()();
+  TextColumn get errorMessage => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
+@DataClassName('BackupHistoryRecord')
+class BackupHistoryEntries extends Table {
+  TextColumn get id => text()();
+  TextColumn get fileName => text()();
+  DateTimeColumn get generatedAt => dateTime()();
+  IntColumn get byteLength => integer()();
+  TextColumn get checksum => text()();
+  TextColumn get destinationUri => text().nullable()();
+  TextColumn get status => text()();
+  DateTimeColumn get createdAt => dateTime()();
+  TextColumn get errorMessage => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(
   tables: [
     LocalAccounts,
@@ -203,12 +239,14 @@ class AuditLogEntries extends Table {
     ReimbursementClaims,
     AuditorReviews,
     AuditLogEntries,
+    ExportHistoryEntries,
+    BackupHistoryEntries,
   ],
 )
 class AuditDatabase extends _$AuditDatabase {
   AuditDatabase(super.executor);
 
-  static const currentSchemaVersion = 3;
+  static const currentSchemaVersion = 4;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -223,6 +261,10 @@ class AuditDatabase extends _$AuditDatabase {
         }
         if (from < 3) {
           await migrator.createTable(auditorReviews);
+        }
+        if (from < 4) {
+          await migrator.createTable(exportHistoryEntries);
+          await migrator.createTable(backupHistoryEntries);
         }
       },
     );

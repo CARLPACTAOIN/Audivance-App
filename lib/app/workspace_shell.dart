@@ -6,8 +6,10 @@ import '../core/domain/stable_id_generator.dart';
 import '../core/storage/audit_storage_paths.dart';
 import '../features/audit/data/audit_repository.dart';
 import '../features/backup/backup_package_io.dart';
+import '../features/backup/backup_history_service.dart';
 import '../features/backup/backup_screen.dart';
 import '../features/backup/backup_service.dart';
+import '../features/export/export_history_service.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/dashboard/dashboard_service.dart';
 import '../features/events/event_screen.dart';
@@ -16,6 +18,8 @@ import '../features/export/export_package_writer.dart';
 import '../features/export/export_screen.dart';
 import '../features/export/export_service.dart';
 import '../features/liquidation/liquidation_service.dart';
+import '../features/organization/organization_screen.dart';
+import '../features/organization/organization_service.dart';
 import '../features/treasury/treasury_screen.dart';
 import '../features/treasury/treasury_service.dart';
 import 'brand_logo.dart';
@@ -28,6 +32,7 @@ class WorkspaceShell extends StatefulWidget {
     required this.attachmentPicker,
     required this.attachmentStorage,
     this.exportPackageWriter,
+    this.backupService,
     this.backupPackageWriter,
     this.backupPackageReader,
     this.onRestoreBackup,
@@ -40,6 +45,7 @@ class WorkspaceShell extends StatefulWidget {
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
   final ExportPackageWriter? exportPackageWriter;
+  final BackupService? backupService;
   final BackupPackageWriter? backupPackageWriter;
   final BackupPackageReader? backupPackageReader;
   final BackupRestoreHandler? onRestoreBackup;
@@ -109,6 +115,11 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
             selectedIcon: Icon(Icons.archive),
             label: 'Export',
           ),
+          NavigationDestination(
+            icon: Icon(Icons.business_outlined),
+            selectedIcon: Icon(Icons.business),
+            label: 'Profile',
+          ),
         ],
       ),
     );
@@ -138,6 +149,10 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
           repository: widget.repository,
           idGenerator: widget.idGenerator,
         ),
+        organizationService: OrganizationService(
+          repository: widget.repository,
+          idGenerator: widget.idGenerator,
+        ),
         liquidationService: LiquidationService(
           repository: widget.repository,
           idGenerator: widget.idGenerator,
@@ -146,14 +161,37 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
         attachmentStorage: widget.attachmentStorage,
         asOf: widget.asOf,
       ),
-      _ => ExportScreen(
+      3 => ExportScreen(
         service: ExportService(
           repository: widget.repository,
           attachmentStorage: widget.attachmentStorage,
         ),
+        historyService: ExportHistoryService(
+          repository: widget.repository,
+          idGenerator: widget.idGenerator,
+          backupHistoryService: BackupHistoryService(
+            repository: widget.repository,
+            idGenerator: widget.idGenerator,
+          ),
+        ),
+        backupHistoryService: BackupHistoryService(
+          repository: widget.repository,
+          idGenerator: widget.idGenerator,
+        ),
+        backupService:
+            widget.backupService ??
+            BackupService(storagePaths: widget.storagePaths),
+        backupWriter:
+            widget.backupPackageWriter ?? const FilePickerBackupPackageWriter(),
         writer:
             widget.exportPackageWriter ?? const FilePickerExportPackageWriter(),
         asOf: widget.asOf,
+      ),
+      _ => OrganizationScreen(
+        service: OrganizationService(
+          repository: widget.repository,
+          idGenerator: widget.idGenerator,
+        ),
       ),
     };
   }
@@ -162,11 +200,17 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
     return showDialog<void>(
       context: context,
       builder: (context) => BackupRestoreScreen(
-        service: BackupService(storagePaths: widget.storagePaths),
+        service:
+            widget.backupService ??
+            BackupService(storagePaths: widget.storagePaths),
         writer:
             widget.backupPackageWriter ?? const FilePickerBackupPackageWriter(),
         reader:
             widget.backupPackageReader ?? const FilePickerBackupPackageReader(),
+        historyService: BackupHistoryService(
+          repository: widget.repository,
+          idGenerator: widget.idGenerator,
+        ),
         onRestoreBackup: widget.onRestoreBackup,
       ),
     );

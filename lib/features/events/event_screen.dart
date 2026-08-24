@@ -11,12 +11,14 @@ import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 import '../treasury/treasury_formatters.dart';
 import '../liquidation/liquidation_service.dart';
+import '../organization/organization_service.dart';
 import 'event_service.dart';
 
 class EventScreen extends StatefulWidget {
   const EventScreen({
     super.key,
     required this.service,
+    required this.organizationService,
     required this.liquidationService,
     required this.attachmentPicker,
     required this.attachmentStorage,
@@ -24,6 +26,7 @@ class EventScreen extends StatefulWidget {
   });
 
   final EventService service;
+  final OrganizationService organizationService;
   final LiquidationService liquidationService;
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
@@ -46,6 +49,7 @@ class _EventScreenState extends State<EventScreen> {
   void didUpdateWidget(EventScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.service != widget.service ||
+        oldWidget.organizationService != widget.organizationService ||
         oldWidget.liquidationService != widget.liquidationService ||
         oldWidget.asOf != widget.asOf) {
       _snapshotFuture = _loadPageData();
@@ -136,7 +140,7 @@ class _EventScreenState extends State<EventScreen> {
     final result = await showDialog<ValidationResult>(
       context: context,
       builder: (context) =>
-          _CreateOfficerDialog(service: widget.liquidationService),
+          _CreateOfficerDialog(service: widget.organizationService),
     );
     if (!mounted || result == null || result.isInvalid) {
       return;
@@ -1817,7 +1821,7 @@ class _ReviewLine extends StatelessWidget {
 class _CreateOfficerDialog extends StatefulWidget {
   const _CreateOfficerDialog({required this.service});
 
-  final LiquidationService service;
+  final OrganizationService service;
 
   @override
   State<_CreateOfficerDialog> createState() => _CreateOfficerDialogState();
@@ -1885,8 +1889,11 @@ class _CreateOfficerDialogState extends State<_CreateOfficerDialog> {
       _isSubmitting = true;
       _serviceError = null;
     });
-    final result = await widget.service.createOfficer(
-      CreateOfficerCommand(fullName: _nameController.text),
+    final result = await widget.service.saveOfficer(
+      SaveOfficerCommand(
+        fullName: _nameController.text,
+        position: OfficerPosition.member,
+      ),
     );
     if (!mounted) {
       return;

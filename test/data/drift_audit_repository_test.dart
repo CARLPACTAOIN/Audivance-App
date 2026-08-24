@@ -20,6 +20,8 @@ void main() {
   });
 
   test('opens schema and inserts and loads organization profile', () async {
+    expect(AuditDatabase.currentSchemaVersion, 4);
+
     const organization = OrganizationProfile(
       id: 'org-1',
       name: 'Junior Philippine Institute of Accountants',
@@ -251,6 +253,94 @@ void main() {
     expect(eventReviews.single.actual, Money.php(750));
     expect(eventReviews.single.health, BudgetHealth.healthy);
     expect(eventReviews.single.utilizationBasisPoints, 7500);
+  });
+
+  test('export history round-trips stable values newest first', () async {
+    await repository.appendExportHistory(
+      ExportHistoryEntry(
+        id: 'export-history-1',
+        fileName: 'old.zip',
+        generatedAt: DateTime(2026, 8, 17, 10),
+        byteLength: 100,
+        checksum: 'old-checksum',
+        destinationUri: null,
+        status: ExportHistoryStatus.canceled,
+        backupReminderStatus: BackupReminderStatus.overridden,
+        sameDayBackupFound: false,
+        blockerCount: 1,
+        warningCount: 2,
+        createdAt: DateTime(2026, 8, 17, 10, 1),
+        errorMessage: 'Save canceled',
+      ),
+    );
+    await repository.appendExportHistory(
+      ExportHistoryEntry(
+        id: 'export-history-2',
+        fileName: 'new.zip',
+        generatedAt: DateTime(2026, 8, 18, 10),
+        byteLength: 200,
+        checksum: 'new-checksum',
+        destinationUri: 'file:///new.zip',
+        status: ExportHistoryStatus.success,
+        backupReminderStatus: BackupReminderStatus.satisfied,
+        sameDayBackupFound: true,
+        blockerCount: 0,
+        warningCount: 1,
+        createdAt: DateTime(2026, 8, 18, 10, 1),
+      ),
+    );
+
+    final history = await repository.listExportHistory();
+
+    expect(history.map((entry) => entry.id), [
+      'export-history-2',
+      'export-history-1',
+    ]);
+    expect(history.first.status, ExportHistoryStatus.success);
+    expect(history.first.backupReminderStatus, BackupReminderStatus.satisfied);
+    expect(history.first.sameDayBackupFound, isTrue);
+    expect(history.first.destinationUri, 'file:///new.zip');
+    expect(history.last.status, ExportHistoryStatus.canceled);
+    expect(history.last.errorMessage, 'Save canceled');
+  });
+
+  test('backup history round-trips stable values newest first', () async {
+    await repository.appendBackupHistory(
+      BackupHistoryEntry(
+        id: 'backup-history-1',
+        fileName: 'old-backup.zip',
+        generatedAt: DateTime(2026, 8, 17, 10),
+        byteLength: 100,
+        checksum: 'old-checksum',
+        destinationUri: null,
+        status: BackupHistoryStatus.failed,
+        createdAt: DateTime(2026, 8, 17, 10, 1),
+        errorMessage: 'Disk full',
+      ),
+    );
+    await repository.appendBackupHistory(
+      BackupHistoryEntry(
+        id: 'backup-history-2',
+        fileName: 'new-backup.zip',
+        generatedAt: DateTime(2026, 8, 18, 10),
+        byteLength: 200,
+        checksum: 'new-checksum',
+        destinationUri: 'file:///new-backup.zip',
+        status: BackupHistoryStatus.success,
+        createdAt: DateTime(2026, 8, 18, 10, 1),
+      ),
+    );
+
+    final history = await repository.listBackupHistory();
+
+    expect(history.map((entry) => entry.id), [
+      'backup-history-2',
+      'backup-history-1',
+    ]);
+    expect(history.first.status, BackupHistoryStatus.success);
+    expect(history.first.destinationUri, 'file:///new-backup.zip');
+    expect(history.last.status, BackupHistoryStatus.failed);
+    expect(history.last.errorMessage, 'Disk full');
   });
 }
 

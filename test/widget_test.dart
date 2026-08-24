@@ -13,6 +13,8 @@ import 'package:audivance/core/domain/money.dart';
 import 'package:audivance/core/domain/stable_id_generator.dart';
 import 'package:audivance/core/storage/audit_storage_paths.dart';
 import 'package:audivance/features/audit/data/audit_database.dart';
+import 'package:audivance/features/audit/data/audit_database_encryption_service.dart';
+import 'package:audivance/features/audit/data/audit_repository.dart';
 import 'package:audivance/features/audit/data/drift_audit_repository.dart';
 import 'package:audivance/features/audit/domain/audit_models.dart';
 import 'package:audivance/features/backup/backup_package_io.dart';
@@ -38,6 +40,43 @@ void main() {
     expect(find.byKey(const Key('startupBrandLogo')), findsOneWidget);
   });
 
+  testWidgets('startup failure shows retryable Android storage guidance', (
+    tester,
+  ) async {
+    final repository = _ThrowingStartupRepository(
+      const EncryptedDatabaseOpenException(
+        'SQLite encryption support is not available in this build.',
+      ),
+    );
+
+    await tester.pumpWidget(
+      AudivanceApp(
+        repository: repository,
+        unlockService: InMemoryLocalUnlockService(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Audivance could not open the local workspace'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('This Android build does not include'),
+      findsOneWidget,
+    );
+    expect(find.text('Retry'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    expect(repository.setupChecks, 2);
+    expect(
+      find.text('Audivance could not open the local workspace'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('first launch shows setup screen', (tester) async {
     final harness = _WidgetHarness();
     addTearDown(harness.close);
@@ -47,7 +86,7 @@ void main() {
 
     expect(find.byKey(const Key('setupBrandLogo')), findsOneWidget);
     expect(find.text('Set up Audivance'), findsOneWidget);
-    expect(find.byKey(const Key('setupSubmitButton')), findsOneWidget);
+    expect(find.byKey(const Key('setupGetStartedButton')), findsOneWidget);
   });
 
   testWidgets('setup form rejects empty required fields', (tester) async {
@@ -56,8 +95,12 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.byKey(const Key('setupSubmitButton')));
-    await tester.tap(find.byKey(const Key('setupSubmitButton')));
+    await tester.ensureVisible(find.byKey(const Key('setupGetStartedButton')));
+    await tester.tap(find.byKey(const Key('setupGetStartedButton')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('setupContinueToOrgButton')));
+    await tester.tap(find.byKey(const Key('setupContinueToOrgButton')));
     await tester.pumpAndSettle();
 
     expect(find.text('This field is required.'), findsWidgets);
@@ -69,9 +112,26 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await _fillSetupForm(tester, pinConfirmation: '5678');
-    await tester.ensureVisible(find.byKey(const Key('setupSubmitButton')));
-    await tester.tap(find.byKey(const Key('setupSubmitButton')));
+    await tester.ensureVisible(find.byKey(const Key('setupGetStartedButton')));
+    await tester.tap(find.byKey(const Key('setupGetStartedButton')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('setupDisplayNameField')),
+      'Local Auditor',
+    );
+    await tester.enterText(
+      find.byKey(const Key('setupEmailOrStudentIdField')),
+      'auditor@example.test',
+    );
+    await tester.enterText(find.byKey(const Key('setupPinField')), '123456');
+    await tester.enterText(
+      find.byKey(const Key('setupPinConfirmationField')),
+      '567890',
+    );
+
+    await tester.ensureVisible(find.byKey(const Key('setupContinueToOrgButton')));
+    await tester.tap(find.byKey(const Key('setupContinueToOrgButton')));
     await tester.pumpAndSettle();
 
     expect(find.text('PIN confirmation must match.'), findsOneWidget);
@@ -247,6 +307,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Export Center'), findsWidgets);
+    await tester.scrollUntilVisible(
+      find.text('COA Export Readiness'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('COA Export Readiness'), findsOneWidget);
   });
 
@@ -274,6 +339,224 @@ void main() {
     expect(find.text('Student Collections'), findsWidgets);
   });
 
+  testWidgets('Profile workspace renders setup organization data', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openProfile(tester);
+
+    expect(find.text('Profile'), findsWidgets);
+    expect(find.text('Officer Roster'), findsOneWidget);
+    expect(find.byKey(const Key('profileOrganizationName')), findsOneWidget);
+    expect(find.text('Prof. Santos'), findsOneWidget);
+    expect(find.text('Needs officers'), findsOneWidget);
+  });
+
+  testWidgets('Profile organization edit validates and saves updates', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openProfile(tester);
+    await tester.tap(find.byKey(const Key('profileEditOrganizationButton')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('profileOrganizationNameField')),
+      '',
+    );
+    await tester.enterText(
+      find.byKey(const Key('profileSignatoriesField')),
+      '',
+    );
+    await tester.tap(find.byKey(const Key('profileOrganizationSubmitButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('This field is required.'), findsWidgets);
+    expect(
+      find.text('Fix the highlighted fields before saving.'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(
+      find.byKey(const Key('profileOrganizationNameField')),
+      'Updated Accounting Guild',
+    );
+    await tester.enterText(
+      find.byKey(const Key('profileSignatoriesField')),
+      'Ari Santos, Bea Reyes, Cia Lim',
+    );
+    await tester.tap(find.byKey(const Key('profileOrganizationSubmitButton')));
+    await tester.pumpAndSettle();
+
+    final organization = (await harness.repository.listOrganizations()).single;
+    expect(find.text('Updated Accounting Guild'), findsOneWidget);
+    expect(organization.signatoryNames, ['Ari Santos', 'Bea Reyes', 'Cia Lim']);
+    expect(
+      (await harness.repository.listAuditLogs()).map((log) => log.action),
+      contains('organization.update'),
+    );
+  });
+
+  testWidgets('Profile adds officers and rejects duplicate committee heads', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openProfile(tester);
+    await _tapVisible(tester, find.byKey(const Key('profileAddOfficerButton')));
+    await tester.pumpAndSettle();
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Ari Santos',
+      position: OfficerPosition.head,
+      committee: Committee.finance,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ari Santos'), findsOneWidget);
+    expect(find.text('Finance Committee'), findsWidgets);
+
+    await _tapVisible(tester, find.byKey(const Key('profileAddOfficerButton')));
+    await tester.pumpAndSettle();
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Bea Reyes',
+      position: OfficerPosition.head,
+      committee: Committee.finance,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Only one active head'), findsOneWidget);
+    expect((await harness.repository.listOfficers()), hasLength(1));
+  });
+
+  testWidgets('Profile archives and restores officers with visible status', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedOfficer();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openProfile(tester);
+    await _tapVisible(
+      tester,
+      find.byKey(const Key('profileOfficerArchiveofficer-1')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('profileArchiveConfirmButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('0 active'), findsOneWidget);
+    expect(find.text('1 archived'), findsOneWidget);
+    expect(find.text('Archived Officers'), findsOneWidget);
+
+    await _tapVisible(
+      tester,
+      find.byKey(const Key('profileArchivedOfficersTile')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Archived'), findsWidgets);
+    await _tapVisible(
+      tester,
+      find.byKey(const Key('profileOfficerRestoreofficer-1')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('profileRestoreConfirmButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 active'), findsOneWidget);
+    expect(find.text('0 archived'), findsOneWidget);
+  });
+
+  testWidgets('archived officers are not available for new liquidation', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent();
+    await harness.repository.saveOfficers(const [
+      Officer(
+        id: 'officer-archived',
+        fullName: 'Archived Treasurer',
+        position: OfficerPosition.member,
+        committee: Committee.finance,
+        isArchived: true,
+      ),
+    ]);
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openEvents(tester);
+    await tester.scrollUntilVisible(
+      find.text('0 accountable officers'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+
+    final button = tester.widget<OutlinedButton>(
+      find.byKey(const Key('eventLiquidationButtonevent-1')),
+    );
+    expect(find.text('Archived Treasurer'), findsNothing);
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('Profile handles long labels at 375px width', (tester) async {
+    tester.view.physicalSize = const Size(375, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup(
+      organizationName: 'Junior Philippine Institute of Accountants With Extended Regional Chapter Name',
+    );
+    await harness.repository.saveOfficers(const [
+      Officer(
+        id: 'officer-long',
+        fullName:
+            'Ari Santos Bea Reyes Cia Lim Dan Cruz Long Officer Display Name',
+        position: OfficerPosition.head,
+        committee: Committee.audit,
+      ),
+    ]);
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openProfile(tester);
+
+    expect(find.textContaining('Junior Philippine'), findsOneWidget);
+    expect(
+      find.byKey(const Key('profileOfficerNameofficer-long')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('settings opens Backup & Restore panel', (tester) async {
     final harness = _WidgetHarness();
     addTearDown(harness.close);
@@ -291,6 +574,23 @@ void main() {
     expect(find.byKey(const Key('backupGenerateButton')), findsOneWidget);
     expect(find.byKey(const Key('backupValidateButton')), findsOneWidget);
     expect(find.byKey(const Key('backupRestoreButton')), findsOneWidget);
+  });
+
+  testWidgets('Backup dialog renders recent backup history', (tester) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedSameDayBackupHistory();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Open settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Recent Backup History'), findsOneWidget);
+    expect(find.text('Saved backup'), findsOneWidget);
+    expect(find.text('Audivance-Backup-2026-08-18.zip'), findsOneWidget);
   });
 
   testWidgets('invalid backup validation shows blockers and disables restore', (
@@ -1079,8 +1379,13 @@ void main() {
     await _openExport(tester);
 
     expect(find.text('Export Center'), findsOneWidget);
-    expect(find.text('COA Export Readiness'), findsOneWidget);
     expect(find.byKey(const Key('exportGenerateZipButton')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('COA Export Readiness'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('COA Export Readiness'), findsOneWidget);
   });
 
   testWidgets('empty Export Center shows readiness issues', (tester) async {
@@ -1093,6 +1398,11 @@ void main() {
     await tester.pumpAndSettle();
     await _openExport(tester);
 
+    await tester.scrollUntilVisible(
+      find.text('Readiness Issues'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(find.text('Readiness Issues'), findsOneWidget);
     expect(
       find.text('At least one Treasury source fund is required.'),
@@ -1145,6 +1455,56 @@ void main() {
     },
   );
 
+  testWidgets('Export Center labels liquidation PDFs as USM-OSA-F46 reports', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedExportWorkspace();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openExport(tester);
+
+    await tester.scrollUntilVisible(
+      find.text('USM-OSA-F46 Liquidation Reports'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('USM-OSA-F46 Liquidation Reports'), findsOneWidget);
+    expect(find.text('USM-OSA-F46 Liquidation Report'), findsOneWidget);
+    expect(
+      find.text('reports/liquidation/Leadership-Summit-event-1.pdf'),
+      findsWidgets,
+    );
+    expect(
+      find.byKey(
+        const Key(
+          'liquidationPdfSaveButtonreports/liquidation/Leadership-Summit-event-1.pdf',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const Key(
+          'liquidationPdfShareButtonreports/liquidation/Leadership-Summit-event-1.pdf',
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(
+        const Key(
+          'liquidationPdfPrintButtonreports/liquidation/Leadership-Summit-event-1.pdf',
+        ),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('Generate Preview displays files and manifest metadata', (
     tester,
   ) async {
@@ -1189,15 +1549,131 @@ void main() {
     await _openExport(tester);
     await tester.tap(find.byKey(const Key('exportGenerateZipButton')));
     await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('exportBackupReminderContinueButton')),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('ZIP Export Blocked'), findsOneWidget);
     expect(
       find.textContaining(
         'Export ZIP cannot be generated until blockers are resolved.',
       ),
+      findsWidgets,
+    );
+  });
+
+  testWidgets('Generate ZIP with no same-day backup shows reminder dialog', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedExportWorkspace();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openExport(tester);
+    await tester.tap(find.byKey(const Key('exportGenerateZipButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Backup recommended before export'), findsOneWidget);
+    expect(find.text('Same-day backup not found'), findsOneWidget);
+    expect(
+      find.byKey(const Key('exportBackupReminderGenerateButton')),
       findsOneWidget,
     );
   });
+
+  testWidgets('backup reminder cancel closes without export history', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedExportWorkspace();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openExport(tester);
+    await tester.tap(find.byKey(const Key('exportGenerateZipButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('exportBackupReminderCancelButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Backup recommended before export'), findsNothing);
+    expect(harness.exportPackageWriter.savedPackage, isNull);
+    expect(await harness.repository.listExportHistory(), isEmpty);
+  });
+
+  testWidgets('Continue Export records backup reminder override', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedExportWorkspace();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openExport(tester);
+    await tester.tap(find.byKey(const Key('exportGenerateZipButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('exportBackupReminderContinueButton')),
+    );
+    await tester.pumpAndSettle();
+
+    final history = await harness.repository.listExportHistory();
+    expect(find.text('Generated ZIP'), findsOneWidget);
+    expect(harness.exportPackageWriter.savedPackage?.bytes, isNotEmpty);
+    expect(
+      history.single.backupReminderStatus,
+      BackupReminderStatus.overridden,
+    );
+    expect(history.single.sameDayBackupFound, isFalse);
+    await tester.scrollUntilVisible(
+      find.text('Backup reminder overridden'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Backup reminder overridden'), findsOneWidget);
+  });
+
+  testWidgets(
+    'Generate Backup from reminder records backup and continues export',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedExportWorkspace();
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openExport(tester);
+      await tester.tap(find.byKey(const Key('exportGenerateZipButton')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('exportBackupReminderGenerateButton')),
+      );
+      await tester.pumpAndSettle();
+
+      final backupHistory = await harness.repository.listBackupHistory();
+      final exportHistory = await harness.repository.listExportHistory();
+      expect(find.text('Generated ZIP'), findsOneWidget);
+      expect(harness.backupPackageWriter.savedPackage, isNotNull);
+      expect(backupHistory.single.status, BackupHistoryStatus.success);
+      expect(
+        exportHistory.single.backupReminderStatus,
+        BackupReminderStatus.satisfied,
+      );
+      expect(exportHistory.single.sameDayBackupFound, isTrue);
+    },
+  );
 
   testWidgets('successful ZIP generation shows package metadata', (
     tester,
@@ -1206,6 +1682,7 @@ void main() {
     addTearDown(harness.close);
     await harness.seedSetup();
     await harness.seedExportWorkspace();
+    await harness.seedSameDayBackupHistory();
     await harness.unlockService.configurePin('123456');
 
     await tester.pumpWidget(harness.app());
@@ -1257,6 +1734,12 @@ Future<void> _fillSetupForm(
   String pin = '123456',
   String pinConfirmation = '123456',
 }) async {
+  if (find.byKey(const Key('setupGetStartedButton')).evaluate().isNotEmpty) {
+    await tester.ensureVisible(find.byKey(const Key('setupGetStartedButton')));
+    await tester.tap(find.byKey(const Key('setupGetStartedButton')));
+    await tester.pumpAndSettle();
+  }
+
   await tester.enterText(
     find.byKey(const Key('setupDisplayNameField')),
     'Local Auditor',
@@ -1270,6 +1753,11 @@ Future<void> _fillSetupForm(
     find.byKey(const Key('setupPinConfirmationField')),
     pinConfirmation,
   );
+
+  await tester.ensureVisible(find.byKey(const Key('setupContinueToOrgButton')));
+  await tester.tap(find.byKey(const Key('setupContinueToOrgButton')));
+  await tester.pumpAndSettle();
+
   await tester.enterText(
     find.byKey(const Key('setupOrganizationNameField')),
     'Junior Philippine Institute of Accountants',
@@ -1308,6 +1796,44 @@ Future<void> _openEvents(WidgetTester tester) async {
 
 Future<void> _openExport(WidgetTester tester) async {
   await tester.tap(find.text('Export').last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openProfile(WidgetTester tester) async {
+  await tester.tap(find.text('Profile').last);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+  await tester.tap(finder);
+}
+
+Future<void> _fillProfileOfficerForm(
+  WidgetTester tester, {
+  required String name,
+  required OfficerPosition position,
+  Committee? committee,
+}) async {
+  await tester.enterText(
+    find.byKey(const Key('profileOfficerNameField')),
+    name,
+  );
+  await tester.tap(find.byKey(const Key('profileOfficerPositionField')));
+  await tester.pumpAndSettle();
+  await tester.tap(
+    find.text(position == OfficerPosition.head ? 'Head' : 'Member').last,
+  );
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('profileOfficerCommitteeField')));
+  await tester.pumpAndSettle();
+  final committeeLabel = switch (committee) {
+    Committee.finance => 'Finance Committee',
+    Committee.audit => 'Audit Committee',
+    null => 'No committee',
+  };
+  await tester.tap(find.text(committeeLabel).last);
   await tester.pumpAndSettle();
 }
 
@@ -1545,6 +2071,8 @@ class _WidgetHarness {
   final BackupPackageReader? backupPackageReader;
   final BackupRestoreHandler? backupRestoreHandler;
   final exportPackageWriter = _FakeExportPackageWriter();
+  final backupPackageWriter = _FakeBackupPackageWriter();
+  final backupService = _FakeBackupService();
 
   Widget app() {
     return AudivanceApp(
@@ -1555,13 +2083,17 @@ class _WidgetHarness {
       attachmentPicker: _attachmentPicker,
       attachmentStorage: _attachmentStorage,
       exportPackageWriter: exportPackageWriter,
+      backupService: backupService,
+      backupPackageWriter: backupPackageWriter,
       backupPackageReader: backupPackageReader,
       backupRestoreHandler: backupRestoreHandler,
       asOf: DateTime(2026, 8, 18),
     );
   }
 
-  Future<void> seedSetup() async {
+  Future<void> seedSetup({
+    String organizationName = 'Junior Philippine Institute of Accountants',
+  }) async {
     await repository.saveLocalAccount(
       LocalAccountProfile(
         id: 'account-1',
@@ -1572,9 +2104,9 @@ class _WidgetHarness {
       ),
     );
     await repository.saveOrganization(
-      const OrganizationProfile(
+      OrganizationProfile(
         id: 'org-1',
-        name: 'Junior Philippine Institute of Accountants',
+        name: organizationName,
         type: 'Academic',
         adviser: 'Prof. Santos',
         semester: '1st Semester',
@@ -1817,6 +2349,21 @@ class _WidgetHarness {
     );
   }
 
+  Future<void> seedSameDayBackupHistory() {
+    return repository.appendBackupHistory(
+      BackupHistoryEntry(
+        id: 'backup-history-1',
+        fileName: 'Audivance-Backup-2026-08-18.zip',
+        generatedAt: DateTime(2026, 8, 18, 9),
+        byteLength: 3,
+        checksum: 'backup-checksum',
+        destinationUri: 'file:///tmp/Audivance-Backup-2026-08-18.zip',
+        status: BackupHistoryStatus.success,
+        createdAt: DateTime(2026, 8, 18, 9, 1),
+      ),
+    );
+  }
+
   Future<void> close() => database.close();
 }
 
@@ -1906,6 +2453,47 @@ class _FakeBackupPackageReader implements BackupPackageReader {
   Future<PickedBackupPackage?> pickBackup() async => package;
 }
 
+class _FakeBackupPackageWriter implements BackupPackageWriter {
+  BackupPackage? savedPackage;
+  var shouldCancel = false;
+
+  @override
+  Future<BackupWriteResult> save(BackupPackage package) async {
+    savedPackage = package;
+    return BackupWriteResult(
+      fileName: package.fileName,
+      bytes: package.bytes,
+      byteLength: package.byteLength,
+      checksum: package.checksum,
+      destinationUri: shouldCancel
+          ? null
+          : Uri.parse('file:///tmp/${package.fileName}'),
+    );
+  }
+}
+
+class _FakeBackupService extends BackupService {
+  _FakeBackupService() : super(storagePaths: const AuditStoragePaths());
+
+  var shouldFail = false;
+
+  @override
+  Future<BackupPackage> buildBackup() async {
+    if (shouldFail) {
+      throw StateError('simulated backup failure');
+    }
+    final bytes = Uint8List.fromList([7, 8, 9]);
+    return BackupPackage(
+      fileName: 'Audivance-Backup-2026-08-18.zip',
+      bytes: bytes,
+      generatedAt: DateTime(2026, 8, 18, 10),
+      checksum: 'backup-checksum',
+      manifest: const {},
+      entries: const [],
+    );
+  }
+}
+
 class _FakeExportPackageWriter implements ExportPackageWriter {
   ExportArchivePackage? savedPackage;
 
@@ -1920,6 +2508,22 @@ class _FakeExportPackageWriter implements ExportPackageWriter {
       destinationUri: Uri.parse('file:///tmp/${package.fileName}'),
     );
   }
+}
+
+class _ThrowingStartupRepository implements AuditRepository {
+  _ThrowingStartupRepository(this.error);
+
+  final Object error;
+  var setupChecks = 0;
+
+  @override
+  Future<bool> isSetupComplete() async {
+    setupChecks += 1;
+    throw error;
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 const _attachment = AttachmentRef(

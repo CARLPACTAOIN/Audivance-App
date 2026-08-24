@@ -57,6 +57,8 @@ Before handing off implementation work, report:
 - Any tests that could not be run.
 - Known risks or follow-up tasks.
 
+The user has explicitly allowed verification commands to run outside the sandbox when needed, especially `dart format`, `flutter analyze`, `flutter test`, `flutter build`, and related test/build commands. If sandboxed Dart/Flutter commands hang, time out, or are blocked by sandbox limitations, rerun the needed verification command with escalation instead of asking the user to run it manually.
+
 ## graphify
 
 This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.

@@ -7024,6 +7024,1388 @@ class AuditLogEntriesCompanion extends UpdateCompanion<AuditLogRecord> {
   }
 }
 
+class $ExportHistoryEntriesTable extends ExportHistoryEntries
+    with TableInfo<$ExportHistoryEntriesTable, ExportHistoryRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ExportHistoryEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fileNameMeta = const VerificationMeta(
+    'fileName',
+  );
+  @override
+  late final GeneratedColumn<String> fileName = GeneratedColumn<String>(
+    'file_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generatedAtMeta = const VerificationMeta(
+    'generatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> generatedAt = GeneratedColumn<DateTime>(
+    'generated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _byteLengthMeta = const VerificationMeta(
+    'byteLength',
+  );
+  @override
+  late final GeneratedColumn<int> byteLength = GeneratedColumn<int>(
+    'byte_length',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _checksumMeta = const VerificationMeta(
+    'checksum',
+  );
+  @override
+  late final GeneratedColumn<String> checksum = GeneratedColumn<String>(
+    'checksum',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _destinationUriMeta = const VerificationMeta(
+    'destinationUri',
+  );
+  @override
+  late final GeneratedColumn<String> destinationUri = GeneratedColumn<String>(
+    'destination_uri',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _backupReminderStatusMeta =
+      const VerificationMeta('backupReminderStatus');
+  @override
+  late final GeneratedColumn<String> backupReminderStatus =
+      GeneratedColumn<String>(
+        'backup_reminder_status',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _sameDayBackupFoundMeta =
+      const VerificationMeta('sameDayBackupFound');
+  @override
+  late final GeneratedColumn<bool> sameDayBackupFound = GeneratedColumn<bool>(
+    'same_day_backup_found',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("same_day_backup_found" IN (0, 1))',
+    ),
+  );
+  static const VerificationMeta _blockerCountMeta = const VerificationMeta(
+    'blockerCount',
+  );
+  @override
+  late final GeneratedColumn<int> blockerCount = GeneratedColumn<int>(
+    'blocker_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _warningCountMeta = const VerificationMeta(
+    'warningCount',
+  );
+  @override
+  late final GeneratedColumn<int> warningCount = GeneratedColumn<int>(
+    'warning_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _errorMessageMeta = const VerificationMeta(
+    'errorMessage',
+  );
+  @override
+  late final GeneratedColumn<String> errorMessage = GeneratedColumn<String>(
+    'error_message',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    fileName,
+    generatedAt,
+    byteLength,
+    checksum,
+    destinationUri,
+    status,
+    backupReminderStatus,
+    sameDayBackupFound,
+    blockerCount,
+    warningCount,
+    createdAt,
+    errorMessage,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'export_history_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ExportHistoryRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('file_name')) {
+      context.handle(
+        _fileNameMeta,
+        fileName.isAcceptableOrUnknown(data['file_name']!, _fileNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fileNameMeta);
+    }
+    if (data.containsKey('generated_at')) {
+      context.handle(
+        _generatedAtMeta,
+        generatedAt.isAcceptableOrUnknown(
+          data['generated_at']!,
+          _generatedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_generatedAtMeta);
+    }
+    if (data.containsKey('byte_length')) {
+      context.handle(
+        _byteLengthMeta,
+        byteLength.isAcceptableOrUnknown(data['byte_length']!, _byteLengthMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_byteLengthMeta);
+    }
+    if (data.containsKey('checksum')) {
+      context.handle(
+        _checksumMeta,
+        checksum.isAcceptableOrUnknown(data['checksum']!, _checksumMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_checksumMeta);
+    }
+    if (data.containsKey('destination_uri')) {
+      context.handle(
+        _destinationUriMeta,
+        destinationUri.isAcceptableOrUnknown(
+          data['destination_uri']!,
+          _destinationUriMeta,
+        ),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('backup_reminder_status')) {
+      context.handle(
+        _backupReminderStatusMeta,
+        backupReminderStatus.isAcceptableOrUnknown(
+          data['backup_reminder_status']!,
+          _backupReminderStatusMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_backupReminderStatusMeta);
+    }
+    if (data.containsKey('same_day_backup_found')) {
+      context.handle(
+        _sameDayBackupFoundMeta,
+        sameDayBackupFound.isAcceptableOrUnknown(
+          data['same_day_backup_found']!,
+          _sameDayBackupFoundMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sameDayBackupFoundMeta);
+    }
+    if (data.containsKey('blocker_count')) {
+      context.handle(
+        _blockerCountMeta,
+        blockerCount.isAcceptableOrUnknown(
+          data['blocker_count']!,
+          _blockerCountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_blockerCountMeta);
+    }
+    if (data.containsKey('warning_count')) {
+      context.handle(
+        _warningCountMeta,
+        warningCount.isAcceptableOrUnknown(
+          data['warning_count']!,
+          _warningCountMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_warningCountMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('error_message')) {
+      context.handle(
+        _errorMessageMeta,
+        errorMessage.isAcceptableOrUnknown(
+          data['error_message']!,
+          _errorMessageMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ExportHistoryRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ExportHistoryRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      fileName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_name'],
+      )!,
+      generatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}generated_at'],
+      )!,
+      byteLength: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}byte_length'],
+      )!,
+      checksum: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checksum'],
+      )!,
+      destinationUri: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}destination_uri'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      backupReminderStatus: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}backup_reminder_status'],
+      )!,
+      sameDayBackupFound: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}same_day_backup_found'],
+      )!,
+      blockerCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}blocker_count'],
+      )!,
+      warningCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}warning_count'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      errorMessage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_message'],
+      ),
+    );
+  }
+
+  @override
+  $ExportHistoryEntriesTable createAlias(String alias) {
+    return $ExportHistoryEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class ExportHistoryRecord extends DataClass
+    implements Insertable<ExportHistoryRecord> {
+  final String id;
+  final String fileName;
+  final DateTime generatedAt;
+  final int byteLength;
+  final String checksum;
+  final String? destinationUri;
+  final String status;
+  final String backupReminderStatus;
+  final bool sameDayBackupFound;
+  final int blockerCount;
+  final int warningCount;
+  final DateTime createdAt;
+  final String? errorMessage;
+  const ExportHistoryRecord({
+    required this.id,
+    required this.fileName,
+    required this.generatedAt,
+    required this.byteLength,
+    required this.checksum,
+    this.destinationUri,
+    required this.status,
+    required this.backupReminderStatus,
+    required this.sameDayBackupFound,
+    required this.blockerCount,
+    required this.warningCount,
+    required this.createdAt,
+    this.errorMessage,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['file_name'] = Variable<String>(fileName);
+    map['generated_at'] = Variable<DateTime>(generatedAt);
+    map['byte_length'] = Variable<int>(byteLength);
+    map['checksum'] = Variable<String>(checksum);
+    if (!nullToAbsent || destinationUri != null) {
+      map['destination_uri'] = Variable<String>(destinationUri);
+    }
+    map['status'] = Variable<String>(status);
+    map['backup_reminder_status'] = Variable<String>(backupReminderStatus);
+    map['same_day_backup_found'] = Variable<bool>(sameDayBackupFound);
+    map['blocker_count'] = Variable<int>(blockerCount);
+    map['warning_count'] = Variable<int>(warningCount);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || errorMessage != null) {
+      map['error_message'] = Variable<String>(errorMessage);
+    }
+    return map;
+  }
+
+  ExportHistoryEntriesCompanion toCompanion(bool nullToAbsent) {
+    return ExportHistoryEntriesCompanion(
+      id: Value(id),
+      fileName: Value(fileName),
+      generatedAt: Value(generatedAt),
+      byteLength: Value(byteLength),
+      checksum: Value(checksum),
+      destinationUri: destinationUri == null && nullToAbsent
+          ? const Value.absent()
+          : Value(destinationUri),
+      status: Value(status),
+      backupReminderStatus: Value(backupReminderStatus),
+      sameDayBackupFound: Value(sameDayBackupFound),
+      blockerCount: Value(blockerCount),
+      warningCount: Value(warningCount),
+      createdAt: Value(createdAt),
+      errorMessage: errorMessage == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorMessage),
+    );
+  }
+
+  factory ExportHistoryRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ExportHistoryRecord(
+      id: serializer.fromJson<String>(json['id']),
+      fileName: serializer.fromJson<String>(json['fileName']),
+      generatedAt: serializer.fromJson<DateTime>(json['generatedAt']),
+      byteLength: serializer.fromJson<int>(json['byteLength']),
+      checksum: serializer.fromJson<String>(json['checksum']),
+      destinationUri: serializer.fromJson<String?>(json['destinationUri']),
+      status: serializer.fromJson<String>(json['status']),
+      backupReminderStatus: serializer.fromJson<String>(
+        json['backupReminderStatus'],
+      ),
+      sameDayBackupFound: serializer.fromJson<bool>(json['sameDayBackupFound']),
+      blockerCount: serializer.fromJson<int>(json['blockerCount']),
+      warningCount: serializer.fromJson<int>(json['warningCount']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      errorMessage: serializer.fromJson<String?>(json['errorMessage']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'fileName': serializer.toJson<String>(fileName),
+      'generatedAt': serializer.toJson<DateTime>(generatedAt),
+      'byteLength': serializer.toJson<int>(byteLength),
+      'checksum': serializer.toJson<String>(checksum),
+      'destinationUri': serializer.toJson<String?>(destinationUri),
+      'status': serializer.toJson<String>(status),
+      'backupReminderStatus': serializer.toJson<String>(backupReminderStatus),
+      'sameDayBackupFound': serializer.toJson<bool>(sameDayBackupFound),
+      'blockerCount': serializer.toJson<int>(blockerCount),
+      'warningCount': serializer.toJson<int>(warningCount),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'errorMessage': serializer.toJson<String?>(errorMessage),
+    };
+  }
+
+  ExportHistoryRecord copyWith({
+    String? id,
+    String? fileName,
+    DateTime? generatedAt,
+    int? byteLength,
+    String? checksum,
+    Value<String?> destinationUri = const Value.absent(),
+    String? status,
+    String? backupReminderStatus,
+    bool? sameDayBackupFound,
+    int? blockerCount,
+    int? warningCount,
+    DateTime? createdAt,
+    Value<String?> errorMessage = const Value.absent(),
+  }) => ExportHistoryRecord(
+    id: id ?? this.id,
+    fileName: fileName ?? this.fileName,
+    generatedAt: generatedAt ?? this.generatedAt,
+    byteLength: byteLength ?? this.byteLength,
+    checksum: checksum ?? this.checksum,
+    destinationUri: destinationUri.present
+        ? destinationUri.value
+        : this.destinationUri,
+    status: status ?? this.status,
+    backupReminderStatus: backupReminderStatus ?? this.backupReminderStatus,
+    sameDayBackupFound: sameDayBackupFound ?? this.sameDayBackupFound,
+    blockerCount: blockerCount ?? this.blockerCount,
+    warningCount: warningCount ?? this.warningCount,
+    createdAt: createdAt ?? this.createdAt,
+    errorMessage: errorMessage.present ? errorMessage.value : this.errorMessage,
+  );
+  ExportHistoryRecord copyWithCompanion(ExportHistoryEntriesCompanion data) {
+    return ExportHistoryRecord(
+      id: data.id.present ? data.id.value : this.id,
+      fileName: data.fileName.present ? data.fileName.value : this.fileName,
+      generatedAt: data.generatedAt.present
+          ? data.generatedAt.value
+          : this.generatedAt,
+      byteLength: data.byteLength.present
+          ? data.byteLength.value
+          : this.byteLength,
+      checksum: data.checksum.present ? data.checksum.value : this.checksum,
+      destinationUri: data.destinationUri.present
+          ? data.destinationUri.value
+          : this.destinationUri,
+      status: data.status.present ? data.status.value : this.status,
+      backupReminderStatus: data.backupReminderStatus.present
+          ? data.backupReminderStatus.value
+          : this.backupReminderStatus,
+      sameDayBackupFound: data.sameDayBackupFound.present
+          ? data.sameDayBackupFound.value
+          : this.sameDayBackupFound,
+      blockerCount: data.blockerCount.present
+          ? data.blockerCount.value
+          : this.blockerCount,
+      warningCount: data.warningCount.present
+          ? data.warningCount.value
+          : this.warningCount,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      errorMessage: data.errorMessage.present
+          ? data.errorMessage.value
+          : this.errorMessage,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExportHistoryRecord(')
+          ..write('id: $id, ')
+          ..write('fileName: $fileName, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('byteLength: $byteLength, ')
+          ..write('checksum: $checksum, ')
+          ..write('destinationUri: $destinationUri, ')
+          ..write('status: $status, ')
+          ..write('backupReminderStatus: $backupReminderStatus, ')
+          ..write('sameDayBackupFound: $sameDayBackupFound, ')
+          ..write('blockerCount: $blockerCount, ')
+          ..write('warningCount: $warningCount, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('errorMessage: $errorMessage')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    fileName,
+    generatedAt,
+    byteLength,
+    checksum,
+    destinationUri,
+    status,
+    backupReminderStatus,
+    sameDayBackupFound,
+    blockerCount,
+    warningCount,
+    createdAt,
+    errorMessage,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ExportHistoryRecord &&
+          other.id == this.id &&
+          other.fileName == this.fileName &&
+          other.generatedAt == this.generatedAt &&
+          other.byteLength == this.byteLength &&
+          other.checksum == this.checksum &&
+          other.destinationUri == this.destinationUri &&
+          other.status == this.status &&
+          other.backupReminderStatus == this.backupReminderStatus &&
+          other.sameDayBackupFound == this.sameDayBackupFound &&
+          other.blockerCount == this.blockerCount &&
+          other.warningCount == this.warningCount &&
+          other.createdAt == this.createdAt &&
+          other.errorMessage == this.errorMessage);
+}
+
+class ExportHistoryEntriesCompanion
+    extends UpdateCompanion<ExportHistoryRecord> {
+  final Value<String> id;
+  final Value<String> fileName;
+  final Value<DateTime> generatedAt;
+  final Value<int> byteLength;
+  final Value<String> checksum;
+  final Value<String?> destinationUri;
+  final Value<String> status;
+  final Value<String> backupReminderStatus;
+  final Value<bool> sameDayBackupFound;
+  final Value<int> blockerCount;
+  final Value<int> warningCount;
+  final Value<DateTime> createdAt;
+  final Value<String?> errorMessage;
+  final Value<int> rowid;
+  const ExportHistoryEntriesCompanion({
+    this.id = const Value.absent(),
+    this.fileName = const Value.absent(),
+    this.generatedAt = const Value.absent(),
+    this.byteLength = const Value.absent(),
+    this.checksum = const Value.absent(),
+    this.destinationUri = const Value.absent(),
+    this.status = const Value.absent(),
+    this.backupReminderStatus = const Value.absent(),
+    this.sameDayBackupFound = const Value.absent(),
+    this.blockerCount = const Value.absent(),
+    this.warningCount = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.errorMessage = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  ExportHistoryEntriesCompanion.insert({
+    required String id,
+    required String fileName,
+    required DateTime generatedAt,
+    required int byteLength,
+    required String checksum,
+    this.destinationUri = const Value.absent(),
+    required String status,
+    required String backupReminderStatus,
+    required bool sameDayBackupFound,
+    required int blockerCount,
+    required int warningCount,
+    required DateTime createdAt,
+    this.errorMessage = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       fileName = Value(fileName),
+       generatedAt = Value(generatedAt),
+       byteLength = Value(byteLength),
+       checksum = Value(checksum),
+       status = Value(status),
+       backupReminderStatus = Value(backupReminderStatus),
+       sameDayBackupFound = Value(sameDayBackupFound),
+       blockerCount = Value(blockerCount),
+       warningCount = Value(warningCount),
+       createdAt = Value(createdAt);
+  static Insertable<ExportHistoryRecord> custom({
+    Expression<String>? id,
+    Expression<String>? fileName,
+    Expression<DateTime>? generatedAt,
+    Expression<int>? byteLength,
+    Expression<String>? checksum,
+    Expression<String>? destinationUri,
+    Expression<String>? status,
+    Expression<String>? backupReminderStatus,
+    Expression<bool>? sameDayBackupFound,
+    Expression<int>? blockerCount,
+    Expression<int>? warningCount,
+    Expression<DateTime>? createdAt,
+    Expression<String>? errorMessage,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (fileName != null) 'file_name': fileName,
+      if (generatedAt != null) 'generated_at': generatedAt,
+      if (byteLength != null) 'byte_length': byteLength,
+      if (checksum != null) 'checksum': checksum,
+      if (destinationUri != null) 'destination_uri': destinationUri,
+      if (status != null) 'status': status,
+      if (backupReminderStatus != null)
+        'backup_reminder_status': backupReminderStatus,
+      if (sameDayBackupFound != null)
+        'same_day_backup_found': sameDayBackupFound,
+      if (blockerCount != null) 'blocker_count': blockerCount,
+      if (warningCount != null) 'warning_count': warningCount,
+      if (createdAt != null) 'created_at': createdAt,
+      if (errorMessage != null) 'error_message': errorMessage,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  ExportHistoryEntriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? fileName,
+    Value<DateTime>? generatedAt,
+    Value<int>? byteLength,
+    Value<String>? checksum,
+    Value<String?>? destinationUri,
+    Value<String>? status,
+    Value<String>? backupReminderStatus,
+    Value<bool>? sameDayBackupFound,
+    Value<int>? blockerCount,
+    Value<int>? warningCount,
+    Value<DateTime>? createdAt,
+    Value<String?>? errorMessage,
+    Value<int>? rowid,
+  }) {
+    return ExportHistoryEntriesCompanion(
+      id: id ?? this.id,
+      fileName: fileName ?? this.fileName,
+      generatedAt: generatedAt ?? this.generatedAt,
+      byteLength: byteLength ?? this.byteLength,
+      checksum: checksum ?? this.checksum,
+      destinationUri: destinationUri ?? this.destinationUri,
+      status: status ?? this.status,
+      backupReminderStatus: backupReminderStatus ?? this.backupReminderStatus,
+      sameDayBackupFound: sameDayBackupFound ?? this.sameDayBackupFound,
+      blockerCount: blockerCount ?? this.blockerCount,
+      warningCount: warningCount ?? this.warningCount,
+      createdAt: createdAt ?? this.createdAt,
+      errorMessage: errorMessage ?? this.errorMessage,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (fileName.present) {
+      map['file_name'] = Variable<String>(fileName.value);
+    }
+    if (generatedAt.present) {
+      map['generated_at'] = Variable<DateTime>(generatedAt.value);
+    }
+    if (byteLength.present) {
+      map['byte_length'] = Variable<int>(byteLength.value);
+    }
+    if (checksum.present) {
+      map['checksum'] = Variable<String>(checksum.value);
+    }
+    if (destinationUri.present) {
+      map['destination_uri'] = Variable<String>(destinationUri.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (backupReminderStatus.present) {
+      map['backup_reminder_status'] = Variable<String>(
+        backupReminderStatus.value,
+      );
+    }
+    if (sameDayBackupFound.present) {
+      map['same_day_backup_found'] = Variable<bool>(sameDayBackupFound.value);
+    }
+    if (blockerCount.present) {
+      map['blocker_count'] = Variable<int>(blockerCount.value);
+    }
+    if (warningCount.present) {
+      map['warning_count'] = Variable<int>(warningCount.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (errorMessage.present) {
+      map['error_message'] = Variable<String>(errorMessage.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExportHistoryEntriesCompanion(')
+          ..write('id: $id, ')
+          ..write('fileName: $fileName, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('byteLength: $byteLength, ')
+          ..write('checksum: $checksum, ')
+          ..write('destinationUri: $destinationUri, ')
+          ..write('status: $status, ')
+          ..write('backupReminderStatus: $backupReminderStatus, ')
+          ..write('sameDayBackupFound: $sameDayBackupFound, ')
+          ..write('blockerCount: $blockerCount, ')
+          ..write('warningCount: $warningCount, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('errorMessage: $errorMessage, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BackupHistoryEntriesTable extends BackupHistoryEntries
+    with TableInfo<$BackupHistoryEntriesTable, BackupHistoryRecord> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BackupHistoryEntriesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fileNameMeta = const VerificationMeta(
+    'fileName',
+  );
+  @override
+  late final GeneratedColumn<String> fileName = GeneratedColumn<String>(
+    'file_name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _generatedAtMeta = const VerificationMeta(
+    'generatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> generatedAt = GeneratedColumn<DateTime>(
+    'generated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _byteLengthMeta = const VerificationMeta(
+    'byteLength',
+  );
+  @override
+  late final GeneratedColumn<int> byteLength = GeneratedColumn<int>(
+    'byte_length',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _checksumMeta = const VerificationMeta(
+    'checksum',
+  );
+  @override
+  late final GeneratedColumn<String> checksum = GeneratedColumn<String>(
+    'checksum',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _destinationUriMeta = const VerificationMeta(
+    'destinationUri',
+  );
+  @override
+  late final GeneratedColumn<String> destinationUri = GeneratedColumn<String>(
+    'destination_uri',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _statusMeta = const VerificationMeta('status');
+  @override
+  late final GeneratedColumn<String> status = GeneratedColumn<String>(
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _errorMessageMeta = const VerificationMeta(
+    'errorMessage',
+  );
+  @override
+  late final GeneratedColumn<String> errorMessage = GeneratedColumn<String>(
+    'error_message',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    fileName,
+    generatedAt,
+    byteLength,
+    checksum,
+    destinationUri,
+    status,
+    createdAt,
+    errorMessage,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'backup_history_entries';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BackupHistoryRecord> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('file_name')) {
+      context.handle(
+        _fileNameMeta,
+        fileName.isAcceptableOrUnknown(data['file_name']!, _fileNameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fileNameMeta);
+    }
+    if (data.containsKey('generated_at')) {
+      context.handle(
+        _generatedAtMeta,
+        generatedAt.isAcceptableOrUnknown(
+          data['generated_at']!,
+          _generatedAtMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_generatedAtMeta);
+    }
+    if (data.containsKey('byte_length')) {
+      context.handle(
+        _byteLengthMeta,
+        byteLength.isAcceptableOrUnknown(data['byte_length']!, _byteLengthMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_byteLengthMeta);
+    }
+    if (data.containsKey('checksum')) {
+      context.handle(
+        _checksumMeta,
+        checksum.isAcceptableOrUnknown(data['checksum']!, _checksumMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_checksumMeta);
+    }
+    if (data.containsKey('destination_uri')) {
+      context.handle(
+        _destinationUriMeta,
+        destinationUri.isAcceptableOrUnknown(
+          data['destination_uri']!,
+          _destinationUriMeta,
+        ),
+      );
+    }
+    if (data.containsKey('status')) {
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_statusMeta);
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    if (data.containsKey('error_message')) {
+      context.handle(
+        _errorMessageMeta,
+        errorMessage.isAcceptableOrUnknown(
+          data['error_message']!,
+          _errorMessageMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BackupHistoryRecord map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BackupHistoryRecord(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      fileName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_name'],
+      )!,
+      generatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}generated_at'],
+      )!,
+      byteLength: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}byte_length'],
+      )!,
+      checksum: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}checksum'],
+      )!,
+      destinationUri: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}destination_uri'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      errorMessage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}error_message'],
+      ),
+    );
+  }
+
+  @override
+  $BackupHistoryEntriesTable createAlias(String alias) {
+    return $BackupHistoryEntriesTable(attachedDatabase, alias);
+  }
+}
+
+class BackupHistoryRecord extends DataClass
+    implements Insertable<BackupHistoryRecord> {
+  final String id;
+  final String fileName;
+  final DateTime generatedAt;
+  final int byteLength;
+  final String checksum;
+  final String? destinationUri;
+  final String status;
+  final DateTime createdAt;
+  final String? errorMessage;
+  const BackupHistoryRecord({
+    required this.id,
+    required this.fileName,
+    required this.generatedAt,
+    required this.byteLength,
+    required this.checksum,
+    this.destinationUri,
+    required this.status,
+    required this.createdAt,
+    this.errorMessage,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['file_name'] = Variable<String>(fileName);
+    map['generated_at'] = Variable<DateTime>(generatedAt);
+    map['byte_length'] = Variable<int>(byteLength);
+    map['checksum'] = Variable<String>(checksum);
+    if (!nullToAbsent || destinationUri != null) {
+      map['destination_uri'] = Variable<String>(destinationUri);
+    }
+    map['status'] = Variable<String>(status);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || errorMessage != null) {
+      map['error_message'] = Variable<String>(errorMessage);
+    }
+    return map;
+  }
+
+  BackupHistoryEntriesCompanion toCompanion(bool nullToAbsent) {
+    return BackupHistoryEntriesCompanion(
+      id: Value(id),
+      fileName: Value(fileName),
+      generatedAt: Value(generatedAt),
+      byteLength: Value(byteLength),
+      checksum: Value(checksum),
+      destinationUri: destinationUri == null && nullToAbsent
+          ? const Value.absent()
+          : Value(destinationUri),
+      status: Value(status),
+      createdAt: Value(createdAt),
+      errorMessage: errorMessage == null && nullToAbsent
+          ? const Value.absent()
+          : Value(errorMessage),
+    );
+  }
+
+  factory BackupHistoryRecord.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BackupHistoryRecord(
+      id: serializer.fromJson<String>(json['id']),
+      fileName: serializer.fromJson<String>(json['fileName']),
+      generatedAt: serializer.fromJson<DateTime>(json['generatedAt']),
+      byteLength: serializer.fromJson<int>(json['byteLength']),
+      checksum: serializer.fromJson<String>(json['checksum']),
+      destinationUri: serializer.fromJson<String?>(json['destinationUri']),
+      status: serializer.fromJson<String>(json['status']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      errorMessage: serializer.fromJson<String?>(json['errorMessage']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'fileName': serializer.toJson<String>(fileName),
+      'generatedAt': serializer.toJson<DateTime>(generatedAt),
+      'byteLength': serializer.toJson<int>(byteLength),
+      'checksum': serializer.toJson<String>(checksum),
+      'destinationUri': serializer.toJson<String?>(destinationUri),
+      'status': serializer.toJson<String>(status),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'errorMessage': serializer.toJson<String?>(errorMessage),
+    };
+  }
+
+  BackupHistoryRecord copyWith({
+    String? id,
+    String? fileName,
+    DateTime? generatedAt,
+    int? byteLength,
+    String? checksum,
+    Value<String?> destinationUri = const Value.absent(),
+    String? status,
+    DateTime? createdAt,
+    Value<String?> errorMessage = const Value.absent(),
+  }) => BackupHistoryRecord(
+    id: id ?? this.id,
+    fileName: fileName ?? this.fileName,
+    generatedAt: generatedAt ?? this.generatedAt,
+    byteLength: byteLength ?? this.byteLength,
+    checksum: checksum ?? this.checksum,
+    destinationUri: destinationUri.present
+        ? destinationUri.value
+        : this.destinationUri,
+    status: status ?? this.status,
+    createdAt: createdAt ?? this.createdAt,
+    errorMessage: errorMessage.present ? errorMessage.value : this.errorMessage,
+  );
+  BackupHistoryRecord copyWithCompanion(BackupHistoryEntriesCompanion data) {
+    return BackupHistoryRecord(
+      id: data.id.present ? data.id.value : this.id,
+      fileName: data.fileName.present ? data.fileName.value : this.fileName,
+      generatedAt: data.generatedAt.present
+          ? data.generatedAt.value
+          : this.generatedAt,
+      byteLength: data.byteLength.present
+          ? data.byteLength.value
+          : this.byteLength,
+      checksum: data.checksum.present ? data.checksum.value : this.checksum,
+      destinationUri: data.destinationUri.present
+          ? data.destinationUri.value
+          : this.destinationUri,
+      status: data.status.present ? data.status.value : this.status,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      errorMessage: data.errorMessage.present
+          ? data.errorMessage.value
+          : this.errorMessage,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BackupHistoryRecord(')
+          ..write('id: $id, ')
+          ..write('fileName: $fileName, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('byteLength: $byteLength, ')
+          ..write('checksum: $checksum, ')
+          ..write('destinationUri: $destinationUri, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('errorMessage: $errorMessage')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    fileName,
+    generatedAt,
+    byteLength,
+    checksum,
+    destinationUri,
+    status,
+    createdAt,
+    errorMessage,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BackupHistoryRecord &&
+          other.id == this.id &&
+          other.fileName == this.fileName &&
+          other.generatedAt == this.generatedAt &&
+          other.byteLength == this.byteLength &&
+          other.checksum == this.checksum &&
+          other.destinationUri == this.destinationUri &&
+          other.status == this.status &&
+          other.createdAt == this.createdAt &&
+          other.errorMessage == this.errorMessage);
+}
+
+class BackupHistoryEntriesCompanion
+    extends UpdateCompanion<BackupHistoryRecord> {
+  final Value<String> id;
+  final Value<String> fileName;
+  final Value<DateTime> generatedAt;
+  final Value<int> byteLength;
+  final Value<String> checksum;
+  final Value<String?> destinationUri;
+  final Value<String> status;
+  final Value<DateTime> createdAt;
+  final Value<String?> errorMessage;
+  final Value<int> rowid;
+  const BackupHistoryEntriesCompanion({
+    this.id = const Value.absent(),
+    this.fileName = const Value.absent(),
+    this.generatedAt = const Value.absent(),
+    this.byteLength = const Value.absent(),
+    this.checksum = const Value.absent(),
+    this.destinationUri = const Value.absent(),
+    this.status = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.errorMessage = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BackupHistoryEntriesCompanion.insert({
+    required String id,
+    required String fileName,
+    required DateTime generatedAt,
+    required int byteLength,
+    required String checksum,
+    this.destinationUri = const Value.absent(),
+    required String status,
+    required DateTime createdAt,
+    this.errorMessage = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       fileName = Value(fileName),
+       generatedAt = Value(generatedAt),
+       byteLength = Value(byteLength),
+       checksum = Value(checksum),
+       status = Value(status),
+       createdAt = Value(createdAt);
+  static Insertable<BackupHistoryRecord> custom({
+    Expression<String>? id,
+    Expression<String>? fileName,
+    Expression<DateTime>? generatedAt,
+    Expression<int>? byteLength,
+    Expression<String>? checksum,
+    Expression<String>? destinationUri,
+    Expression<String>? status,
+    Expression<DateTime>? createdAt,
+    Expression<String>? errorMessage,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (fileName != null) 'file_name': fileName,
+      if (generatedAt != null) 'generated_at': generatedAt,
+      if (byteLength != null) 'byte_length': byteLength,
+      if (checksum != null) 'checksum': checksum,
+      if (destinationUri != null) 'destination_uri': destinationUri,
+      if (status != null) 'status': status,
+      if (createdAt != null) 'created_at': createdAt,
+      if (errorMessage != null) 'error_message': errorMessage,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BackupHistoryEntriesCompanion copyWith({
+    Value<String>? id,
+    Value<String>? fileName,
+    Value<DateTime>? generatedAt,
+    Value<int>? byteLength,
+    Value<String>? checksum,
+    Value<String?>? destinationUri,
+    Value<String>? status,
+    Value<DateTime>? createdAt,
+    Value<String?>? errorMessage,
+    Value<int>? rowid,
+  }) {
+    return BackupHistoryEntriesCompanion(
+      id: id ?? this.id,
+      fileName: fileName ?? this.fileName,
+      generatedAt: generatedAt ?? this.generatedAt,
+      byteLength: byteLength ?? this.byteLength,
+      checksum: checksum ?? this.checksum,
+      destinationUri: destinationUri ?? this.destinationUri,
+      status: status ?? this.status,
+      createdAt: createdAt ?? this.createdAt,
+      errorMessage: errorMessage ?? this.errorMessage,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (fileName.present) {
+      map['file_name'] = Variable<String>(fileName.value);
+    }
+    if (generatedAt.present) {
+      map['generated_at'] = Variable<DateTime>(generatedAt.value);
+    }
+    if (byteLength.present) {
+      map['byte_length'] = Variable<int>(byteLength.value);
+    }
+    if (checksum.present) {
+      map['checksum'] = Variable<String>(checksum.value);
+    }
+    if (destinationUri.present) {
+      map['destination_uri'] = Variable<String>(destinationUri.value);
+    }
+    if (status.present) {
+      map['status'] = Variable<String>(status.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (errorMessage.present) {
+      map['error_message'] = Variable<String>(errorMessage.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BackupHistoryEntriesCompanion(')
+          ..write('id: $id, ')
+          ..write('fileName: $fileName, ')
+          ..write('generatedAt: $generatedAt, ')
+          ..write('byteLength: $byteLength, ')
+          ..write('checksum: $checksum, ')
+          ..write('destinationUri: $destinationUri, ')
+          ..write('status: $status, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('errorMessage: $errorMessage, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AuditDatabase extends GeneratedDatabase {
   _$AuditDatabase(QueryExecutor e) : super(e);
   $AuditDatabaseManager get managers => $AuditDatabaseManager(this);
@@ -7047,6 +8429,10 @@ abstract class _$AuditDatabase extends GeneratedDatabase {
   late final $AuditLogEntriesTable auditLogEntries = $AuditLogEntriesTable(
     this,
   );
+  late final $ExportHistoryEntriesTable exportHistoryEntries =
+      $ExportHistoryEntriesTable(this);
+  late final $BackupHistoryEntriesTable backupHistoryEntries =
+      $BackupHistoryEntriesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -7064,6 +8450,8 @@ abstract class _$AuditDatabase extends GeneratedDatabase {
     reimbursementClaims,
     auditorReviews,
     auditLogEntries,
+    exportHistoryEntries,
+    backupHistoryEntries,
   ];
 }
 
@@ -10547,6 +11935,690 @@ typedef $$AuditLogEntriesTableProcessedTableManager =
       AuditLogRecord,
       PrefetchHooks Function()
     >;
+typedef $$ExportHistoryEntriesTableCreateCompanionBuilder =
+    ExportHistoryEntriesCompanion Function({
+      required String id,
+      required String fileName,
+      required DateTime generatedAt,
+      required int byteLength,
+      required String checksum,
+      Value<String?> destinationUri,
+      required String status,
+      required String backupReminderStatus,
+      required bool sameDayBackupFound,
+      required int blockerCount,
+      required int warningCount,
+      required DateTime createdAt,
+      Value<String?> errorMessage,
+      Value<int> rowid,
+    });
+typedef $$ExportHistoryEntriesTableUpdateCompanionBuilder =
+    ExportHistoryEntriesCompanion Function({
+      Value<String> id,
+      Value<String> fileName,
+      Value<DateTime> generatedAt,
+      Value<int> byteLength,
+      Value<String> checksum,
+      Value<String?> destinationUri,
+      Value<String> status,
+      Value<String> backupReminderStatus,
+      Value<bool> sameDayBackupFound,
+      Value<int> blockerCount,
+      Value<int> warningCount,
+      Value<DateTime> createdAt,
+      Value<String?> errorMessage,
+      Value<int> rowid,
+    });
+
+class $$ExportHistoryEntriesTableFilterComposer
+    extends Composer<_$AuditDatabase, $ExportHistoryEntriesTable> {
+  $$ExportHistoryEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fileName => $composableBuilder(
+    column: $table.fileName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get byteLength => $composableBuilder(
+    column: $table.byteLength,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checksum => $composableBuilder(
+    column: $table.checksum,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get destinationUri => $composableBuilder(
+    column: $table.destinationUri,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get backupReminderStatus => $composableBuilder(
+    column: $table.backupReminderStatus,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get sameDayBackupFound => $composableBuilder(
+    column: $table.sameDayBackupFound,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get blockerCount => $composableBuilder(
+    column: $table.blockerCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get warningCount => $composableBuilder(
+    column: $table.warningCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorMessage => $composableBuilder(
+    column: $table.errorMessage,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ExportHistoryEntriesTableOrderingComposer
+    extends Composer<_$AuditDatabase, $ExportHistoryEntriesTable> {
+  $$ExportHistoryEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fileName => $composableBuilder(
+    column: $table.fileName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get byteLength => $composableBuilder(
+    column: $table.byteLength,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get checksum => $composableBuilder(
+    column: $table.checksum,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get destinationUri => $composableBuilder(
+    column: $table.destinationUri,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get backupReminderStatus => $composableBuilder(
+    column: $table.backupReminderStatus,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get sameDayBackupFound => $composableBuilder(
+    column: $table.sameDayBackupFound,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get blockerCount => $composableBuilder(
+    column: $table.blockerCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get warningCount => $composableBuilder(
+    column: $table.warningCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get errorMessage => $composableBuilder(
+    column: $table.errorMessage,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ExportHistoryEntriesTableAnnotationComposer
+    extends Composer<_$AuditDatabase, $ExportHistoryEntriesTable> {
+  $$ExportHistoryEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get fileName =>
+      $composableBuilder(column: $table.fileName, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get byteLength => $composableBuilder(
+    column: $table.byteLength,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get checksum =>
+      $composableBuilder(column: $table.checksum, builder: (column) => column);
+
+  GeneratedColumn<String> get destinationUri => $composableBuilder(
+    column: $table.destinationUri,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get backupReminderStatus => $composableBuilder(
+    column: $table.backupReminderStatus,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get sameDayBackupFound => $composableBuilder(
+    column: $table.sameDayBackupFound,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get blockerCount => $composableBuilder(
+    column: $table.blockerCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get warningCount => $composableBuilder(
+    column: $table.warningCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get errorMessage => $composableBuilder(
+    column: $table.errorMessage,
+    builder: (column) => column,
+  );
+}
+
+class $$ExportHistoryEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AuditDatabase,
+          $ExportHistoryEntriesTable,
+          ExportHistoryRecord,
+          $$ExportHistoryEntriesTableFilterComposer,
+          $$ExportHistoryEntriesTableOrderingComposer,
+          $$ExportHistoryEntriesTableAnnotationComposer,
+          $$ExportHistoryEntriesTableCreateCompanionBuilder,
+          $$ExportHistoryEntriesTableUpdateCompanionBuilder,
+          (
+            ExportHistoryRecord,
+            BaseReferences<
+              _$AuditDatabase,
+              $ExportHistoryEntriesTable,
+              ExportHistoryRecord
+            >,
+          ),
+          ExportHistoryRecord,
+          PrefetchHooks Function()
+        > {
+  $$ExportHistoryEntriesTableTableManager(
+    _$AuditDatabase db,
+    $ExportHistoryEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ExportHistoryEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ExportHistoryEntriesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ExportHistoryEntriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> fileName = const Value.absent(),
+                Value<DateTime> generatedAt = const Value.absent(),
+                Value<int> byteLength = const Value.absent(),
+                Value<String> checksum = const Value.absent(),
+                Value<String?> destinationUri = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String> backupReminderStatus = const Value.absent(),
+                Value<bool> sameDayBackupFound = const Value.absent(),
+                Value<int> blockerCount = const Value.absent(),
+                Value<int> warningCount = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> errorMessage = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ExportHistoryEntriesCompanion(
+                id: id,
+                fileName: fileName,
+                generatedAt: generatedAt,
+                byteLength: byteLength,
+                checksum: checksum,
+                destinationUri: destinationUri,
+                status: status,
+                backupReminderStatus: backupReminderStatus,
+                sameDayBackupFound: sameDayBackupFound,
+                blockerCount: blockerCount,
+                warningCount: warningCount,
+                createdAt: createdAt,
+                errorMessage: errorMessage,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String fileName,
+                required DateTime generatedAt,
+                required int byteLength,
+                required String checksum,
+                Value<String?> destinationUri = const Value.absent(),
+                required String status,
+                required String backupReminderStatus,
+                required bool sameDayBackupFound,
+                required int blockerCount,
+                required int warningCount,
+                required DateTime createdAt,
+                Value<String?> errorMessage = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ExportHistoryEntriesCompanion.insert(
+                id: id,
+                fileName: fileName,
+                generatedAt: generatedAt,
+                byteLength: byteLength,
+                checksum: checksum,
+                destinationUri: destinationUri,
+                status: status,
+                backupReminderStatus: backupReminderStatus,
+                sameDayBackupFound: sameDayBackupFound,
+                blockerCount: blockerCount,
+                warningCount: warningCount,
+                createdAt: createdAt,
+                errorMessage: errorMessage,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ExportHistoryEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AuditDatabase,
+      $ExportHistoryEntriesTable,
+      ExportHistoryRecord,
+      $$ExportHistoryEntriesTableFilterComposer,
+      $$ExportHistoryEntriesTableOrderingComposer,
+      $$ExportHistoryEntriesTableAnnotationComposer,
+      $$ExportHistoryEntriesTableCreateCompanionBuilder,
+      $$ExportHistoryEntriesTableUpdateCompanionBuilder,
+      (
+        ExportHistoryRecord,
+        BaseReferences<
+          _$AuditDatabase,
+          $ExportHistoryEntriesTable,
+          ExportHistoryRecord
+        >,
+      ),
+      ExportHistoryRecord,
+      PrefetchHooks Function()
+    >;
+typedef $$BackupHistoryEntriesTableCreateCompanionBuilder =
+    BackupHistoryEntriesCompanion Function({
+      required String id,
+      required String fileName,
+      required DateTime generatedAt,
+      required int byteLength,
+      required String checksum,
+      Value<String?> destinationUri,
+      required String status,
+      required DateTime createdAt,
+      Value<String?> errorMessage,
+      Value<int> rowid,
+    });
+typedef $$BackupHistoryEntriesTableUpdateCompanionBuilder =
+    BackupHistoryEntriesCompanion Function({
+      Value<String> id,
+      Value<String> fileName,
+      Value<DateTime> generatedAt,
+      Value<int> byteLength,
+      Value<String> checksum,
+      Value<String?> destinationUri,
+      Value<String> status,
+      Value<DateTime> createdAt,
+      Value<String?> errorMessage,
+      Value<int> rowid,
+    });
+
+class $$BackupHistoryEntriesTableFilterComposer
+    extends Composer<_$AuditDatabase, $BackupHistoryEntriesTable> {
+  $$BackupHistoryEntriesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fileName => $composableBuilder(
+    column: $table.fileName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get byteLength => $composableBuilder(
+    column: $table.byteLength,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get checksum => $composableBuilder(
+    column: $table.checksum,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get destinationUri => $composableBuilder(
+    column: $table.destinationUri,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get errorMessage => $composableBuilder(
+    column: $table.errorMessage,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BackupHistoryEntriesTableOrderingComposer
+    extends Composer<_$AuditDatabase, $BackupHistoryEntriesTable> {
+  $$BackupHistoryEntriesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fileName => $composableBuilder(
+    column: $table.fileName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get byteLength => $composableBuilder(
+    column: $table.byteLength,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get checksum => $composableBuilder(
+    column: $table.checksum,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get destinationUri => $composableBuilder(
+    column: $table.destinationUri,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get errorMessage => $composableBuilder(
+    column: $table.errorMessage,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BackupHistoryEntriesTableAnnotationComposer
+    extends Composer<_$AuditDatabase, $BackupHistoryEntriesTable> {
+  $$BackupHistoryEntriesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get fileName =>
+      $composableBuilder(column: $table.fileName, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get generatedAt => $composableBuilder(
+    column: $table.generatedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get byteLength => $composableBuilder(
+    column: $table.byteLength,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get checksum =>
+      $composableBuilder(column: $table.checksum, builder: (column) => column);
+
+  GeneratedColumn<String> get destinationUri => $composableBuilder(
+    column: $table.destinationUri,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get errorMessage => $composableBuilder(
+    column: $table.errorMessage,
+    builder: (column) => column,
+  );
+}
+
+class $$BackupHistoryEntriesTableTableManager
+    extends
+        RootTableManager<
+          _$AuditDatabase,
+          $BackupHistoryEntriesTable,
+          BackupHistoryRecord,
+          $$BackupHistoryEntriesTableFilterComposer,
+          $$BackupHistoryEntriesTableOrderingComposer,
+          $$BackupHistoryEntriesTableAnnotationComposer,
+          $$BackupHistoryEntriesTableCreateCompanionBuilder,
+          $$BackupHistoryEntriesTableUpdateCompanionBuilder,
+          (
+            BackupHistoryRecord,
+            BaseReferences<
+              _$AuditDatabase,
+              $BackupHistoryEntriesTable,
+              BackupHistoryRecord
+            >,
+          ),
+          BackupHistoryRecord,
+          PrefetchHooks Function()
+        > {
+  $$BackupHistoryEntriesTableTableManager(
+    _$AuditDatabase db,
+    $BackupHistoryEntriesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BackupHistoryEntriesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BackupHistoryEntriesTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$BackupHistoryEntriesTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> fileName = const Value.absent(),
+                Value<DateTime> generatedAt = const Value.absent(),
+                Value<int> byteLength = const Value.absent(),
+                Value<String> checksum = const Value.absent(),
+                Value<String?> destinationUri = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> errorMessage = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BackupHistoryEntriesCompanion(
+                id: id,
+                fileName: fileName,
+                generatedAt: generatedAt,
+                byteLength: byteLength,
+                checksum: checksum,
+                destinationUri: destinationUri,
+                status: status,
+                createdAt: createdAt,
+                errorMessage: errorMessage,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String fileName,
+                required DateTime generatedAt,
+                required int byteLength,
+                required String checksum,
+                Value<String?> destinationUri = const Value.absent(),
+                required String status,
+                required DateTime createdAt,
+                Value<String?> errorMessage = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BackupHistoryEntriesCompanion.insert(
+                id: id,
+                fileName: fileName,
+                generatedAt: generatedAt,
+                byteLength: byteLength,
+                checksum: checksum,
+                destinationUri: destinationUri,
+                status: status,
+                createdAt: createdAt,
+                errorMessage: errorMessage,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BackupHistoryEntriesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AuditDatabase,
+      $BackupHistoryEntriesTable,
+      BackupHistoryRecord,
+      $$BackupHistoryEntriesTableFilterComposer,
+      $$BackupHistoryEntriesTableOrderingComposer,
+      $$BackupHistoryEntriesTableAnnotationComposer,
+      $$BackupHistoryEntriesTableCreateCompanionBuilder,
+      $$BackupHistoryEntriesTableUpdateCompanionBuilder,
+      (
+        BackupHistoryRecord,
+        BaseReferences<
+          _$AuditDatabase,
+          $BackupHistoryEntriesTable,
+          BackupHistoryRecord
+        >,
+      ),
+      BackupHistoryRecord,
+      PrefetchHooks Function()
+    >;
 
 class $AuditDatabaseManager {
   final _$AuditDatabase _db;
@@ -10578,4 +12650,8 @@ class $AuditDatabaseManager {
       $$AuditorReviewsTableTableManager(_db, _db.auditorReviews);
   $$AuditLogEntriesTableTableManager get auditLogEntries =>
       $$AuditLogEntriesTableTableManager(_db, _db.auditLogEntries);
+  $$ExportHistoryEntriesTableTableManager get exportHistoryEntries =>
+      $$ExportHistoryEntriesTableTableManager(_db, _db.exportHistoryEntries);
+  $$BackupHistoryEntriesTableTableManager get backupHistoryEntries =>
+      $$BackupHistoryEntriesTableTableManager(_db, _db.backupHistoryEntries);
 }

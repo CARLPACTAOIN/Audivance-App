@@ -15,12 +15,13 @@ The MVP is Android-first and tablet-friendly, with future desktop support possib
 - Dart SDK constraint: `^3.13.0`.
 - Current dependencies: Flutter SDK, `cupertino_icons`, Drift, SQLite, `path`, `path_provider`, `file_picker`, `crypto`, `archive`, `pdf`, `flutter_secure_storage`, and `cryptography`.
 - Current dev tooling includes Drift code generation plus launcher icon and native splash generation configuration.
-- Current app implementation: Audivance app shell with first-launch setup, persistent secure local unlock, encrypted local SQLite storage, repository-backed dashboard, Treasury workspace, Events workspace with budget adjustments and budget-vs-actual review snapshots, Export Center preview, PDF report generation, ZIP generation, hardened Backup & Restore foundation, app-private attachment import, and a final MVP UX/edge-case polish pass across existing workflows.
+- Current app implementation: Audivance app shell with first-launch setup, persistent secure local unlock, encrypted local SQLite storage, repository-backed dashboard, Treasury workspace, Events workspace with budget adjustments and budget-vs-actual review snapshots, Organization Profile and Officer Management workspace, Export Center preview, PDF report generation, ZIP generation, persisted export/backup history with backup-before-export reminders, hardened Backup & Restore foundation, app-private attachment import, Android release-hardening configuration/QA checklist, and a final MVP UX/edge-case polish pass across existing workflows.
 - Current domain implementation: pure Dart primitives and audit rule services under `lib/core/domain/` and `lib/features/audit/domain/`.
-- Current persistence implementation: Drift database schema version 3, mappers, repository interface, repository implementation, encrypted app database opener, plaintext-to-encrypted migration service, and secure key-provider boundary under `lib/features/audit/data/`.
+- Current persistence implementation: Drift database schema version 4, mappers, repository interface, repository implementation, encrypted app database opener, plaintext-to-encrypted migration service, export/backup history tables, and secure key-provider boundary under `lib/features/audit/data/`.
 - Current test implementation: setup/unlock/dashboard widget tests plus app startup, domain, and in-memory Drift repository tests.
 - Product spec: `OFFLINE_APPLICATION_PRD.md`.
 - Repo-local UI/UX skill installed at `.codex/skills/ui-ux-pro-max`.
+- User permission: verification commands may be run outside the sandbox when needed, especially Dart/Flutter format, analyze, test, and build commands that hang or are blocked inside the sandbox.
 
 ## Product Commitments
 
@@ -57,7 +58,7 @@ The MVP is Android-first and tablet-friendly, with future desktop support possib
 ## Implemented Persistence Foundation
 
 - Drift + SQLite is the selected local storage foundation.
-- `AuditDatabase` schema version is `3`.
+- `AuditDatabase` schema version is `4`.
 - `Money` persists as integer centavos.
 - Stable IDs persist as text primary keys.
 - Enum values persist as stable strings using Dart enum names.
@@ -67,6 +68,7 @@ The MVP is Android-first and tablet-friendly, with future desktop support possib
 - System-generated fund movements are protected from repository update/delete.
 - Audit logs are append-only through the public repository API.
 - Auditor review snapshots persist as immutable event-level records with captured budget, actual, variance, utilization, and health values.
+- Export and backup history entries persist newest-first status, destination URI, byte length, checksum, readiness issue counts, reminder state, and error metadata using stable enum strings.
 - `AuditDatabaseOpener` opens `audivance.sqlite` in application support storage with SQLite3MultipleCiphers when a secure session database key is available.
 - `AuditDatabaseEncryptionService` detects missing, plaintext, encrypted, and invalid-key databases and performs one-time plaintext-to-encrypted migration without changing the Drift schema version.
 
@@ -80,7 +82,7 @@ The MVP is Android-first and tablet-friendly, with future desktop support possib
 - The secure unlock service also stores a random future database key for the encrypted database migration sprint.
 - Existing setup without secure credential data routes to a "Secure workspace" upgrade screen.
 - Existing setup with secure credential data routes to the unlock boundary before dashboard.
-- Biometric unlock and encrypted database opening remain future work.
+- Biometric unlock remains future work; encrypted database opening and one-time plaintext migration are implemented.
 
 ## Implemented Dashboard Foundation
 
@@ -91,9 +93,20 @@ The MVP is Android-first and tablet-friendly, with future desktop support possib
 - Fresh setup shows zero-value metrics and readiness tasks instead of the old demo data.
 - `demoDashboardSnapshot` remains available only as a widget/test fixture fallback.
 
+## Implemented Organization Profile And Officer Management
+
+- `OrganizationService` provides repository-backed organization profile and officer roster snapshots.
+- Organization profile editing validates required name, type, adviser, semester, school year, and signatories in application logic.
+- Officer creation/editing validates required names plus the existing committee-head rules.
+- Officer archive/restore preserves historical references while excluding archived officers from new liquidation selections.
+- Organization and officer mutations append audit logs with before/after snapshots where applicable.
+- `WorkspaceShell` includes a Profile destination for editing organization metadata and managing active/archived officers.
+- Export readiness treats active officers as required and flags incomplete legacy organization profiles.
+
 ## Implemented Treasury Workspace
 
-- `WorkspaceShell` owns ready-state navigation for Dashboard, Treasury, Events, and Export.
+- `WorkspaceShell` owns ready-state navigation for Dashboard, Treasury, Events, Export, and Profile.
+
 - `TreasuryService` loads source balances and ledger rows from `AuditRepository`.
 - Treasury Add Fund validates positive amount and selected app-private attachment metadata, updates or creates the source balance, creates a protected system-generated Add Fund movement, and appends an audit log.
 - Manual Treasury movements support Fund Release, Transfer, and Return / Refund with source-balance validation and audit logging.
@@ -131,7 +144,9 @@ The MVP is Android-first and tablet-friendly, with future desktop support possib
 - Export reports include `reports/organization_summary.pdf`, `reports/treasury_ledger.pdf`, `reports/budget_vs_actual.pdf`, and one `reports/liquidation/{eventSlug}-{eventId}.pdf` file per event with liquidation receipts.
 - PDF report checksums use SHA-256 and are included in the real ZIP manifest with `sourceType: report`.
 - The Export Center package structure shows report paths, and generated ZIP packages include report files under `reports/`.
-- V1 PDF layouts are Audivance-branded printable summaries, not exact official COA/USM-OSA-F46 replicas.
+- Liquidation PDFs now use a template-driven USM-OSA-F46 layout with the normalized USM logo asset at `assets/images/logo/usm_logo.png`, named A4 form metrics, exact F46 labels/form code, and deterministic checksums.
+- Official USM-OSA-F46 visual references should be stored under `assets/templates/usm_osa_f46/` for local alignment QA; the app does not depend on runtime PDF rendering.
+- Organization summary, treasury ledger, and budget-vs-actual reports remain Audivance-branded printable summaries until official templates are provided.
 
 ## Financial Rules To Preserve
 
@@ -175,6 +190,15 @@ The Export Center now generates a real local ZIP package containing the manifest
 - `BackupRestoreCoordinator` closes the active workspace database, restores the validated backup, reopens the encrypted workspace, and reports controlled restore or reopen failures.
 - The Settings action opens a Backup & Restore panel with Generate Backup, Validate Backup, typed RESTORE confirmation, and active same-device restore actions.
 
+## Implemented Export And Backup History
+
+- Drift schema version 4 adds append-only export and backup history tables.
+- `ExportHistoryService` checks for successful same-day backup history before COA ZIP generation and records successful, canceled, and failed export attempts.
+- Export history captures whether a same-day backup was found, whether the reminder was satisfied or overridden, package checksum/size, destination URI, and readiness blocker/warning counts.
+- Export Center shows a backup reminder dialog with Generate Backup, Continue Export, and Cancel actions when no same-day successful backup exists.
+- `BackupHistoryService` records successful, canceled, and failed backup generation attempts and exposes newest-first history for the Backup & Restore panel.
+- Backup history appears in Settings with same-device/key-context wording.
+
 ## Implemented Final UX Polish
 
 - Shared UI primitives now cover responsive page/dialog framing, loading/empty/error/retry states, inline status panels, metadata chips, and text status badges.
@@ -182,6 +206,15 @@ The Export Center now generates a real local ZIP package containing the manifest
 - Setup, unlock, credential-upgrade, Treasury, Events, Export, Backup, and attachment flows use clearer inline errors, safer loading/error states, guarded submits, and small-screen-friendly wrapping/truncation.
 - Protected/system-generated ledger rows are labeled with visible text rather than relying on lock icons or color alone.
 - Attachment selection shows selected-file metadata with long names/checksums constrained for phone-width layouts and import failures surfaced inline with retry affordances.
+
+## Implemented Android Release Hardening
+
+- Android package identity is set to `com.audivance.app` with the `Audivance` app label.
+- Android Auto Backup remains disabled to avoid secure-storage and encrypted-database key mismatches.
+- Release signing reads `android/key.properties` when present and keeps keystores/properties ignored by git; debug signing remains a local QA fallback only.
+- Startup database, cipher, and key failures now render a controlled retryable error screen with release-safe support guidance.
+- `docs/ANDROID_QA_CHECKLIST.md` documents Android install/startup, storage, backup, export, workflow, layout, accessibility, and build checks.
+- Automated Android release-config tests guard package identity, backup policy, signing-secret ignore rules, and checklist presence.
 
 ## Security And Storage Direction
 
@@ -199,8 +232,8 @@ The Export Center now generates a real local ZIP package containing the manifest
 
 - Confirm Android-only MVP versus Android plus desktop.
 - Confirm exact COA export package acceptance criteria.
-- Confirm required PDF form layouts beyond USM-OSA-F46 liquidation.
-- Decide whether backups are mandatory before every COA export.
+- Confirm required PDF form layouts beyond the implemented USM-OSA-F46 liquidation report.
+- Decide whether backup-before-export should remain bypassable or become mandatory in a later governance setting.
 - Decide whether importing existing Laravel data is in scope.
 - Decide whether a COA import/viewer utility is needed for MVP or later.
-- Next best sprint: Organization Profile + Officer Management V1.
+- Next best sprint: Cross-Device Encrypted Backup Recovery V1.

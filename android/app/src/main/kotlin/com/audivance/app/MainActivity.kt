@@ -1,4 +1,4 @@
-package com.example.audivance
+package com.audivance.app
 
 import io.flutter.embedding.android.FlutterActivity
 

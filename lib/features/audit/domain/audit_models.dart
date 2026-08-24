@@ -312,3 +312,65 @@ class ExportReadinessIssue {
   final ExportReadinessSeverity severity;
   final StableId? targetRecordId;
 }
+
+enum ExportHistoryStatus { success, canceled, failed }
+
+enum BackupHistoryStatus { success, canceled, failed }
+
+enum BackupReminderStatus { notChecked, satisfied, overridden }
+
+class ExportHistoryEntry {
+  const ExportHistoryEntry({
+    required this.id,
+    required this.fileName,
+    required this.generatedAt,
+    required this.byteLength,
+    required this.checksum,
+    this.destinationUri,
+    required this.status,
+    required this.backupReminderStatus,
+    required this.sameDayBackupFound,
+    required this.blockerCount,
+    required this.warningCount,
+    required this.createdAt,
+    this.errorMessage,
+  });
+
+  final StableId id;
+  final String fileName;
+  final DateTime generatedAt;
+  final int byteLength;
+  final String checksum;
+  final String? destinationUri;
+  final ExportHistoryStatus status;
+  final BackupReminderStatus backupReminderStatus;
+  final bool sameDayBackupFound;
+  final int blockerCount;
+  final int warningCount;
+  final DateTime createdAt;
+  final String? errorMessage;
+}
+
+class BackupHistoryEntry {
+  const BackupHistoryEntry({
+    required this.id,
+    required this.fileName,
+    required this.generatedAt,
+    required this.byteLength,
+    required this.checksum,
+    this.destinationUri,
+    required this.status,
+    required this.createdAt,
+    this.errorMessage,
+  });
+
+  final StableId id;
+  final String fileName;
+  final DateTime generatedAt;
+  final int byteLength;
+  final String checksum;
+  final String? destinationUri;
+  final BackupHistoryStatus status;
+  final DateTime createdAt;
+  final String? errorMessage;
+}

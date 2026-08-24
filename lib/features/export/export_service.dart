@@ -455,6 +455,27 @@ Future<List<ExportReadinessIssueView>> _buildIssues(
         severity: ExportReadinessSeverity.blocker,
       ),
     );
+  } else {
+    final organization = data.organizations.first;
+    final missingFields = <String>[
+      if (organization.name.trim().isEmpty) 'name',
+      if (organization.type.trim().isEmpty) 'type',
+      if (organization.adviser.trim().isEmpty) 'adviser',
+      if (organization.semester.trim().isEmpty) 'semester',
+      if (organization.schoolYear.trim().isEmpty) 'school year',
+      if (organization.signatoryNames.isEmpty) 'signatories',
+    ];
+    if (missingFields.isNotEmpty) {
+      issues.add(
+        ExportReadinessIssueView(
+          id: 'incomplete-organization',
+          message:
+              'Organization profile is missing ${missingFields.join(', ')}.',
+          severity: ExportReadinessSeverity.blocker,
+          targetRecordId: organization.id,
+        ),
+      );
+    }
   }
   if (data.treasurySources.isEmpty) {
     issues.add(
@@ -670,7 +691,7 @@ PdfReportInput _pdfReportInputFor({
     lines: data.lines,
     claims: data.claims,
     auditorReviews: data.auditorReviews,
-    logoAssetPath: 'assets/images/logo/usm_logo.png',
+    logoAssetPath: UsmOsaF46TemplateAssets.defaultLogoAssetPath,
   );
 }
 

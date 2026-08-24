@@ -41,7 +41,7 @@ class PdfReportInput {
     required this.lines,
     required this.claims,
     required this.auditorReviews,
-    this.logoAssetPath = _defaultLogoAssetPath,
+    this.logoAssetPath = UsmOsaF46TemplateAssets.defaultLogoAssetPath,
   });
 
   final DateTime asOf;
@@ -60,7 +60,82 @@ class PdfReportInput {
   final String logoAssetPath;
 }
 
-const _defaultLogoAssetPath = 'assets/images/logo/usm_logo.png';
+const usmOsaF46ReportLabel = 'USM-OSA-F46 Liquidation Report';
+const _f46Metrics = UsmOsaF46TemplateMetrics();
+
+bool isUsmOsaF46LiquidationReportPath(String path) {
+  return path.startsWith('reports/liquidation/') && path.endsWith('.pdf');
+}
+
+class UsmOsaF46TemplateAssets {
+  const UsmOsaF46TemplateAssets({
+    this.logoAssetPath = defaultLogoAssetPath,
+    this.referenceDirectory = defaultReferenceDirectory,
+  });
+
+  static const defaultLogoAssetPath = 'assets/images/logo/usm_logo.png';
+  static const defaultReferenceDirectory = 'assets/templates/usm_osa_f46';
+
+  final String logoAssetPath;
+  final String referenceDirectory;
+}
+
+class UsmOsaF46TemplateMetrics {
+  const UsmOsaF46TemplateMetrics();
+
+  PdfPageFormat get pageFormat => PdfPageFormat.a4;
+  pw.EdgeInsets get pageMargin => const pw.EdgeInsets.fromLTRB(40, 34, 40, 34);
+
+  static const headerBorderWidth = 0.9;
+  static const bodyBorderWidth = 0.7;
+  static const tableBorderWidth = 0.6;
+  static const logoColumnWidth = 92.0;
+  static const headerHeight = 72.0;
+  static const titleBandHeight = 18.0;
+  static const logoSize = 54.0;
+  static const metadataMinHeight = 58.0;
+  static const itemHeaderHeight = 20.0;
+  static const itemRowMinHeight = 16.0;
+  static const totalRowHeight = 16.0;
+  static const signatureBlockHeight = 88.0;
+  static const commissionerLineWidth = 188.0;
+}
+
+class UsmOsaF46ReportData {
+  const UsmOsaF46ReportData({
+    required this.organizationName,
+    required this.organizationType,
+    required this.semesterSchoolYear,
+    required this.activityName,
+    required this.activityDateRange,
+    required this.permitApprovalDate,
+    required this.budgetAllocation,
+    required this.fundSource,
+    required this.resolutionNumber,
+    required this.items,
+    required this.totalAmount,
+    required this.treasurerName,
+    required this.auditorName,
+    required this.organizationHeadName,
+    required this.adviserName,
+  });
+
+  final String organizationName;
+  final String organizationType;
+  final String semesterSchoolYear;
+  final String activityName;
+  final String activityDateRange;
+  final String permitApprovalDate;
+  final String budgetAllocation;
+  final String fundSource;
+  final String resolutionNumber;
+  final List<UsmOsaF46LineItem> items;
+  final Money totalAmount;
+  final String treasurerName;
+  final String auditorName;
+  final String organizationHeadName;
+  final String adviserName;
+}
 
 class PdfReadinessIssue {
   const PdfReadinessIssue({
@@ -387,14 +462,14 @@ Future<PdfReportFile> _buildLiquidationReport(
     receiptTotals: receiptTotals,
     movements: input.movements,
   );
-  final items = <_LiquidationReportItem>[];
+  final items = <UsmOsaF46LineItem>[];
   var itemNumber = 1;
   for (final receipt in receipts) {
     final lines = [...(linesByReceipt[receipt.id] ?? const <LiquidationLine>[])]
       ..sort((a, b) => a.id.compareTo(b.id));
     for (final line in lines) {
       items.add(
-        _LiquidationReportItem(
+        UsmOsaF46LineItem(
           itemNumber: itemNumber,
           nature: line.description,
           payeeMerchant: receipt.payeeOrMerchant,
@@ -412,10 +487,7 @@ Future<PdfReportFile> _buildLiquidationReport(
     officers: input.officers,
   );
   final logo = await _loadLogo(input.logoAssetPath);
-
-  return _liquidationPdfFile(
-    path: _liquidationReportPath(event),
-    logo: logo,
+  final reportData = UsmOsaF46ReportData(
     organizationName: organization?.name ?? '',
     organizationType: organization?.type ?? '',
     semesterSchoolYear: _termText(event.semester, event.schoolYear),
@@ -434,51 +506,43 @@ Future<PdfReportFile> _buildLiquidationReport(
     organizationHeadName: signatories.organizationHeadName,
     adviserName: organization?.adviser ?? '',
   );
+
+  return _liquidationPdfFile(
+    path: _liquidationReportPath(event),
+    logo: logo,
+    data: reportData,
+  );
 }
 
 Future<PdfReportFile> _liquidationPdfFile({
   required String path,
   required pw.MemoryImage? logo,
-  required String organizationName,
-  required String organizationType,
-  required String semesterSchoolYear,
-  required String activityName,
-  required String activityDateRange,
-  required String permitApprovalDate,
-  required String budgetAllocation,
-  required String fundSource,
-  required String resolutionNumber,
-  required List<_LiquidationReportItem> items,
-  required Money totalAmount,
-  required String treasurerName,
-  required String auditorName,
-  required String organizationHeadName,
-  required String adviserName,
+  required UsmOsaF46ReportData data,
 }) async {
   final document = pw.Document(compress: false);
   document.addPage(
     pw.MultiPage(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.fromLTRB(40, 34, 40, 34),
+      pageFormat: _f46Metrics.pageFormat,
+      margin: _f46Metrics.pageMargin,
       build: (context) => [
         _officialHeader(logo),
         pw.SizedBox(height: 5),
         _metadataTable(
-          organizationName: organizationName,
-          organizationType: organizationType,
-          semesterSchoolYear: semesterSchoolYear,
-          activityName: activityName,
-          activityDateRange: activityDateRange,
-          permitApprovalDate: permitApprovalDate,
-          budgetAllocation: budgetAllocation,
-          fundSource: fundSource,
-          resolutionNumber: resolutionNumber,
+          organizationName: data.organizationName,
+          organizationType: data.organizationType,
+          semesterSchoolYear: data.semesterSchoolYear,
+          activityName: data.activityName,
+          activityDateRange: data.activityDateRange,
+          permitApprovalDate: data.permitApprovalDate,
+          budgetAllocation: data.budgetAllocation,
+          fundSource: data.fundSource,
+          resolutionNumber: data.resolutionNumber,
         ),
         pw.SizedBox(height: 14),
         _instructionBlock(),
         pw.SizedBox(height: 5),
-        _liquidationItemsTable(items),
-        _liquidationTotalRow(totalAmount),
+        _liquidationItemsTable(data.items),
+        _liquidationTotalRow(data.totalAmount),
         pw.SizedBox(height: 18),
         pw.Text(
           'We hereby attest to the correctness of this liquidation report.',
@@ -486,10 +550,10 @@ Future<PdfReportFile> _liquidationPdfFile({
         ),
         pw.SizedBox(height: 20),
         _signatureTable(
-          treasurerName: treasurerName,
-          auditorName: auditorName,
-          organizationHeadName: organizationHeadName,
-          adviserName: adviserName,
+          treasurerName: data.treasurerName,
+          auditorName: data.auditorName,
+          organizationHeadName: data.organizationHeadName,
+          adviserName: data.adviserName,
         ),
         pw.SizedBox(height: 58),
         _commissionerLines(),
@@ -509,28 +573,31 @@ pw.Widget _officialHeader(pw.MemoryImage? logo) {
   return pw.Column(
     children: [
       pw.Table(
-        border: pw.TableBorder.all(color: PdfColors.black, width: 0.9),
+        border: pw.TableBorder.all(
+          color: PdfColors.black,
+          width: UsmOsaF46TemplateMetrics.headerBorderWidth,
+        ),
         columnWidths: const {
-          0: pw.FixedColumnWidth(92),
+          0: pw.FixedColumnWidth(UsmOsaF46TemplateMetrics.logoColumnWidth),
           1: pw.FlexColumnWidth(),
         },
         children: [
           pw.TableRow(
             children: [
               pw.Container(
-                height: 72,
+                height: UsmOsaF46TemplateMetrics.headerHeight,
                 alignment: pw.Alignment.center,
                 child: logo == null
                     ? _logoPlaceholder()
                     : pw.Image(
                         logo,
-                        width: 54,
-                        height: 54,
+                        width: UsmOsaF46TemplateMetrics.logoSize,
+                        height: UsmOsaF46TemplateMetrics.logoSize,
                         fit: pw.BoxFit.contain,
                       ),
               ),
               pw.Container(
-                height: 72,
+                height: UsmOsaF46TemplateMetrics.headerHeight,
                 alignment: pw.Alignment.center,
                 padding: const pw.EdgeInsets.only(right: 72),
                 child: pw.Column(
@@ -564,13 +631,22 @@ pw.Widget _officialHeader(pw.MemoryImage? logo) {
         ],
       ),
       pw.Container(
-        height: 18,
+        height: UsmOsaF46TemplateMetrics.titleBandHeight,
         alignment: pw.Alignment.center,
         decoration: const pw.BoxDecoration(
           border: pw.Border(
-            left: pw.BorderSide(color: PdfColors.black, width: 0.9),
-            right: pw.BorderSide(color: PdfColors.black, width: 0.9),
-            bottom: pw.BorderSide(color: PdfColors.black, width: 0.9),
+            left: pw.BorderSide(
+              color: PdfColors.black,
+              width: UsmOsaF46TemplateMetrics.headerBorderWidth,
+            ),
+            right: pw.BorderSide(
+              color: PdfColors.black,
+              width: UsmOsaF46TemplateMetrics.headerBorderWidth,
+            ),
+            bottom: pw.BorderSide(
+              color: PdfColors.black,
+              width: UsmOsaF46TemplateMetrics.headerBorderWidth,
+            ),
           ),
         ),
         child: pw.Text(
@@ -584,11 +660,14 @@ pw.Widget _officialHeader(pw.MemoryImage? logo) {
 
 pw.Widget _logoPlaceholder() {
   return pw.Container(
-    width: 54,
-    height: 54,
+    width: UsmOsaF46TemplateMetrics.logoSize,
+    height: UsmOsaF46TemplateMetrics.logoSize,
     alignment: pw.Alignment.center,
     decoration: pw.BoxDecoration(
-      border: pw.Border.all(color: PdfColors.black, width: 0.9),
+      border: pw.Border.all(
+        color: PdfColors.black,
+        width: UsmOsaF46TemplateMetrics.headerBorderWidth,
+      ),
       shape: pw.BoxShape.circle,
     ),
     child: pw.Text('USM', style: _officialTextStyle(fontSize: 10, bold: true)),
@@ -607,7 +686,10 @@ pw.Widget _metadataTable({
   required String resolutionNumber,
 }) {
   return pw.Table(
-    border: pw.TableBorder.all(color: PdfColors.black, width: 0.7),
+    border: pw.TableBorder.all(
+      color: PdfColors.black,
+      width: UsmOsaF46TemplateMetrics.bodyBorderWidth,
+    ),
     columnWidths: const {
       0: pw.FlexColumnWidth(),
       1: pw.FlexColumnWidth(),
@@ -630,10 +712,7 @@ pw.Widget _metadataTable({
       ),
       pw.TableRow(
         children: [
-          _metadataCell(
-            label: 'Name of Activity/ Project',
-            value: activityName,
-          ),
+          _metadataCell(label: 'Name of Activity/Project', value: activityName),
           _metadataCell(
             label: 'Duration/ Date of Activity',
             value: activityDateRange,
@@ -665,7 +744,9 @@ pw.Widget _metadataCell({
   String? helper,
 }) {
   return pw.Container(
-    constraints: const pw.BoxConstraints(minHeight: 58),
+    constraints: const pw.BoxConstraints(
+      minHeight: UsmOsaF46TemplateMetrics.metadataMinHeight,
+    ),
     padding: const pw.EdgeInsets.fromLTRB(6, 5, 6, 5),
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -713,7 +794,7 @@ pw.Widget _instructionBlock() {
   );
 }
 
-pw.Widget _liquidationItemsTable(List<_LiquidationReportItem> items) {
+pw.Widget _liquidationItemsTable(List<UsmOsaF46LineItem> items) {
   final rows = items.isEmpty
       ? [
           pw.TableRow(
@@ -749,7 +830,10 @@ pw.Widget _liquidationItemsTable(List<_LiquidationReportItem> items) {
             ),
         ];
   return pw.Table(
-    border: pw.TableBorder.all(color: PdfColors.black, width: 0.6),
+    border: pw.TableBorder.all(
+      color: PdfColors.black,
+      width: UsmOsaF46TemplateMetrics.tableBorderWidth,
+    ),
     columnWidths: _itemColumnWidths,
     children: [
       pw.TableRow(
@@ -771,7 +855,10 @@ pw.Widget _liquidationItemsTable(List<_LiquidationReportItem> items) {
 
 pw.Widget _liquidationTotalRow(Money totalAmount) {
   return pw.Table(
-    border: pw.TableBorder.all(color: PdfColors.black, width: 0.6),
+    border: pw.TableBorder.all(
+      color: PdfColors.black,
+      width: UsmOsaF46TemplateMetrics.tableBorderWidth,
+    ),
     columnWidths: const {
       0: pw.FlexColumnWidth(3.45),
       1: pw.FlexColumnWidth(4.4),
@@ -780,7 +867,7 @@ pw.Widget _liquidationTotalRow(Money totalAmount) {
       pw.TableRow(
         children: [
           pw.Container(
-            height: 16,
+            height: UsmOsaF46TemplateMetrics.totalRowHeight,
             color: PdfColors.grey900,
             alignment: pw.Alignment.centerRight,
             padding: const pw.EdgeInsets.only(right: 6),
@@ -794,7 +881,7 @@ pw.Widget _liquidationTotalRow(Money totalAmount) {
             ),
           ),
           pw.Container(
-            height: 16,
+            height: UsmOsaF46TemplateMetrics.totalRowHeight,
             alignment: pw.Alignment.centerLeft,
             padding: const pw.EdgeInsets.only(left: 8),
             child: pw.Text(
@@ -810,7 +897,7 @@ pw.Widget _liquidationTotalRow(Money totalAmount) {
 
 pw.Widget _itemHeader(String text) {
   return pw.Container(
-    height: 20,
+    height: UsmOsaF46TemplateMetrics.itemHeaderHeight,
     alignment: pw.Alignment.center,
     padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 3),
     child: pw.Text(
@@ -831,7 +918,9 @@ pw.Widget _itemCell(
   pw.Alignment alignment = pw.Alignment.centerLeft,
 }) {
   return pw.Container(
-    constraints: const pw.BoxConstraints(minHeight: 16),
+    constraints: const pw.BoxConstraints(
+      minHeight: UsmOsaF46TemplateMetrics.itemRowMinHeight,
+    ),
     alignment: alignment,
     padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
     child: pw.Text(
@@ -853,7 +942,10 @@ pw.Widget _signatureTable({
   required String adviserName,
 }) {
   return pw.Table(
-    border: pw.TableBorder.all(color: PdfColors.black, width: 0.7),
+    border: pw.TableBorder.all(
+      color: PdfColors.black,
+      width: UsmOsaF46TemplateMetrics.bodyBorderWidth,
+    ),
     columnWidths: const {
       0: pw.FlexColumnWidth(),
       1: pw.FlexColumnWidth(),
@@ -874,7 +966,7 @@ pw.Widget _signatureTable({
             caption: 'Name and Signature of\nOrganization Auditor',
           ),
           _signatureCell(
-            title: 'Submitted by',
+            title: 'Submitted by:',
             name: organizationHeadName,
             caption: 'Name and Signature of\nOrganization Head',
           ),
@@ -895,7 +987,7 @@ pw.Widget _signatureCell({
   required String caption,
 }) {
   return pw.Container(
-    height: 88,
+    height: UsmOsaF46TemplateMetrics.signatureBlockHeight,
     padding: const pw.EdgeInsets.fromLTRB(8, 7, 8, 7),
     child: pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -933,7 +1025,7 @@ pw.Widget _commissionerLines() {
 
 pw.Widget _commissionerLine() {
   return pw.Container(
-    width: 188,
+    width: UsmOsaF46TemplateMetrics.commissionerLineWidth,
     child: pw.Column(
       children: [
         pw.Container(height: 0.9, color: PdfColors.black),
@@ -1093,8 +1185,8 @@ bool _sameDate(DateTime left, DateTime right) {
       left.day == right.day;
 }
 
-class _LiquidationReportItem {
-  const _LiquidationReportItem({
+class UsmOsaF46LineItem {
+  const UsmOsaF46LineItem({
     required this.itemNumber,
     required this.nature,
     required this.payeeMerchant,

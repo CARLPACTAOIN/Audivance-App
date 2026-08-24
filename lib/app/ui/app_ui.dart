@@ -161,12 +161,12 @@ class InlineStatusPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (tone) {
-      InlineStatusTone.info => const Color(0xFF1E3A8A),
-      InlineStatusTone.success => const Color(0xFF047857),
-      InlineStatusTone.warning => const Color(0xFFA16207),
-      InlineStatusTone.error => Theme.of(context).colorScheme.error,
+      InlineStatusTone.info => const Color(0xFF38BDF8),
+      InlineStatusTone.success => const Color(0xFF10B981),
+      InlineStatusTone.warning => const Color(0xFFF59E0B),
+      InlineStatusTone.error => const Color(0xFFEF4444),
     };
-    final background = color.withValues(alpha: 0.08);
+    final background = color.withValues(alpha: 0.12);
     final icon = switch (tone) {
       InlineStatusTone.info => Icons.info_outline,
       InlineStatusTone.success => Icons.check_circle_outline,
@@ -176,16 +176,16 @@ class InlineStatusPanel extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: background,
-        border: Border.all(color: color.withValues(alpha: 0.24)),
-        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: color),
-            const SizedBox(width: 10),
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,11 +196,19 @@ class InlineStatusPanel extends StatelessWidget {
                       style: TextStyle(
                         color: color,
                         fontWeight: FontWeight.w700,
+                        fontSize: 14,
                       ),
                     ),
                     const SizedBox(height: 3),
                   ],
-                  Text(message, style: TextStyle(color: color)),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: const Color(0xFFE2E8F0),
+                      fontSize: 13,
+                      height: 1.4,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -234,6 +242,11 @@ class AppDialogFrame extends StatelessWidget {
     final maxHeight = math.max(240.0, size.height - 220);
     return AlertDialog(
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      backgroundColor: const Color(0xFF161C26),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFF263345)),
+      ),
       title: Text(title),
       content: SizedBox(
         width: width,
@@ -272,7 +285,7 @@ class MetadataChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chip = Chip(
-      avatar: Icon(icon, size: 18),
+      avatar: Icon(icon, size: 18, color: const Color(0xFF94A3B8)),
       label: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 260),
         child: Text(label, overflow: TextOverflow.ellipsis),
@@ -297,31 +310,35 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (tone) {
-      InlineStatusTone.info => const Color(0xFF1E3A8A),
-      InlineStatusTone.success => const Color(0xFF047857),
-      InlineStatusTone.warning => const Color(0xFFA16207),
-      InlineStatusTone.error => Theme.of(context).colorScheme.error,
+      InlineStatusTone.info => const Color(0xFF38BDF8),
+      InlineStatusTone.success => const Color(0xFF10B981),
+      InlineStatusTone.warning => const Color(0xFFF59E0B),
+      InlineStatusTone.error => const Color(0xFFEF4444),
     };
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        border: Border.all(color: color.withValues(alpha: 0.24)),
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 16, color: color),
+              Icon(icon, size: 15, color: color),
               const SizedBox(width: 6),
             ],
             Flexible(
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: color, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12.5,
+                ),
               ),
             ),
           ],
