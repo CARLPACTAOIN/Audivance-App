@@ -1,6 +1,6 @@
 # Audivance Handoff
 
-Last updated: August 23, 2026
+Last updated: August 24, 2026
 
 ## Current Status
 
@@ -24,7 +24,7 @@ Completed setup work:
 - Added app-private attachment import with file picking, SHA-256 checksums, reusable attachment selector UI, and Export Center attachment integrity readiness checks.
 - Added real COA ZIP generation with manifest, README, JSON data files, CSV review tables, stored attachments, SHA-256 package checksums, and a save-file writer boundary.
 - Added Audivance-branded A4 PDF report generation for organization summary, Treasury ledger, budget-vs-actual, and per-event liquidation reports, with PDF entries packaged under `reports/` in COA ZIP exports.
-- Added Backup & Restore foundation with app-support storage path sharing, local backup ZIP generation for encrypted SQLite database files plus app-private attachments, backup manifest validation, same-device/key-context backup labeling, and a Settings panel entry point.
+- Added Backup & Restore foundation with app-support storage path sharing, local backup ZIP generation for encrypted SQLite database files plus app-private attachments, hardened backup manifest validation, staged same-device restore, active encrypted database close/reopen orchestration, typed restore confirmation, same-device/key-context backup labeling, and a Settings panel entry point.
 - Added the Audivance logo asset, padded icon/splash sources, launcher icon and native splash configs, platform icon/splash resources, and in-app `BrandLogo` usage.
 - Added a final MVP UX/edge-case polish pass for existing setup, unlock, dashboard, Treasury, Events/Liquidation, Export, Backup, and attachment flows, including shared state/dialog/status primitives, direct dashboard navigation actions, visible protected/system-generated labels, top form error summaries, and tighter phone-width wrapping.
 - Added widget and domain unit tests.
@@ -45,7 +45,7 @@ Completed setup work:
 - `lib/app/brand_logo.dart`: Reusable in-app Audivance logo widget.
 - `lib/app/ui/app_ui.dart`: Shared responsive scaffold, loading/error state, inline status, dialog frame, metadata chip, and status badge primitives.
 - `lib/core/storage/audit_storage_paths.dart`: Shared app-support storage paths for the SQLite database and attachments.
-- `lib/features/backup/`: Backup service, backup package file picker boundaries, and Backup & Restore UI panel.
+- `lib/features/backup/`: Backup service, restore coordinator, backup package file picker boundaries, and Backup & Restore UI panel.
 - `lib/features/dashboard/`: Repository-backed dashboard UI, snapshot models, demo fixture, and application service.
 - `lib/features/treasury/`: Treasury service, formatting helpers, source-balance UI, Add Fund form, manual movement form, and ledger view.
 - `lib/features/events/`: Events service, event list UI, create-event form, split-funding allocation UI, budget adjustments, liquidation actions, and budget-vs-actual review UI.
@@ -76,10 +76,10 @@ If Git reports a dubious ownership error in this sandbox, avoid changing reposit
 
 ## Recommended Next Implementation Sequence
 
-1. Add Backup / Restore Hardening V1 with encrypted backup recovery, active database close/reopen orchestration, and restore confirmation.
-2. Add Organization Profile and Officer Management screens for full edit/archive workflows.
-3. Add exact official COA/USM-OSA-F46 PDF template fidelity once stakeholders provide final templates.
-4. Add export history and backup-before-export reminders.
+1. Add Organization Profile and Officer Management screens for full edit/archive workflows.
+2. Add exact official COA/USM-OSA-F46 PDF template fidelity once stakeholders provide final templates.
+3. Add export history and backup-before-export reminders.
+4. Add cross-device encrypted backup recovery only after a recovery-key design is approved.
 5. Add focused widget and unit tests as each workflow is introduced.
 
 ## Likely Package Decisions To Evaluate
@@ -90,7 +90,7 @@ If Git reports a dubious ownership error in this sandbox, avoid changing reposit
 - Export ZIP: archive package plus manifest checksums.
 - PDF generation: implemented with the Dart `pdf` package for V1 printable summaries; exact official template reproduction is still a later fidelity task.
 - IDs: UUID or ULID package for stable exported references.
-- Backup recovery: same-device encrypted database backups are labeled; cross-device encrypted recovery needs its own backup hardening sprint.
+- Backup recovery: same-device encrypted database backup generation, validation, staged restore, active database close/reopen, and restore confirmation are implemented; cross-device encrypted recovery still needs a recovery-key design.
 
 ## UI/UX Skill Usage
 

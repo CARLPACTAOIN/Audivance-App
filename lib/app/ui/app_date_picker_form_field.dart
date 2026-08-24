@@ -78,8 +78,7 @@ class AppDatePickerFormField extends StatelessWidget {
     final effectiveLastDate = lastDate ?? DateTime(2100, 12, 31);
 
     final currentParsed = parseIsoDate(controller.text);
-    var effectiveInitialDate =
-        currentParsed ?? initialDate ?? DateTime.now();
+    var effectiveInitialDate = currentParsed ?? initialDate ?? DateTime.now();
 
     if (effectiveInitialDate.isBefore(effectiveFirstDate)) {
       effectiveInitialDate = effectiveFirstDate;

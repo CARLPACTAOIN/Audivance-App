@@ -1,6 +1,6 @@
 # Audivance Memory
 
-Last updated: August 23, 2026
+Last updated: August 24, 2026
 
 ## Project Identity
 
@@ -15,7 +15,7 @@ The MVP is Android-first and tablet-friendly, with future desktop support possib
 - Dart SDK constraint: `^3.13.0`.
 - Current dependencies: Flutter SDK, `cupertino_icons`, Drift, SQLite, `path`, `path_provider`, `file_picker`, `crypto`, `archive`, `pdf`, `flutter_secure_storage`, and `cryptography`.
 - Current dev tooling includes Drift code generation plus launcher icon and native splash generation configuration.
-- Current app implementation: Audivance app shell with first-launch setup, persistent secure local unlock, encrypted local SQLite storage, repository-backed dashboard, Treasury workspace, Events workspace with budget adjustments and budget-vs-actual review snapshots, Export Center preview, PDF report generation, ZIP generation, Backup & Restore foundation, app-private attachment import, and a final MVP UX/edge-case polish pass across existing workflows.
+- Current app implementation: Audivance app shell with first-launch setup, persistent secure local unlock, encrypted local SQLite storage, repository-backed dashboard, Treasury workspace, Events workspace with budget adjustments and budget-vs-actual review snapshots, Export Center preview, PDF report generation, ZIP generation, hardened Backup & Restore foundation, app-private attachment import, and a final MVP UX/edge-case polish pass across existing workflows.
 - Current domain implementation: pure Dart primitives and audit rule services under `lib/core/domain/` and `lib/features/audit/domain/`.
 - Current persistence implementation: Drift database schema version 3, mappers, repository interface, repository implementation, encrypted app database opener, plaintext-to-encrypted migration service, and secure key-provider boundary under `lib/features/audit/data/`.
 - Current test implementation: setup/unlock/dashboard widget tests plus app startup, domain, and in-memory Drift repository tests.
@@ -170,9 +170,10 @@ The Export Center now generates a real local ZIP package containing the manifest
 - `AuditStoragePaths` centralizes the app-support database and attachment paths used by Drift, attachment storage, and backup generation.
 - `BackupService` builds a local backup ZIP with `backup_manifest.json`, encrypted SQLite database files, SQLite sidecar files when present, and app-private attachments.
 - Backup manifests now identify database backups as encrypted same-device/key-context backups; cross-device encrypted recovery is still future work.
-- Backup validation verifies manifest type, required database entry, listed entry byte lengths, and SHA-256 checksums.
-- A restore service boundary can write a validated backup into a storage directory, but the app UI currently avoids replacing the active open database during the same session.
-- The Settings action opens a Backup & Restore panel with Generate Backup and Validate Backup actions.
+- Backup validation verifies readable ZIP structure, manifest type, safe archive paths, required database entry, source/path consistency, listed entry byte lengths, and SHA-256 checksums.
+- Restore uses a staged write-then-verify flow before replacing active encrypted database files and app-private attachments.
+- `BackupRestoreCoordinator` closes the active workspace database, restores the validated backup, reopens the encrypted workspace, and reports controlled restore or reopen failures.
+- The Settings action opens a Backup & Restore panel with Generate Backup, Validate Backup, typed RESTORE confirmation, and active same-device restore actions.
 
 ## Implemented Final UX Polish
 
@@ -191,7 +192,8 @@ The Export Center now generates a real local ZIP package containing the manifest
 - Require local unlock through a persisted secure PIN verifier.
 - Add biometric unlock only when platform support is available.
 - Backup and restore must include database, attachments, app version, and schema version.
-- Restore must validate the backup and require explicit confirmation before replacing local data. Full in-app restore orchestration still needs a database-close/reopen flow and cross-device key recovery design.
+- Restore must validate the backup, require explicit confirmation, stage files before replacement, and reopen the encrypted workspace after replacement.
+- Cross-device encrypted backup recovery still needs a separate key/recovery design.
 
 ## Open Decisions
 
@@ -201,4 +203,4 @@ The Export Center now generates a real local ZIP package containing the manifest
 - Decide whether backups are mandatory before every COA export.
 - Decide whether importing existing Laravel data is in scope.
 - Decide whether a COA import/viewer utility is needed for MVP or later.
-- Next best sprint: Backup / Restore Hardening V1.
+- Next best sprint: Organization Profile + Officer Management V1.

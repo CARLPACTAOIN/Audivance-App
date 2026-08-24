@@ -23,6 +23,7 @@ windows/flutter/ephemeral/
 # Agent/tooling bundles; they are not Audivance application code
 .agents/
 .codex/skills/
+dev-orchestrator/
 
 # Flutter platform shell code is mostly generated/scaffolded
 android/
@@ -34,6 +35,9 @@ windows/
 
 # Graphify output from previous runs
 graphify-out/
+
+# Human-facing generated architecture vault; Graphify remains the machine graph
+knowledge/
 
 # Large generated Dart sources
 lib/features/audit/data/audit_database.g.dart

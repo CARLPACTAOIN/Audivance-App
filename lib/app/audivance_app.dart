@@ -11,6 +11,9 @@ import '../features/audit/data/audit_database_opener.dart';
 import '../features/audit/data/audit_repository.dart';
 import '../features/audit/data/drift_audit_repository.dart';
 import '../features/audit/domain/audit_models.dart';
+import '../features/backup/backup_package_io.dart';
+import '../features/backup/backup_restore_coordinator.dart';
+import '../features/backup/backup_service.dart';
 import '../features/export/export_package_writer.dart';
 import '../features/setup/setup_screen.dart';
 import 'app_startup_service.dart';
@@ -31,6 +34,9 @@ class AudivanceApp extends StatefulWidget {
     this.attachmentPicker,
     this.attachmentStorage,
     this.exportPackageWriter,
+    this.backupPackageWriter,
+    this.backupPackageReader,
+    this.backupRestoreHandler,
     this.asOf,
     this.storagePaths,
   });
@@ -42,6 +48,9 @@ class AudivanceApp extends StatefulWidget {
   final AttachmentPicker? attachmentPicker;
   final AttachmentStorageService? attachmentStorage;
   final ExportPackageWriter? exportPackageWriter;
+  final BackupPackageWriter? backupPackageWriter;
+  final BackupPackageReader? backupPackageReader;
+  final BackupRestoreHandler? backupRestoreHandler;
   final DateTime? asOf;
   final AuditStoragePaths? storagePaths;
 
@@ -141,6 +150,10 @@ class _AudivanceAppState extends State<AudivanceApp> {
               attachmentPicker: _attachmentPicker,
               attachmentStorage: _attachmentStorage,
               exportPackageWriter: widget.exportPackageWriter,
+              backupPackageWriter: widget.backupPackageWriter,
+              backupPackageReader: widget.backupPackageReader,
+              onRestoreBackup:
+                  widget.backupRestoreHandler ?? _restoreBackupAndReload,
               asOf: widget.asOf,
               storagePaths: _storagePaths,
             ),
@@ -263,6 +276,42 @@ class _AudivanceAppState extends State<AudivanceApp> {
     ).open();
     _repository = DriftAuditRepository(_database!);
     await _repository!.isSetupComplete();
+  }
+
+  Future<void> _closeEncryptedWorkspace() async {
+    final database = _database;
+    _repository = null;
+    _database = null;
+    if (_ownsDatabase) {
+      await database?.close();
+    }
+  }
+
+  Future<RestoreExecutionResult> _restoreBackupAndReload(
+    PickedBackupPackage package,
+  ) async {
+    if (!_ownsDatabase) {
+      return const RestoreExecutionResult.restoreFailed(
+        'Active restore is only available for file-backed app workspaces.',
+      );
+    }
+    final coordinator = BackupRestoreCoordinator(
+      service: BackupService(storagePaths: _storagePaths),
+      closeActiveWorkspace: _closeEncryptedWorkspace,
+      reopenWorkspace: _openEncryptedWorkspace,
+    );
+    final result = await coordinator.restoreBackup(package);
+    if (mounted && result.isSuccess) {
+      setState(() {
+        _startupState = Future.value(AppStartupState.ready);
+      });
+    } else if (mounted &&
+        result.status == RestoreExecutionStatus.reopenFailed) {
+      setState(() {
+        _startupState = Future.error(StateError(result.message));
+      });
+    }
+    return result;
   }
 
   ThemeData _buildTheme() {

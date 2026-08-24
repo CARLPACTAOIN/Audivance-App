@@ -116,7 +116,10 @@ void main() {
         ),
       );
 
-      await tester.enterText(find.byKey(const Key('testDateField')), '2026-09-01');
+      await tester.enterText(
+        find.byKey(const Key('testDateField')),
+        '2026-09-01',
+      );
       await tester.pumpAndSettle();
 
       expect(controller.text, '2026-09-01');
@@ -151,7 +154,9 @@ void main() {
       expect(find.byKey(const Key('testDateFieldClearButton')), findsNothing);
     });
 
-    testWidgets('disables interactions when isEnabled is false', (tester) async {
+    testWidgets('disables interactions when isEnabled is false', (
+      tester,
+    ) async {
       final controller = TextEditingController();
       addTearDown(controller.dispose);
 

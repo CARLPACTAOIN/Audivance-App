@@ -77,8 +77,17 @@ class BackupService {
       ]);
     }
     final files = <String, Uint8List>{};
+    final duplicatePaths = <String>{};
     for (final entry in archive.files.where((file) => file.isFile)) {
+      if (files.containsKey(entry.name)) {
+        duplicatePaths.add(entry.name);
+      }
       files[entry.name] = Uint8List.fromList(entry.content as List<int>);
+    }
+    if (duplicatePaths.isNotEmpty) {
+      return BackupValidationResult.invalid([
+        for (final path in duplicatePaths) 'Backup contains duplicate $path.',
+      ]);
     }
 
     final manifestBytes = files['backup_manifest.json'];
@@ -114,6 +123,18 @@ class BackupService {
       if (path == 'backup_manifest.json') {
         continue;
       }
+      if (!_isAllowedArchivePath(path)) {
+        messages.add('Backup entry path is not allowed: $path.');
+        continue;
+      }
+      if (!_isAllowedSourceType(entry.sourceType)) {
+        messages.add('Backup entry source type is not allowed: $path.');
+        continue;
+      }
+      if (!_sourceTypeMatchesPath(entry)) {
+        messages.add('Backup entry source type does not match path: $path.');
+        continue;
+      }
       final fileBytes = files[path];
       if (fileBytes == null) {
         messages.add('Backup is missing $path.');
@@ -132,37 +153,50 @@ class BackupService {
     return BackupValidationResult.valid(manifest: manifest, entries: entries);
   }
 
-  Future<ValidationResult> restoreBackup(Uint8List bytes) async {
+  Future<RestoreExecutionResult> restoreBackupDetailed(Uint8List bytes) async {
     final validation = await validateBackup(bytes);
     if (validation.isInvalid) {
-      return ValidationResult.invalid(validation.messages);
+      return RestoreExecutionResult.invalidBackup(validation);
     }
-    final archive = _decodeArchive(bytes)!;
-    final files = <String, Uint8List>{};
-    for (final entry in archive.files.where((file) => file.isFile)) {
-      files[entry.name] = Uint8List.fromList(entry.content as List<int>);
-    }
-
-    final supportDirectory = await storagePaths.supportDirectory();
-    await supportDirectory.create(recursive: true);
-    final attachmentsDirectory = await storagePaths.attachmentsDirectory();
-    if (await attachmentsDirectory.exists()) {
-      await attachmentsDirectory.delete(recursive: true);
-    }
-
-    for (final entry in validation.entries) {
-      if (entry.path == 'backup_manifest.json') {
-        continue;
+    try {
+      final archive = _decodeArchive(bytes)!;
+      final files = <String, Uint8List>{};
+      for (final entry in archive.files.where((file) => file.isFile)) {
+        files[entry.name] = Uint8List.fromList(entry.content as List<int>);
       }
-      final bytes = files[entry.path];
-      if (bytes == null) {
-        continue;
+      final stagingDirectory = await _stageRestoreFiles(validation, files);
+      try {
+        final stagingValidation = await _verifyStagedRestore(
+          validation,
+          stagingDirectory,
+        );
+        if (stagingValidation.isInvalid) {
+          return RestoreExecutionResult.restoreFailed(
+            stagingValidation.messages.join('\n'),
+            validation: validation,
+          );
+        }
+        await _promoteStagedRestore(validation, stagingDirectory);
+      } finally {
+        if (await stagingDirectory.exists()) {
+          await stagingDirectory.delete(recursive: true);
+        }
       }
-      final destination = await _destinationForRestore(entry.path);
-      await destination.parent.create(recursive: true);
-      await destination.writeAsBytes(bytes, flush: true);
+      return RestoreExecutionResult.success(validation);
+    } on Object catch (error) {
+      return RestoreExecutionResult.restoreFailed(
+        'Backup could not be restored.\n$error',
+        validation: validation,
+      );
     }
-    return const ValidationResult.valid();
+  }
+
+  Future<ValidationResult> restoreBackup(Uint8List bytes) async {
+    final result = await restoreBackupDetailed(bytes);
+    if (result.isSuccess) {
+      return const ValidationResult.valid();
+    }
+    return ValidationResult.failure(result.message);
   }
 
   Future<List<BackupArchiveEntry>> _collectBackupEntries() async {
@@ -212,6 +246,97 @@ class BackupService {
     throw ArgumentError.value(archivePath, 'archivePath', 'Unknown path.');
   }
 
+  Future<Directory> _stageRestoreFiles(
+    BackupValidationResult validation,
+    Map<String, Uint8List> files,
+  ) async {
+    final supportDirectory = await storagePaths.supportDirectory();
+    await supportDirectory.create(recursive: true);
+    final stagingDirectory = Directory(
+      p.join(supportDirectory.path, '.restore-staging'),
+    );
+    if (await stagingDirectory.exists()) {
+      await stagingDirectory.delete(recursive: true);
+    }
+    await stagingDirectory.create(recursive: true);
+    for (final entry in validation.entries) {
+      if (entry.path == 'backup_manifest.json') {
+        continue;
+      }
+      final bytes = files[entry.path];
+      if (bytes == null) {
+        continue;
+      }
+      final destination = _stagingDestination(stagingDirectory, entry.path);
+      await destination.parent.create(recursive: true);
+      await destination.writeAsBytes(bytes, flush: true);
+    }
+    return stagingDirectory;
+  }
+
+  Future<BackupValidationResult> _verifyStagedRestore(
+    BackupValidationResult validation,
+    Directory stagingDirectory,
+  ) async {
+    final messages = <String>[];
+    for (final entry in validation.entries) {
+      if (entry.path == 'backup_manifest.json') {
+        continue;
+      }
+      final file = _stagingDestination(stagingDirectory, entry.path);
+      if (!await file.exists()) {
+        messages.add('Staged restore is missing ${entry.path}.');
+        continue;
+      }
+      final bytes = await file.readAsBytes();
+      if (bytes.length != entry.byteLength) {
+        messages.add('Staged restore length mismatch: ${entry.path}.');
+      }
+      if (_sha256Hex(bytes) != entry.checksum) {
+        messages.add('Staged restore checksum mismatch: ${entry.path}.');
+      }
+    }
+    if (messages.isNotEmpty) {
+      return BackupValidationResult.invalid(messages);
+    }
+    return validation;
+  }
+
+  Future<void> _promoteStagedRestore(
+    BackupValidationResult validation,
+    Directory stagingDirectory,
+  ) async {
+    await _deleteActiveDatabaseFiles();
+    final attachmentsDirectory = await storagePaths.attachmentsDirectory();
+    if (await attachmentsDirectory.exists()) {
+      await attachmentsDirectory.delete(recursive: true);
+    }
+
+    for (final entry in validation.entries) {
+      if (entry.path == 'backup_manifest.json') {
+        continue;
+      }
+      final source = _stagingDestination(stagingDirectory, entry.path);
+      final destination = await _destinationForRestore(entry.path);
+      await destination.parent.create(recursive: true);
+      await destination.writeAsBytes(await source.readAsBytes(), flush: true);
+    }
+  }
+
+  Future<void> _deleteActiveDatabaseFiles() async {
+    final database = await storagePaths.databaseFile();
+    final candidates = [
+      database,
+      File('${database.path}-wal'),
+      File('${database.path}-shm'),
+    ];
+    for (final file in candidates) {
+      if (await file.exists()) {
+        await file.delete();
+      }
+    }
+  }
+
   Map<String, Object?> _manifestFor({
     required DateTime generatedAt,
     required List<BackupArchiveEntry> entries,
@@ -227,6 +352,62 @@ class BackupService {
       'entries': entries.map((entry) => entry.toManifestJson()).toList(),
     };
   }
+}
+
+class RestoreExecutionResult {
+  const RestoreExecutionResult._({
+    required this.status,
+    required this.message,
+    this.validation,
+  });
+
+  factory RestoreExecutionResult.success(BackupValidationResult validation) {
+    return RestoreExecutionResult._(
+      status: RestoreExecutionStatus.success,
+      message:
+          'Backup restored. ${validation.entries.length} entries were replaced.',
+      validation: validation,
+    );
+  }
+
+  factory RestoreExecutionResult.invalidBackup(
+    BackupValidationResult validation,
+  ) {
+    return RestoreExecutionResult._(
+      status: RestoreExecutionStatus.invalidBackup,
+      message: validation.summary,
+      validation: validation,
+    );
+  }
+
+  const RestoreExecutionResult.restoreFailed(
+    String message, {
+    BackupValidationResult? validation,
+  }) : this._(
+         status: RestoreExecutionStatus.restoreFailed,
+         message: message,
+         validation: validation,
+       );
+
+  const RestoreExecutionResult.reopenFailed(String message)
+    : this._(
+        status: RestoreExecutionStatus.reopenFailed,
+        message: message,
+        validation: null,
+      );
+
+  final RestoreExecutionStatus status;
+  final String message;
+  final BackupValidationResult? validation;
+
+  bool get isSuccess => status == RestoreExecutionStatus.success;
+}
+
+enum RestoreExecutionStatus {
+  success,
+  invalidBackup,
+  restoreFailed,
+  reopenFailed,
 }
 
 class BackupPackage {
@@ -323,6 +504,23 @@ class BackupValidationResult {
 
   bool get isInvalid => !isValid;
   String get summary => messages.join('\n');
+
+  int get databaseEntryCount =>
+      entries.where((entry) => entry.sourceType == 'database').length;
+
+  int get attachmentEntryCount =>
+      entries.where((entry) => entry.sourceType == 'attachment').length;
+
+  int get totalByteLength =>
+      entries.fold(0, (total, entry) => total + entry.byteLength);
+
+  Object? get appVersion => manifest?['appVersion'];
+
+  Object? get schemaVersion => manifest?['schemaVersion'];
+
+  Object? get generatedAt => manifest?['generatedAt'];
+
+  Object? get restoreScope => manifest?['restoreScope'];
 }
 
 Future<BackupArchiveEntry> _entryFromFile(
@@ -341,11 +539,25 @@ Future<BackupArchiveEntry> _entryFromFile(
 }
 
 Archive? _decodeArchive(Uint8List bytes) {
+  if (!_hasZipSignature(bytes)) {
+    return null;
+  }
   try {
     return ZipDecoder().decodeBytes(bytes);
   } on Object {
     return null;
   }
+}
+
+bool _hasZipSignature(Uint8List bytes) {
+  if (bytes.length < 4) {
+    return false;
+  }
+  if (bytes[0] != 0x50 || bytes[1] != 0x4b) {
+    return false;
+  }
+  final signature = bytes[2] << 8 | bytes[3];
+  return signature == 0x0304 || signature == 0x0506 || signature == 0x0708;
 }
 
 Map<String, Object?>? _decodeManifest(Uint8List bytes) {
@@ -403,4 +615,46 @@ String _backupFileName(DateTime generatedAt) {
 
 String _sha256Hex(List<int> bytes) {
   return crypto.sha256.convert(bytes).toString();
+}
+
+bool _isAllowedArchivePath(String archivePath) {
+  if (archivePath.contains(r'\') ||
+      p.posix.isAbsolute(archivePath) ||
+      p.posix.split(archivePath).contains('..')) {
+    return false;
+  }
+  return archivePath == 'database/audivance.sqlite' ||
+      archivePath.startsWith('database/audivance.sqlite-') ||
+      archivePath.startsWith('attachments/');
+}
+
+bool _isAllowedSourceType(String sourceType) {
+  return BackupArchiveEntrySource.values.any((type) => type.name == sourceType);
+}
+
+bool _sourceTypeMatchesPath(BackupManifestEntry entry) {
+  if (entry.path.startsWith('database/')) {
+    return entry.sourceType == BackupArchiveEntrySource.database.name;
+  }
+  if (entry.path.startsWith('attachments/')) {
+    return entry.sourceType == BackupArchiveEntrySource.attachment.name;
+  }
+  return entry.path == 'backup_manifest.json' &&
+      entry.sourceType == BackupArchiveEntrySource.manifest.name;
+}
+
+File _stagingDestination(Directory stagingDirectory, String archivePath) {
+  if (!_isAllowedArchivePath(archivePath)) {
+    throw ArgumentError.value(archivePath, 'archivePath', 'Unknown path.');
+  }
+  if (archivePath == 'database/audivance.sqlite') {
+    return File(p.join(stagingDirectory.path, 'audivance.sqlite'));
+  }
+  if (archivePath.startsWith('database/audivance.sqlite-')) {
+    final suffix = archivePath.substring('database/audivance.sqlite'.length);
+    return File(p.join(stagingDirectory.path, 'audivance.sqlite$suffix'));
+  }
+  return File(
+    p.joinAll([stagingDirectory.path, ...p.posix.split(archivePath)]),
+  );
 }

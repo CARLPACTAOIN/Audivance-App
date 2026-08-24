@@ -5,6 +5,7 @@ import '../core/attachments/attachment_storage_service.dart';
 import '../core/domain/stable_id_generator.dart';
 import '../core/storage/audit_storage_paths.dart';
 import '../features/audit/data/audit_repository.dart';
+import '../features/backup/backup_package_io.dart';
 import '../features/backup/backup_screen.dart';
 import '../features/backup/backup_service.dart';
 import '../features/dashboard/dashboard_screen.dart';
@@ -27,6 +28,9 @@ class WorkspaceShell extends StatefulWidget {
     required this.attachmentPicker,
     required this.attachmentStorage,
     this.exportPackageWriter,
+    this.backupPackageWriter,
+    this.backupPackageReader,
+    this.onRestoreBackup,
     this.asOf,
     required this.storagePaths,
   });
@@ -36,6 +40,9 @@ class WorkspaceShell extends StatefulWidget {
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
   final ExportPackageWriter? exportPackageWriter;
+  final BackupPackageWriter? backupPackageWriter;
+  final BackupPackageReader? backupPackageReader;
+  final BackupRestoreHandler? onRestoreBackup;
   final DateTime? asOf;
   final AuditStoragePaths storagePaths;
 
@@ -156,6 +163,11 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
       context: context,
       builder: (context) => BackupRestoreScreen(
         service: BackupService(storagePaths: widget.storagePaths),
+        writer:
+            widget.backupPackageWriter ?? const FilePickerBackupPackageWriter(),
+        reader:
+            widget.backupPackageReader ?? const FilePickerBackupPackageReader(),
+        onRestoreBackup: widget.onRestoreBackup,
       ),
     );
   }

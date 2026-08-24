@@ -10,11 +10,13 @@ class BackupRestoreScreen extends StatefulWidget {
     required this.service,
     this.writer = const FilePickerBackupPackageWriter(),
     this.reader = const FilePickerBackupPackageReader(),
+    this.onRestoreBackup,
   });
 
   final BackupService service;
   final BackupPackageWriter writer;
   final BackupPackageReader reader;
+  final BackupRestoreHandler? onRestoreBackup;
 
   @override
   State<BackupRestoreScreen> createState() => _BackupRestoreScreenState();
@@ -23,10 +25,13 @@ class BackupRestoreScreen extends StatefulWidget {
 class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
   BackupPackage? _backup;
   BackupWriteResult? _writeResult;
+  PickedBackupPackage? _pickedBackup;
   BackupValidationResult? _validation;
+  RestoreExecutionResult? _restoreResult;
   String? _message;
   var _isGenerating = false;
   var _isValidating = false;
+  var _isRestoring = false;
 
   @override
   Widget build(BuildContext context) {
@@ -35,9 +40,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       maxWidth: 620,
       actions: [
         TextButton(
-          onPressed: _isGenerating || _isValidating
-              ? null
-              : () => Navigator.pop(context),
+          onPressed: _isBusy ? null : () => Navigator.pop(context),
           child: const Text('Close'),
         ),
       ],
@@ -56,9 +59,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
               children: [
                 FilledButton.icon(
                   key: const Key('backupGenerateButton'),
-                  onPressed: _isGenerating || _isValidating
-                      ? null
-                      : _generateBackup,
+                  onPressed: _isBusy ? null : _generateBackup,
                   icon: const Icon(Icons.backup_outlined),
                   label: Text(
                     _isGenerating ? 'Generating...' : 'Generate Backup',
@@ -66,13 +67,22 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
                 ),
                 OutlinedButton.icon(
                   key: const Key('backupValidateButton'),
-                  onPressed: _isGenerating || _isValidating
-                      ? null
-                      : _validateBackup,
+                  onPressed: _isBusy ? null : _validateBackup,
                   icon: const Icon(Icons.fact_check_outlined),
                   label: Text(
                     _isValidating ? 'Validating...' : 'Validate Backup',
                   ),
+                ),
+                FilledButton.icon(
+                  key: const Key('backupRestoreButton'),
+                  onPressed: _canRestore ? _confirmAndRestore : null,
+                  icon: _isRestoring
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.restore_outlined),
+                  label: Text(_isRestoring ? 'Restoring...' : 'Restore Backup'),
                 ),
               ],
             ),
@@ -88,7 +98,14 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
             ],
             if (_validation != null) ...[
               const SizedBox(height: 16),
-              _ValidationPanel(result: _validation!),
+              _ValidationPanel(
+                result: _validation!,
+                pickedBackup: _pickedBackup,
+              ),
+            ],
+            if (_restoreResult != null) ...[
+              const SizedBox(height: 16),
+              _RestoreResultPanel(result: _restoreResult!),
             ],
           ],
         ),
@@ -102,7 +119,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       _message = null;
       _backup = null;
       _writeResult = null;
+      _pickedBackup = null;
       _validation = null;
+      _restoreResult = null;
     });
     try {
       final backup = await widget.service.buildBackup();
@@ -130,7 +149,9 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     setState(() {
       _isValidating = true;
       _message = null;
+      _pickedBackup = null;
       _validation = null;
+      _restoreResult = null;
     });
     final picked = await widget.reader.pickBackup();
     if (!mounted) {
@@ -148,10 +169,61 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       return;
     }
     setState(() {
+      _pickedBackup = picked;
       _validation = result;
       _isValidating = false;
     });
   }
+
+  Future<void> _confirmAndRestore() async {
+    final pickedBackup = _pickedBackup;
+    final validation = _validation;
+    if (pickedBackup == null || validation == null || validation.isInvalid) {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => _RestoreConfirmationDialog(validation: validation),
+    );
+    if (!mounted || confirmed != true) {
+      return;
+    }
+    setState(() {
+      _isRestoring = true;
+      _message = null;
+      _restoreResult = null;
+    });
+    try {
+      final handler =
+          widget.onRestoreBackup ??
+          (package) async =>
+              widget.service.restoreBackupDetailed(package.bytes);
+      final result = await handler(pickedBackup);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _restoreResult = result;
+        _isRestoring = false;
+      });
+    } on Object catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _restoreResult = RestoreExecutionResult.restoreFailed(
+          'Backup could not be restored.\n$error',
+          validation: validation,
+        );
+        _isRestoring = false;
+      });
+    }
+  }
+
+  bool get _isBusy => _isGenerating || _isValidating || _isRestoring;
+
+  bool get _canRestore =>
+      !_isBusy && _pickedBackup != null && (_validation?.isValid ?? false);
 }
 
 class _RestoreNotice extends StatelessWidget {
@@ -161,7 +233,7 @@ class _RestoreNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     return const InlineStatusPanel(
       title: 'Same-device restore',
-      message: 'The database inside this backup is encrypted with this device workspace key. Restore requires the same local secure credential context until cross-device recovery and one-tap active database replacement are added in Backup / Restore Hardening.',
+      message: 'The database inside this backup is encrypted with this device workspace key. Restore requires the same local secure credential context; cross-device recovery remains a future recovery-key workflow.',
       tone: InlineStatusTone.warning,
     );
   }
@@ -215,9 +287,10 @@ class _BackupResultPanel extends StatelessWidget {
 }
 
 class _ValidationPanel extends StatelessWidget {
-  const _ValidationPanel({required this.result});
+  const _ValidationPanel({required this.result, required this.pickedBackup});
 
   final BackupValidationResult result;
+  final PickedBackupPackage? pickedBackup;
 
   @override
   Widget build(BuildContext context) {
@@ -225,13 +298,20 @@ class _ValidationPanel extends StatelessWidget {
       title: result.isValid ? 'Backup Is Valid' : 'Backup Has Problems',
       children: [
         if (result.isValid) ...[
-          Text('${result.entries.length} manifest entries verified.'),
+          Text(
+            pickedBackup == null
+                ? '${result.entries.length} manifest entries verified.'
+                : '${pickedBackup!.fileName} is ready for same-device restore.',
+          ),
           const SizedBox(height: 10),
           _MetadataWrap(
             labels: [
-              'Schema ${result.manifest?['schemaVersion']}',
-              'App ${result.manifest?['appVersion']}',
-              'Restore ${result.manifest?['restoreScope']}',
+              'Schema ${result.schemaVersion}',
+              'App ${result.appVersion}',
+              '${result.databaseEntryCount} database files',
+              '${result.attachmentEntryCount} attachments',
+              '${result.totalByteLength} bytes',
+              'Restore ${result.restoreScope}',
             ],
           ),
         ] else
@@ -240,6 +320,96 @@ class _ValidationPanel extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 6),
               child: Text(message),
             ),
+      ],
+    );
+  }
+}
+
+class _RestoreResultPanel extends StatelessWidget {
+  const _RestoreResultPanel({required this.result});
+
+  final RestoreExecutionResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    if (result.isSuccess) {
+      return InlineStatusPanel(
+        title: 'Restore complete',
+        message: result.message,
+        tone: InlineStatusTone.success,
+      );
+    }
+    return InlineStatusPanel(
+      title: result.status == RestoreExecutionStatus.reopenFailed
+          ? 'Workspace reopen failed'
+          : 'Restore blocked',
+      message: result.message,
+      tone: InlineStatusTone.error,
+    );
+  }
+}
+
+class _RestoreConfirmationDialog extends StatefulWidget {
+  const _RestoreConfirmationDialog({required this.validation});
+
+  final BackupValidationResult validation;
+
+  @override
+  State<_RestoreConfirmationDialog> createState() =>
+      _RestoreConfirmationDialogState();
+}
+
+class _RestoreConfirmationDialogState
+    extends State<_RestoreConfirmationDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canRestore = _controller.text.trim() == 'RESTORE';
+    return AppDialogFrame(
+      title: 'Confirm Restore',
+      maxWidth: 520,
+      status: const InlineStatusPanel(
+        title: 'This replaces local data',
+        message: 'Audivance will replace the current encrypted database files and app-private attachments with this validated backup.',
+        tone: InlineStatusTone.warning,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          key: const Key('backupRestoreConfirmButton'),
+          onPressed: canRestore ? () => Navigator.pop(context, true) : null,
+          icon: const Icon(Icons.restore_outlined),
+          label: const Text('Restore'),
+        ),
+      ],
+      children: [
+        _MetadataWrap(
+          labels: [
+            '${widget.validation.databaseEntryCount} database files',
+            '${widget.validation.attachmentEntryCount} attachments',
+            'Schema ${widget.validation.schemaVersion}',
+          ],
+        ),
+        const SizedBox(height: 14),
+        TextField(
+          key: const Key('backupRestoreConfirmationField'),
+          controller: _controller,
+          decoration: const InputDecoration(
+            labelText: 'Type RESTORE to continue',
+          ),
+          textCapitalization: TextCapitalization.characters,
+          onChanged: (_) => setState(() {}),
+        ),
       ],
     );
   }

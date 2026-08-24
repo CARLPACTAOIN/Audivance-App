@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:audivance/app/audivance_app.dart';
@@ -9,12 +11,17 @@ import 'package:audivance/core/domain/attachment_ref.dart';
 import 'package:audivance/core/domain/identity.dart';
 import 'package:audivance/core/domain/money.dart';
 import 'package:audivance/core/domain/stable_id_generator.dart';
+import 'package:audivance/core/storage/audit_storage_paths.dart';
 import 'package:audivance/features/audit/data/audit_database.dart';
 import 'package:audivance/features/audit/data/drift_audit_repository.dart';
 import 'package:audivance/features/audit/domain/audit_models.dart';
+import 'package:audivance/features/backup/backup_package_io.dart';
+import 'package:audivance/features/backup/backup_service.dart';
 import 'package:audivance/features/events/event_service.dart';
 import 'package:audivance/features/export/export_package_writer.dart';
 import 'package:audivance/features/export/export_service.dart';
+import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -283,6 +290,98 @@ void main() {
     expect(find.textContaining('same local secure credential'), findsOneWidget);
     expect(find.byKey(const Key('backupGenerateButton')), findsOneWidget);
     expect(find.byKey(const Key('backupValidateButton')), findsOneWidget);
+    expect(find.byKey(const Key('backupRestoreButton')), findsOneWidget);
+  });
+
+  testWidgets('invalid backup validation shows blockers and disables restore', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness(
+      backupPackageReader: _FakeBackupPackageReader(
+        PickedBackupPackage(
+          fileName: 'broken.zip',
+          bytes: Uint8List.fromList('not-a-zip'.codeUnits),
+        ),
+      ),
+    );
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Open settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('backupValidateButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Backup Has Problems'), findsOneWidget);
+    expect(find.textContaining('not a readable ZIP archive'), findsOneWidget);
+    final restoreButton = tester.widget<FilledButton>(
+      find.byKey(const Key('backupRestoreButton')),
+    );
+    expect(restoreButton.onPressed, isNull);
+  });
+
+  testWidgets('valid backup restore requires typed confirmation', (
+    tester,
+  ) async {
+    final backup = await _buildPickedBackup();
+    var restoreCalls = 0;
+    final harness = _WidgetHarness(
+      backupPackageReader: _FakeBackupPackageReader(backup),
+      backupRestoreHandler: (package) async {
+        restoreCalls += 1;
+        final service = BackupService(
+          storagePaths: AuditStoragePaths(
+            supportDirectoryProvider: () async => Directory.systemTemp,
+          ),
+        );
+        final validation = await service.validateBackup(package.bytes);
+        return RestoreExecutionResult.success(validation);
+      },
+    );
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Open settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('backupValidateButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Backup Is Valid'), findsOneWidget);
+    expect(
+      find.textContaining('is ready for same-device restore'),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('backupRestoreButton')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Confirm Restore'), findsOneWidget);
+    var confirmButton = tester.widget<FilledButton>(
+      find.byKey(const Key('backupRestoreConfirmButton')),
+    );
+    expect(confirmButton.onPressed, isNull);
+
+    await tester.enterText(
+      find.byKey(const Key('backupRestoreConfirmationField')),
+      'RESTORE',
+    );
+    await tester.pump();
+    confirmButton = tester.widget<FilledButton>(
+      find.byKey(const Key('backupRestoreConfirmButton')),
+    );
+    expect(confirmButton.onPressed, isNotNull);
+    await tester.tap(find.byKey(const Key('backupRestoreConfirmButton')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(restoreCalls, 1);
+    expect(find.text('Restore complete'), findsOneWidget);
   });
 
   testWidgets('navigates from Dashboard to Treasury', (tester) async {
@@ -1368,12 +1467,72 @@ Future<void> _enterTextByKey(WidgetTester tester, Key key, String value) async {
   await tester.enterText(find.byKey(key), value);
 }
 
+Future<PickedBackupPackage> _buildPickedBackup() async {
+  final dbBytes = Uint8List.fromList(utf8.encode('widget-db'));
+  final attachmentBytes = Uint8List.fromList(utf8.encode('widget-attachment'));
+  final entries = [
+    _backupManifestEntry(
+      'database/audivance.sqlite',
+      dbBytes,
+      BackupArchiveEntrySource.database,
+    ),
+    _backupManifestEntry(
+      'attachments/events/event-1/resolution.pdf',
+      attachmentBytes,
+      BackupArchiveEntrySource.attachment,
+    ),
+  ];
+  final manifestBytes = Uint8List.fromList(
+    utf8.encode(
+      jsonEncode({
+        'type': 'audivance-backup',
+        'appVersion': '1.0.0+1',
+        'schemaVersion': AuditDatabase.currentSchemaVersion,
+        'generatedAt': DateTime(2026, 8, 18, 10).toIso8601String(),
+        'databaseName': 'audivance.sqlite',
+        'databaseEncryption': 'encrypted-same-device-key',
+        'restoreScope': 'same-device-secure-credential',
+        'entries': entries,
+      }),
+    ),
+  );
+  final archive = Archive()
+    ..addFile(ArchiveFile.bytes('backup_manifest.json', manifestBytes))
+    ..addFile(ArchiveFile.bytes('database/audivance.sqlite', dbBytes))
+    ..addFile(
+      ArchiveFile.bytes(
+        'attachments/events/event-1/resolution.pdf',
+        attachmentBytes,
+      ),
+    );
+  return PickedBackupPackage(
+    fileName: 'Audivance-Backup-2026-08-18.zip',
+    bytes: Uint8List.fromList(ZipEncoder().encodeBytes(archive)),
+  );
+}
+
+Map<String, Object?> _backupManifestEntry(
+  String path,
+  Uint8List bytes,
+  BackupArchiveEntrySource sourceType,
+) {
+  return {
+    'path': path,
+    'byteLength': bytes.length,
+    'checksum': crypto.sha256.convert(bytes).toString(),
+    'sourceType': sourceType.name,
+  };
+}
+
 class _WidgetHarness {
-  _WidgetHarness({AttachmentStorageService? attachmentStorage})
-    : database = AuditDatabase(NativeDatabase.memory()),
-      unlockService = InMemoryLocalUnlockService(),
-      _attachmentStorage =
-          attachmentStorage ?? _FakeAttachmentStorageService() {
+  _WidgetHarness({
+    AttachmentStorageService? attachmentStorage,
+    this.backupPackageReader,
+    this.backupRestoreHandler,
+  }) : database = AuditDatabase(NativeDatabase.memory()),
+       unlockService = InMemoryLocalUnlockService(),
+       _attachmentStorage =
+           attachmentStorage ?? _FakeAttachmentStorageService() {
     repository = DriftAuditRepository(database);
   }
 
@@ -1383,6 +1542,8 @@ class _WidgetHarness {
   final StableIdGenerator idGenerator = _DeterministicIdGenerator();
   final _attachmentPicker = _FakeAttachmentPicker();
   final AttachmentStorageService _attachmentStorage;
+  final BackupPackageReader? backupPackageReader;
+  final BackupRestoreHandler? backupRestoreHandler;
   final exportPackageWriter = _FakeExportPackageWriter();
 
   Widget app() {
@@ -1394,6 +1555,8 @@ class _WidgetHarness {
       attachmentPicker: _attachmentPicker,
       attachmentStorage: _attachmentStorage,
       exportPackageWriter: exportPackageWriter,
+      backupPackageReader: backupPackageReader,
+      backupRestoreHandler: backupRestoreHandler,
       asOf: DateTime(2026, 8, 18),
     );
   }
@@ -1732,6 +1895,15 @@ class _FailingAttachmentStorageService extends _FakeAttachmentStorageService {
   }) {
     throw StateError('simulated import failure');
   }
+}
+
+class _FakeBackupPackageReader implements BackupPackageReader {
+  const _FakeBackupPackageReader(this.package);
+
+  final PickedBackupPackage package;
+
+  @override
+  Future<PickedBackupPackage?> pickBackup() async => package;
 }
 
 class _FakeExportPackageWriter implements ExportPackageWriter {

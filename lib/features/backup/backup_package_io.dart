@@ -4,6 +4,10 @@ import 'package:file_picker/file_picker.dart';
 
 import 'backup_service.dart';
 
+typedef BackupRestoreHandler = Future<RestoreExecutionResult> Function(
+  PickedBackupPackage package,
+);
+
 abstract class BackupPackageWriter {
   Future<BackupWriteResult> save(BackupPackage package);
 }
