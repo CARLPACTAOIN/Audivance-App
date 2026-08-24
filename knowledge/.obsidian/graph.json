@@ -1,51 +1,22 @@
 {
-  "collapse-filter": true,
+  "collapse-filter": false,
   "search": "",
-  "showTags": true,
+  "showTags": false,
   "showAttachments": false,
   "hideUnresolved": false,
   "showOrphans": true,
   "collapse-color-groups": true,
-  "colorGroups": [
-    {
-      "query": "path:Domains",
-      "color": {
-        "a": 1,
-        "rgb": 14701138
-      }
-    },
-    {
-      "query": "path:Concepts",
-      "color": {
-        "a": 1,
-        "rgb": 11444633
-      }
-    },
-    {
-      "query": "path:Workflows",
-      "color": {
-        "a": 1,
-        "rgb": 5431637
-      }
-    },
-    {
-      "query": "path:Cross-Cutting",
-      "color": {
-        "a": 1,
-        "rgb": 16755200
-      }
-    }
-  ],
+  "colorGroups": [],
   "collapse-display": true,
   "showArrow": false,
   "textFadeMultiplier": 0,
   "nodeSizeMultiplier": 1,
   "lineSizeMultiplier": 1,
-  "collapse-forces": true,
-  "centerStrength": 0.518713248970312,
-  "repelStrength": 10,
+  "collapse-forces": false,
+  "centerStrength": 0.938959825599502,
+  "repelStrength": 13.0967111690003,
   "linkStrength": 1,
   "linkDistance": 250,
-  "scale": 0.8994580270455389,
-  "close": true
+  "scale": 1.7679351628737732,
+  "close": false
 }

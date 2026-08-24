@@ -7,7 +7,7 @@ import 'attachment_storage_service.dart';
 class AttachmentSelector extends StatefulWidget {
   const AttachmentSelector({
     super.key,
-    required this.label,
+    this.label = '',
     required this.owner,
     required this.picker,
     required this.storage,
@@ -46,71 +46,70 @@ class _AttachmentSelectorState extends State<AttachmentSelector> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(widget.label, style: theme.textTheme.titleMedium),
-        const SizedBox(height: 8),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            border: Border.all(color: borderColor),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              crossAxisAlignment: WrapCrossAlignment.start,
-              children: [
-                Icon(
-                  attachment == null
-                      ? Icons.attach_file
-                      : Icons.insert_drive_file_outlined,
-                  color: attachment == null
-                      ? const Color(0xFF64748B)
-                      : const Color(0xFF1E3A8A),
-                ),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minWidth: 180,
-                    maxWidth: 420,
+        if (widget.label.isNotEmpty) ...[
+          Text(widget.label, style: theme.textTheme.titleMedium),
+          const SizedBox(height: 8),
+        ],
+        SizedBox(
+          width: double.infinity,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border.all(color: borderColor),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 12,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    attachment == null
+                        ? Icons.attach_file
+                        : Icons.insert_drive_file_outlined,
+                    color: attachment == null
+                        ? const Color(0xFF64748B)
+                        : const Color(0xFF38BDF8),
                   ),
-                  child: _AttachmentSummary(attachment: attachment),
-                ),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      key: widget.selectButtonKey,
-                      onPressed: widget.isEnabled && !_isPicking
-                          ? _pickAttachment
-                          : null,
-                      icon: _isPicking
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.upload_file_outlined),
-                      label: Text(
-                        attachment == null ? 'Select File' : 'Replace',
-                      ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _AttachmentSummary(attachment: attachment),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    key: widget.selectButtonKey,
+                    onPressed: widget.isEnabled && !_isPicking
+                        ? _pickAttachment
+                        : null,
+                    icon: _isPicking
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.upload_file_outlined),
+                    label: Text(
+                      attachment == null ? 'Select File' : 'Replace',
                     ),
-                    if (attachment != null)
-                      IconButton(
-                        key: widget.clearButtonKey,
-                        tooltip: 'Remove selected file',
-                        onPressed: widget.isEnabled && !_isPicking
-                            ? () {
-                                setState(() {
-                                  _error = null;
-                                });
-                                widget.onChanged(null);
-                              }
-                            : null,
-                        icon: const Icon(Icons.close),
-                      ),
+                  ),
+                  if (attachment != null) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      key: widget.clearButtonKey,
+                      tooltip: 'Remove selected file',
+                      onPressed: widget.isEnabled && !_isPicking
+                          ? () {
+                              setState(() {
+                                _error = null;
+                              });
+                              widget.onChanged(null);
+                            }
+                          : null,
+                      icon: const Icon(Icons.close),
+                    ),
                   ],
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

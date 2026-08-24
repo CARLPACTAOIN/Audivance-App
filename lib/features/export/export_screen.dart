@@ -507,6 +507,10 @@ class _ExportContent extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth >= 900;
+        final totalRecords = snapshot.recordCounts.fold<int>(
+          0,
+          (sum, c) => sum + c.count,
+        );
         return CustomScrollView(
           slivers: [
             SliverPadding(
@@ -518,6 +522,7 @@ class _ExportContent extends StatelessWidget {
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
+                  // ── Section 1: Actions & Status ──────────────────────────
                   _ExportHeader(
                     snapshot: snapshot,
                     isGeneratingPreview: isGeneratingPreview,
@@ -552,44 +557,64 @@ class _ExportContent extends StatelessWidget {
                   const SizedBox(height: 20),
                   _ReadinessSummary(snapshot: snapshot),
                   const SizedBox(height: 20),
-                  if (isWide)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _IssuePanel(issues: snapshot.issues)),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          child: _RecordCountPanel(
-                            counts: snapshot.recordCounts,
-                          ),
-                        ),
-                      ],
-                    )
-                  else ...[
-                    _IssuePanel(issues: snapshot.issues),
-                    const SizedBox(height: 20),
-                    _RecordCountPanel(counts: snapshot.recordCounts),
+
+                  // ── Section 2: Package Contents ─────────────────────────
+                  if (snapshot.issues.isNotEmpty) ...[
+                    CollapsiblePanel(
+                      title: 'Readiness Issues',
+                      badge: '${snapshot.issues.length} issue${snapshot.issues.length == 1 ? '' : 's'}',
+                      child: _IssuePanel(issues: snapshot.issues),
+                    ),
+                    const SizedBox(height: 12),
                   ],
-                  const SizedBox(height: 20),
-                  _AttachmentPanel(attachments: snapshot.attachments),
-                  const SizedBox(height: 20),
-                  _PackageStructurePanel(paths: snapshot.packageFiles),
-                  const SizedBox(height: 20),
-                  _LiquidationReportsPanel(
-                    paths: snapshot.packageFiles
-                        .where(isUsmOsaF46LiquidationReportPath)
-                        .toList(growable: false),
-                    pdfWriteResult: pdfWriteResult,
-                    actionResult: pdfActionResult,
-                    actionError: pdfActionError,
-                    activeActionKey: activePdfActionKey,
-                    onSave: onSavePdf,
-                    onShare: onSharePdf,
-                    onPrint: onPrintPdf,
+                  CollapsiblePanel(
+                    title: 'Record Counts',
+                    badge: '$totalRecords records',
+                    child: _RecordCountPanel(counts: snapshot.recordCounts),
+                  ),
+                  const SizedBox(height: 12),
+                  CollapsiblePanel(
+                    title: 'Attachment Inventory',
+                    badge: '${snapshot.attachments.length} file${snapshot.attachments.length == 1 ? '' : 's'}',
+                    child: _AttachmentPanel(attachments: snapshot.attachments),
+                  ),
+                  const SizedBox(height: 12),
+                  CollapsiblePanel(
+                    title: 'Package Structure',
+                    badge: '${snapshot.packageFiles.length} path${snapshot.packageFiles.length == 1 ? '' : 's'}',
+                    child: _PackageStructurePanel(paths: snapshot.packageFiles),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // ── Section 3: Reports ──────────────────────────────────
+                  CollapsiblePanel(
+                    title: 'USM-OSA-F46 Liquidation Reports',
+                    badge: () {
+                      final count = snapshot.packageFiles
+                          .where(isUsmOsaF46LiquidationReportPath)
+                          .length;
+                      return '$count report${count == 1 ? '' : 's'}';
+                    }(),
+                    child: _LiquidationReportsPanel(
+                      paths: snapshot.packageFiles
+                          .where(isUsmOsaF46LiquidationReportPath)
+                          .toList(growable: false),
+                      pdfWriteResult: pdfWriteResult,
+                      actionResult: pdfActionResult,
+                      actionError: pdfActionError,
+                      activeActionKey: activePdfActionKey,
+                      onSave: onSavePdf,
+                      onShare: onSharePdf,
+                      onPrint: onPrintPdf,
+                    ),
                   ),
                   if (preview != null) ...[
-                    const SizedBox(height: 20),
-                    _PreviewPanel(preview: preview!),
+                    const SizedBox(height: 12),
+                    CollapsiblePanel(
+                      title: 'Generated Preview',
+                      badge: '$totalRecords records',
+                      child: _PreviewPanel(preview: preview!),
+                    ),
                   ],
                 ]),
               ),
@@ -911,20 +936,17 @@ class _IssuePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Readiness Issues',
-      child: issues.isEmpty
-          ? const _EmptyPanelMessage(
-              icon: Icons.verified_outlined,
-              text: 'No export readiness issues found.',
-            )
-          : Column(
-              children: [
-                for (final issue in issues)
-                  _IssueRow(issue: issue, showDivider: issue != issues.last),
-              ],
-            ),
-    );
+    return issues.isEmpty
+        ? const _EmptyPanelMessage(
+            icon: Icons.verified_outlined,
+            text: 'No export readiness issues found.',
+          )
+        : Column(
+            children: [
+              for (final issue in issues)
+                _IssueRow(issue: issue, showDivider: issue != issues.last),
+            ],
+          );
   }
 }
 
@@ -982,25 +1004,22 @@ class _RecordCountPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Record Counts',
-      child: Column(
-        children: [
-          for (final count in counts)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 5),
-              child: Row(
-                children: [
-                  Expanded(child: Text(count.label)),
-                  Text(
-                    count.count.toString(),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ],
-              ),
+    return Column(
+      children: [
+        for (final count in counts)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              children: [
+                Expanded(child: Text(count.label)),
+                Text(
+                  count.count.toString(),
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }
@@ -1012,41 +1031,38 @@ class _AttachmentPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Attachment Inventory',
-      child: attachments.isEmpty
-          ? const _EmptyPanelMessage(
-              icon: Icons.attach_file_outlined,
-              text: 'Typed attachment metadata will appear here.',
-            )
-          : Column(
-              children: [
-                for (final attachment in attachments)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.description_outlined),
-                    title: Text(
-                      attachment.fileName.isEmpty
-                          ? 'Missing file name'
-                          : attachment.fileName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    subtitle: Text(
-                      '${attachment.module} - ${attachment.localPath}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    trailing: Text(
-                      attachment.sizeBytes == null
-                          ? 'No size'
-                          : '${attachment.sizeBytes} B',
-                      overflow: TextOverflow.ellipsis,
-                    ),
+    return attachments.isEmpty
+        ? const _EmptyPanelMessage(
+            icon: Icons.attach_file_outlined,
+            text: 'Typed attachment metadata will appear here.',
+          )
+        : Column(
+            children: [
+              for (final attachment in attachments)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.description_outlined),
+                  title: Text(
+                    attachment.fileName.isEmpty
+                        ? 'Missing file name'
+                        : attachment.fileName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-              ],
-            ),
-    );
+                  subtitle: Text(
+                    '${attachment.module} - ${attachment.localPath}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Text(
+                    attachment.sizeBytes == null
+                        ? 'No size'
+                        : '${attachment.sizeBytes} B',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+            ],
+          );
   }
 }
 
@@ -1057,19 +1073,16 @@ class _PackageStructurePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Package Structure',
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final path in paths)
-            Chip(
-              avatar: const Icon(Icons.insert_drive_file_outlined, size: 18),
-              label: Text(path),
-            ),
-        ],
-      ),
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final path in paths)
+          Chip(
+            avatar: const Icon(Icons.insert_drive_file_outlined, size: 18),
+            label: Text(path),
+          ),
+      ],
     );
   }
 }
@@ -1098,55 +1111,52 @@ class _LiquidationReportsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasActiveAction = activeActionKey != null;
-    return _Panel(
-      title: 'USM-OSA-F46 Liquidation Reports',
-      child: paths.isEmpty
-          ? const _EmptyPanelMessage(
-              icon: Icons.picture_as_pdf_outlined,
-              text: 'USM-OSA-F46 liquidation reports will appear after events exist.',
-            )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (actionError != null) ...[
-                  InlineStatusPanel(
-                    title: 'PDF action failed',
-                    message: actionError!,
-                    tone: InlineStatusTone.error,
+    return paths.isEmpty
+        ? const _EmptyPanelMessage(
+            icon: Icons.picture_as_pdf_outlined,
+            text: 'USM-OSA-F46 liquidation reports will appear after events exist.',
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (actionError != null) ...[
+                InlineStatusPanel(
+                  title: 'PDF action failed',
+                  message: actionError!,
+                  tone: InlineStatusTone.error,
+                ),
+                const SizedBox(height: 12),
+              ] else if (actionResult != null) ...[
+                InlineStatusPanel(
+                  title: 'PDF action complete',
+                  message: actionResult!,
+                  tone: InlineStatusTone.success,
+                ),
+                if (pdfWriteResult != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'SHA-256 ${pdfWriteResult!.checksum}',
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
-                  const SizedBox(height: 12),
-                ] else if (actionResult != null) ...[
-                  InlineStatusPanel(
-                    title: 'PDF action complete',
-                    message: actionResult!,
-                    tone: InlineStatusTone.success,
-                  ),
-                  if (pdfWriteResult != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'SHA-256 ${pdfWriteResult!.checksum}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ],
-                  const SizedBox(height: 12),
                 ],
-                for (final path in paths)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: path == paths.last ? 0 : 10,
-                    ),
-                    child: _LiquidationReportActionRow(
-                      path: path,
-                      isBusy: hasActiveAction,
-                      activeActionKey: activeActionKey,
-                      onSave: () => onSave(path),
-                      onShare: () => onShare(path),
-                      onPrint: () => onPrint(path),
-                    ),
-                  ),
+                const SizedBox(height: 12),
               ],
-            ),
-    );
+              for (final path in paths)
+                Padding(
+                  padding: EdgeInsets.only(
+                    bottom: path == paths.last ? 0 : 10,
+                  ),
+                  child: _LiquidationReportActionRow(
+                    path: path,
+                    isBusy: hasActiveAction,
+                    activeActionKey: activeActionKey,
+                    onSave: () => onSave(path),
+                    onShare: () => onShare(path),
+                    onPrint: () => onPrint(path),
+                  ),
+                ),
+            ],
+          );
   }
 }
 
@@ -1227,28 +1237,25 @@ class _PreviewPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Generated Preview',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            preview.fileName,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 12),
-          for (final file in preview.files)
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.article_outlined),
-              title: Text(file.path),
-              subtitle: Text(
-                '${file.byteLength} bytes - CRC32 ${file.checksum}',
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          preview.fileName,
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        for (final file in preview.files)
+          ListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.article_outlined),
+            title: Text(file.path),
+            subtitle: Text(
+              '${file.byteLength} bytes - CRC32 ${file.checksum}',
             ),
-        ],
-      ),
+          ),
+      ],
     );
   }
 }

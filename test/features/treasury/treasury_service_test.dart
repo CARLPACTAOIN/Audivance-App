@@ -83,7 +83,7 @@ void main() {
   });
 
   test(
-    'Add Fund to existing source increases balance without precision loss',
+    'Add Fund to same source type increases balance without precision loss',
     () async {
       await _seedSetup(repository);
       await service.addFund(
@@ -95,11 +95,9 @@ void main() {
           supportingAttachment: _attachment,
         ),
       );
-      final existing = (await repository.listTreasuryFundSources()).single;
 
       final result = await service.addFund(
         AddFundCommand(
-          existingSourceId: existing.id,
           type: TreasuryFundSourceType.studentCollections,
           label: 'Ignored label',
           amount: Money.centavos(284500),
@@ -112,6 +110,7 @@ void main() {
 
       expect(result.isValid, isTrue);
       expect(sources, hasLength(1));
+      expect(sources.single.label, 'Student Collections');
       expect(sources.single.balance, const Money.centavos(1284550));
     },
   );
@@ -133,34 +132,43 @@ void main() {
     expect(result.summary, contains('Manual fund movements are limited'));
   });
 
-  test(
-    'rejects transfer or release when source balance is insufficient',
-    () async {
-      await _seedSource(repository, id: 'source-1', balance: Money.php(500));
-      await _seedSource(repository, id: 'source-2', balance: Money.php(100));
+  test('rejects transfer when source balance is insufficient', () async {
+    await _seedSource(repository, id: 'source-1', balance: Money.php(500));
+    await _seedSource(repository, id: 'source-2', balance: Money.php(100));
 
-      final releaseResult = await service.recordManualMovement(
+    final transferResult = await service.recordManualMovement(
+      ManualFundMovementCommand(
+        type: FundMovementType.transfer,
+        amount: Money.php(600),
+        date: DateTime(2026, 8, 18),
+        purpose: 'Move collections',
+        fromFundSourceId: 'source-1',
+        toFundSourceId: 'source-2',
+      ),
+    );
+
+    expect(transferResult.isInvalid, isTrue);
+    expect(await repository.listFundMovements(), isEmpty);
+  });
+
+  test(
+    'rejects fund release when event Approved Budget is insufficient',
+    () async {
+      await _seedOfficer(repository);
+      await _seedEvent(repository, approvedBudgetBalance: Money.php(500));
+
+      final result = await service.recordManualMovement(
         ManualFundMovementCommand(
           type: FundMovementType.fundRelease,
           amount: Money.php(600),
           date: DateTime(2026, 8, 18),
           purpose: 'Release to officer',
-          fromFundSourceId: 'source-1',
-        ),
-      );
-      final transferResult = await service.recordManualMovement(
-        ManualFundMovementCommand(
-          type: FundMovementType.transfer,
-          amount: Money.php(600),
-          date: DateTime(2026, 8, 18),
-          purpose: 'Move collections',
-          fromFundSourceId: 'source-1',
-          toFundSourceId: 'source-2',
+          eventId: 'event-1',
+          holderOfficerId: 'officer-1',
         ),
       );
 
-      expect(releaseResult.isInvalid, isTrue);
-      expect(transferResult.isInvalid, isTrue);
+      expect(result.isInvalid, isTrue);
       expect(await repository.listFundMovements(), isEmpty);
     },
   );
@@ -211,6 +219,7 @@ void main() {
 
   test('ledger rows sort newest first and preserve system flag', () async {
     await _seedSetup(repository);
+    await _seedOfficer(repository);
     await service.addFund(
       AddFundCommand(
         type: TreasuryFundSourceType.previousAdmin,
@@ -220,14 +229,15 @@ void main() {
         supportingAttachment: _attachment,
       ),
     );
-    final source = (await repository.listTreasuryFundSources()).single;
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
     await service.recordManualMovement(
       ManualFundMovementCommand(
         type: FundMovementType.fundRelease,
         amount: Money.php(250),
         date: DateTime(2026, 8, 18),
         purpose: 'Release cash',
-        fromFundSourceId: source.id,
+        eventId: 'event-1',
+        holderOfficerId: 'officer-1',
       ),
     );
 
@@ -238,6 +248,33 @@ void main() {
     expect(snapshot.ledgerRows.last.type, FundMovementType.addFund);
     expect(snapshot.ledgerRows.last.isSystemGenerated, isTrue);
   });
+
+  test(
+    'valid fund release moves event Approved Budget into officer custody',
+    () async {
+      await _seedOfficer(repository);
+      await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+
+      final result = await service.recordManualMovement(
+        ManualFundMovementCommand(
+          type: FundMovementType.fundRelease,
+          amount: Money.php(300),
+          date: DateTime(2026, 8, 18),
+          purpose: 'Release cash to Ari',
+          eventId: 'event-1',
+          holderOfficerId: 'officer-1',
+        ),
+      );
+
+      final movement = (await repository.listFundMovements()).single;
+      final event = (await repository.listAuditEvents()).single;
+
+      expect(result.isValid, isTrue);
+      expect(movement.eventId, 'event-1');
+      expect(movement.holderOfficerId, 'officer-1');
+      expect(event.approvedBudgetBalance, Money.php(700));
+    },
+  );
 }
 
 Future<void> _seedSetup(DriftAuditRepository repository) async {
@@ -275,6 +312,38 @@ Future<void> _seedSource(
       label: id,
       balance: balance,
       supportingAttachment: _attachment,
+    ),
+  );
+}
+
+Future<void> _seedOfficer(DriftAuditRepository repository) {
+  return repository.saveOfficers([
+    const Officer(
+      id: 'officer-1',
+      fullName: 'Ari Santos',
+      position: OfficerPosition.member,
+      committee: Committee.finance,
+    ),
+  ]);
+}
+
+Future<void> _seedEvent(
+  DriftAuditRepository repository, {
+  required Money approvedBudgetBalance,
+}) {
+  return repository.updateAuditEvent(
+    AuditEvent(
+      id: 'event-1',
+      name: 'Leadership Summit',
+      type: 'Leadership',
+      semester: '1st Semester',
+      schoolYear: '2026-2027',
+      startDate: DateTime(2026, 8, 10),
+      endDate: DateTime(2026, 8, 16),
+      resolutionNumber: 'RES-2026-001',
+      budget: Money.php(1000),
+      approvedBudgetBalance: approvedBudgetBalance,
+      resolutionAttachment: _attachment,
     ),
   );
 }

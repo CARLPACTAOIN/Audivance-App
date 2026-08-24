@@ -22,10 +22,25 @@ class TreasuryService {
   Future<TreasurySnapshot> loadSnapshot() async {
     final sources = await repository.listTreasuryFundSources();
     final movements = await repository.listFundMovements();
+    final events = await repository.listAuditEvents();
+    final officers = await repository.listOfficers();
     final sortedSources = [...sources]
-      ..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
+      ..sort(
+        (a, b) =>
+            treasurySourceTypeLabel(a.type)
+                .toLowerCase()
+                .compareTo(treasurySourceTypeLabel(b.type).toLowerCase()),
+      );
     final sortedMovements = [...movements]
       ..sort((a, b) => b.date.compareTo(a.date));
+    final sortedEvents = [...events]
+      ..sort((a, b) => b.startDate.compareTo(a.startDate));
+    final sortedOfficers =
+        officers.where((officer) => !officer.isArchived).toList(growable: false)
+          ..sort(
+            (a, b) =>
+                a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+          );
 
     return TreasurySnapshot(
       totalBalance: _sumMoney(sortedSources.map((source) => source.balance)),
@@ -34,7 +49,7 @@ class TreasuryService {
             (source) => TreasurySourceView(
               id: source.id,
               type: source.type,
-              label: source.label,
+              label: treasurySourceTypeLabel(source.type),
               balance: source.balance,
               supportingAttachment: source.supportingAttachment,
             ),
@@ -57,25 +72,43 @@ class TreasuryService {
             ),
           )
           .toList(growable: false),
+      eventOptions: sortedEvents
+          .where((event) => !event.isLiquidated)
+          .map(
+            (event) => TreasuryEventOption(
+              id: event.id,
+              name: event.name,
+              approvedBudgetBalance: event.approvedBudgetBalance,
+              status: EventRules.calculateStatus(event: event, asOf: _now()),
+            ),
+          )
+          .toList(growable: false),
+      officerOptions: sortedOfficers
+          .map(
+            (officer) => TreasuryOfficerOption(
+              id: officer.id,
+              fullName: officer.fullName,
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
   Future<ValidationResult> addFund(AddFundCommand command) async {
-    final label = command.label.trim();
     final validation = ValidationResult.combine([
       TreasuryRules.validateAddFund(
         amount: command.amount,
         supportingAttachment: command.supportingAttachment,
       ),
-      if (label.isEmpty)
-        ValidationResult.failure('Treasury source label is required.'),
     ]);
     if (validation.isInvalid) {
       return validation;
     }
 
     final existingSource = await _sourceForAddFund(command.existingSourceId);
-    final source = existingSource == null
+    final sourceForType = existingSource ?? await _sourceForType(command.type);
+    final label = treasurySourceTypeLabel(sourceForType?.type ?? command.type);
+    final source = sourceForType == null
         ? TreasuryFundSource(
             id: idGenerator.nextId('source'),
             type: command.type,
@@ -84,10 +117,10 @@ class TreasuryService {
             supportingAttachment: command.supportingAttachment,
           )
         : TreasuryFundSource(
-            id: existingSource.id,
-            type: existingSource.type,
-            label: existingSource.label,
-            balance: existingSource.balance + command.amount,
+            id: sourceForType.id,
+            type: sourceForType.type,
+            label: treasurySourceTypeLabel(sourceForType.type),
+            balance: sourceForType.balance + command.amount,
             supportingAttachment: command.supportingAttachment,
           );
 
@@ -132,14 +165,19 @@ class TreasuryService {
     }
 
     final sources = await repository.listTreasuryFundSources();
+    final events = await repository.listAuditEvents();
     final byId = {for (final source in sources) source.id: source};
+    final eventById = {for (final event in events) event.id: event};
     final fromSource = command.fromFundSourceId == null
         ? null
         : byId[command.fromFundSourceId];
     final toSource = command.toFundSourceId == null
         ? null
         : byId[command.toFundSourceId];
-    final availableBalance = fromSource?.balance ?? command.amount;
+    final event = command.eventId == null ? null : eventById[command.eventId];
+    final availableBalance = command.type == FundMovementType.fundRelease
+        ? event?.approvedBudgetBalance ?? Money.zero
+        : fromSource?.balance ?? command.amount;
 
     final movementValidation = FundMovementRules.validateManualMovement(
       type: command.type,
@@ -164,6 +202,7 @@ class TreasuryService {
       fromFundSourceId: command.fromFundSourceId,
       toFundSourceId: command.toFundSourceId,
       holderOfficerId: command.holderOfficerId,
+      eventId: command.eventId,
       isSystemGenerated: false,
     );
     final movementResult = await repository.saveFundMovement(
@@ -174,7 +213,26 @@ class TreasuryService {
       return movementResult;
     }
 
-    if (fromSource != null) {
+    if (event != null && command.type == FundMovementType.fundRelease) {
+      await repository.updateAuditEvent(
+        AuditEvent(
+          id: event.id,
+          name: event.name,
+          type: event.type,
+          semester: event.semester,
+          schoolYear: event.schoolYear,
+          startDate: event.startDate,
+          endDate: event.endDate,
+          permitApprovalDate: event.permitApprovalDate,
+          resolutionNumber: event.resolutionNumber,
+          budget: event.budget,
+          approvedBudgetBalance: event.approvedBudgetBalance - command.amount,
+          resolutionAttachment: event.resolutionAttachment,
+          isLiquidated: event.isLiquidated,
+        ),
+      );
+    }
+    if (fromSource != null && command.type != FundMovementType.fundRelease) {
       await repository.updateTreasuryFundSource(
         TreasuryFundSource(
           id: fromSource.id,
@@ -206,6 +264,8 @@ class TreasuryService {
         'movementType': movement.type.name,
         'fromFundSourceId': movement.fromFundSourceId,
         'toFundSourceId': movement.toFundSourceId,
+        'eventId': movement.eventId,
+        'holderOfficerId': movement.holderOfficerId,
       },
     );
     return const ValidationResult.valid();
@@ -217,6 +277,17 @@ class TreasuryService {
     }
     for (final source in await repository.listTreasuryFundSources()) {
       if (source.id == id) {
+        return source;
+      }
+    }
+    return null;
+  }
+
+  Future<TreasuryFundSource?> _sourceForType(
+    TreasuryFundSourceType type,
+  ) async {
+    for (final source in await repository.listTreasuryFundSources()) {
+      if (source.type == type) {
         return source;
       }
     }
@@ -237,14 +308,24 @@ class TreasuryService {
     }
 
     final sources = await repository.listTreasuryFundSources();
+    final events = await repository.listAuditEvents();
+    final officers = await repository.listOfficers();
     final sourceIds = sources.map((source) => source.id).toSet();
+    final eventIds = events.map((event) => event.id).toSet();
+    final officerIds = officers
+        .where((officer) => !officer.isArchived)
+        .map((officer) => officer.id)
+        .toSet();
     final fromId = command.fromFundSourceId;
     final toId = command.toFundSourceId;
 
     switch (command.type) {
       case FundMovementType.fundRelease:
-        if (fromId == null) {
-          messages.add('Fund Release requires a source fund.');
+        if (command.eventId == null) {
+          messages.add('Fund Release requires an event Approved Budget.');
+        }
+        if (command.holderOfficerId == null) {
+          messages.add('Fund Release requires a fund custodian officer.');
         }
       case FundMovementType.transfer:
         if (fromId == null) {
@@ -273,6 +354,13 @@ class TreasuryService {
     }
     if (toId != null && !sourceIds.contains(toId)) {
       messages.add('Selected target fund does not exist.');
+    }
+    if (command.eventId != null && !eventIds.contains(command.eventId)) {
+      messages.add('Selected event does not exist.');
+    }
+    if (command.holderOfficerId != null &&
+        !officerIds.contains(command.holderOfficerId)) {
+      messages.add('Selected fund custodian officer does not exist.');
     }
 
     return ValidationResult.invalid(messages);
@@ -303,10 +391,10 @@ class TreasuryService {
 class AddFundCommand {
   const AddFundCommand({
     required this.type,
-    required this.label,
     required this.amount,
     required this.date,
     this.existingSourceId,
+    this.label = '',
     this.supportingAttachment,
     this.remarks,
   });
@@ -330,6 +418,7 @@ class ManualFundMovementCommand {
     this.fromFundSourceId,
     this.toFundSourceId,
     this.holderOfficerId,
+    this.eventId,
   });
 
   final FundMovementType type;
@@ -340,6 +429,7 @@ class ManualFundMovementCommand {
   final StableId? fromFundSourceId;
   final StableId? toFundSourceId;
   final StableId? holderOfficerId;
+  final StableId? eventId;
 }
 
 class TreasurySnapshot {
@@ -347,11 +437,15 @@ class TreasurySnapshot {
     required this.totalBalance,
     required this.sources,
     required this.ledgerRows,
+    required this.eventOptions,
+    required this.officerOptions,
   });
 
   final Money totalBalance;
   final List<TreasurySourceView> sources;
   final List<TreasuryLedgerRow> ledgerRows;
+  final List<TreasuryEventOption> eventOptions;
+  final List<TreasuryOfficerOption> officerOptions;
 }
 
 class TreasurySourceView {
@@ -371,6 +465,30 @@ class TreasurySourceView {
 
   String get typeLabel => treasurySourceTypeLabel(type);
   String get balanceLabel => formatPhpMoney(balance);
+}
+
+class TreasuryEventOption {
+  const TreasuryEventOption({
+    required this.id,
+    required this.name,
+    required this.approvedBudgetBalance,
+    required this.status,
+  });
+
+  final StableId id;
+  final String name;
+  final Money approvedBudgetBalance;
+  final AuditEventStatus status;
+
+  String get approvedBudgetBalanceLabel =>
+      formatPhpMoney(approvedBudgetBalance);
+}
+
+class TreasuryOfficerOption {
+  const TreasuryOfficerOption({required this.id, required this.fullName});
+
+  final StableId id;
+  final String fullName;
 }
 
 class TreasuryLedgerRow {

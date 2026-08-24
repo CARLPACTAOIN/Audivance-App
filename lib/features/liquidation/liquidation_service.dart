@@ -28,6 +28,7 @@ class LiquidationService {
     final lines = await repository.listLiquidationLines();
     final claims = await repository.listReimbursementClaims();
     final officers = await repository.listOfficers();
+    final movements = await repository.listFundMovements();
 
     final eventById = {for (final event in events) event.id: event};
     final officerById = {for (final officer in officers) officer.id: officer};
@@ -130,10 +131,43 @@ class LiquidationService {
               fullName: officer.fullName,
               position: officer.position,
               committee: officer.committee,
+              fundCustodyBalance: _officerCustodyBalance(
+                movements: movements,
+                officerId: officer.id,
+              ),
             ),
           )
           .toList(growable: false),
     );
+  }
+
+  Future<List<OfficerOption>> listOfficerOptionsForEvent(
+    StableId eventId,
+  ) async {
+    final officers = await repository.listOfficers();
+    final movements = await repository.listFundMovements();
+    final sortedOfficers =
+        officers.where((officer) => !officer.isArchived).toList(growable: false)
+          ..sort(
+            (a, b) =>
+                a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
+          );
+
+    return sortedOfficers
+        .map(
+          (officer) => OfficerOption(
+            id: officer.id,
+            fullName: officer.fullName,
+            position: officer.position,
+            committee: officer.committee,
+            fundCustodyBalance: _officerCustodyBalance(
+              movements: movements,
+              officerId: officer.id,
+              eventId: eventId,
+            ),
+          ),
+        )
+        .toList(growable: false);
   }
 
   Future<ValidationResult> createOfficer(CreateOfficerCommand command) async {
@@ -157,14 +191,21 @@ class LiquidationService {
     final events = await repository.listAuditEvents();
     final event = _eventById(events, command.eventId);
     final officers = await repository.listOfficers();
+    final movements = await repository.listFundMovements();
     final status = event == null
         ? null
         : EventRules.calculateStatus(event: event, asOf: _now());
+    final officerCustodyBalance = _officerCustodyBalance(
+      movements: movements,
+      officerId: command.accountableOfficerId,
+      eventId: command.eventId,
+    );
     final validation = _validateLiquidationCommand(
       command: command,
       event: event,
       status: status,
       officerIds: officers.map((officer) => officer.id).toSet(),
+      officerCustodyBalance: officerCustodyBalance,
     );
     if (validation.isInvalid) {
       return validation;
@@ -224,12 +265,6 @@ class LiquidationService {
       if (movementResult.isInvalid) {
         return movementResult;
       }
-      await repository.updateAuditEvent(
-        _copyEvent(
-          event,
-          approvedBudgetBalance: event.approvedBudgetBalance - total,
-        ),
-      );
     }
 
     if (LiquidationRules.createsReimbursementClaim(command.fundingMode)) {
@@ -388,12 +423,11 @@ class LiquidationService {
     required AuditEvent? event,
     required AuditEventStatus? status,
     required Set<StableId> officerIds,
+    required Money officerCustodyBalance,
   }) {
     final messages = <String>[];
     if (event == null) {
       messages.add('Selected event does not exist.');
-    } else if (status == AuditEventStatus.ongoing) {
-      messages.add('Only completed events can receive liquidation entries.');
     } else if (status == AuditEventStatus.liquidated) {
       messages.add('Liquidated events cannot receive new liquidation entries.');
     }
@@ -439,9 +473,9 @@ class LiquidationService {
     );
     if (event != null &&
         command.fundingMode == FundingMode.releasedFunds &&
-        total > event.approvedBudgetBalance) {
+        total > officerCustodyBalance) {
       messages.add(
-        'Released-funds liquidation is blocked because event Approved Budget balance is insufficient.',
+        'Released-funds liquidation is blocked because the selected accountable officer has insufficient held funds.',
       );
     }
     return ValidationResult.invalid(messages);
@@ -571,6 +605,7 @@ class LiquidationEventView {
   final int pendingClaimCount;
 
   bool get canSubmitLiquidation =>
+      status == AuditEventStatus.ongoing ||
       status == AuditEventStatus.forLiquidation ||
       status == AuditEventStatus.due;
   String get statusLabel => auditEventStatusLabel(status);
@@ -646,6 +681,7 @@ class OfficerOption {
     required this.id,
     required this.fullName,
     required this.position,
+    this.fundCustodyBalance = Money.zero,
     this.committee,
   });
 
@@ -653,6 +689,40 @@ class OfficerOption {
   final String fullName;
   final OfficerPosition position;
   final Committee? committee;
+  final Money fundCustodyBalance;
+
+  bool get hasFundCustody => fundCustodyBalance.isPositive;
+  String get fundCustodyBalanceLabel => formatPhpMoney(fundCustodyBalance);
+}
+
+Money _officerCustodyBalance({
+  required List<FundMovement> movements,
+  required StableId officerId,
+  StableId? eventId,
+}) {
+  var balance = Money.zero;
+  for (final movement in movements) {
+    if (movement.holderOfficerId != officerId) {
+      continue;
+    }
+    if (eventId != null && movement.eventId != eventId) {
+      continue;
+    }
+    switch (movement.type) {
+      case FundMovementType.fundRelease:
+        balance += movement.amount;
+      case FundMovementType.liquidationSubmitted:
+      case FundMovementType.returnRefund:
+        balance -= movement.amount;
+      case FundMovementType.addFund:
+      case FundMovementType.budgetAllocation:
+      case FundMovementType.budgetAdjustment:
+      case FundMovementType.transfer:
+      case FundMovementType.reimbursementPayment:
+        break;
+    }
+  }
+  return balance;
 }
 
 String receiptTypeDisplayLabel(ReceiptType type) {

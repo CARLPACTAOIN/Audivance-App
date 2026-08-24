@@ -126,14 +126,7 @@ class _DashboardContent extends StatelessWidget {
                 delegate: SliverChildListDelegate([
                   _DashboardHeader(snapshot: snapshot),
                   const SizedBox(height: 20),
-                  _MetricGrid(
-                    metrics: snapshot.metrics,
-                    crossAxisCount: isWide
-                        ? 4
-                        : constraints.maxWidth >= 600
-                        ? 2
-                        : 1,
-                  ),
+                  _MetricGrid(metrics: snapshot.metrics),
                   const SizedBox(height: 20),
                   if (isWide)
                     Row(
@@ -216,11 +209,6 @@ class _DashboardHeader extends StatelessWidget {
               tone: DashboardSignalTone.neutral,
             ),
             _StatusChip(
-              icon: Icons.cloud_off_outlined,
-              label: 'Offline workspace',
-              tone: DashboardSignalTone.success,
-            ),
-            _StatusChip(
               icon: Icons.backup_outlined,
               label: snapshot.lastBackup,
               tone: DashboardSignalTone.warning,
@@ -233,10 +221,9 @@ class _DashboardHeader extends StatelessWidget {
 }
 
 class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.metrics, required this.crossAxisCount});
+  const _MetricGrid({required this.metrics});
 
   final List<DashboardMetric> metrics;
-  final int crossAxisCount;
 
   @override
   Widget build(BuildContext context) {
@@ -244,11 +231,11 @@ class _MetricGrid extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: metrics.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        mainAxisExtent: 150,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        mainAxisExtent: 84,
       ),
       itemBuilder: (context, index) => _MetricCard(metric: metrics[index]),
     );
@@ -266,22 +253,44 @@ class _MetricCard extends StatelessWidget {
     final toneColor = _toneColor(metric.tone);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(metric.icon, color: toneColor, size: 26),
-            const Spacer(),
-            Text(
-              metric.value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.titleLarge,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: toneColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(metric.icon, color: toneColor, size: 18),
             ),
-            const SizedBox(height: 4),
-            Text(metric.label, style: textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(metric.detail, maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    metric.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFFF8FAFC),
+                    ),
+                  ),
+                  Text(
+                    metric.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -301,6 +310,15 @@ class _ReadinessPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    // Show only the first unresolved (non-success) task to avoid duplicating
+    // the full checklist that already lives in the Export Center screen.
+    final firstTask = snapshot.tasks.isNotEmpty ? snapshot.tasks.first : null;
+    final score = snapshot.exportReadiness;
+    final scoreColor = score >= 80
+        ? const Color(0xFF10B981)
+        : score >= 50
+            ? const Color(0xFFF59E0B)
+            : const Color(0xFFEF4444);
     return _Panel(
       title: 'Export Readiness',
       action: FilledButton.icon(
@@ -311,22 +329,52 @@ class _ReadinessPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('${snapshot.exportReadiness}%', style: textTheme.headlineMedium),
+          Wrap(
+            spacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                '$score%',
+                style: textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: scoreColor,
+                ),
+              ),
+              Text(
+                'workspace readiness',
+                style: textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF94A3B8),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 8),
           LinearProgressIndicator(
-            value: snapshot.exportReadiness / 100,
-            minHeight: 8,
+            value: score / 100,
+            minHeight: 6,
             borderRadius: BorderRadius.circular(4),
-            backgroundColor: const Color(0xFFE2E8F0),
-            color: const Color(0xFFA16207),
+            backgroundColor: const Color(0xFF1E293B),
+            color: scoreColor,
           ),
-          const SizedBox(height: 18),
-          ...snapshot.tasks.map(
-            (task) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _TaskRow(task: task),
-            ),
-          ),
+          if (firstTask != null) ...[
+            const SizedBox(height: 14),
+            _TaskRow(task: firstTask),
+            if (snapshot.tasks.length > 1) ...[
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: onOpenExportCenter,
+                child: Text(
+                  '${snapshot.tasks.length - 1} more issue${snapshot.tasks.length > 2 ? 's' : ''} — view in Export Center',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFFD97706),
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.underline,
+                    decorationColor: const Color(0xFFD97706),
+                  ),
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -525,13 +573,15 @@ class _Panel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 10,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
                 ?action,
               ],

@@ -347,3 +347,130 @@ class StatusBadge extends StatelessWidget {
     );
   }
 }
+
+/// A single horizontal stat row replacing tall summary card grids.
+/// Shows N [items] separated by mid-dots. Wraps responsively.
+class CompactStatRow extends StatelessWidget {
+  const CompactStatRow({super.key, required this.items});
+
+  final List<CompactStat> items;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final List<Widget> children = [];
+    for (var i = 0; i < items.length; i++) {
+      final stat = items[i];
+      children.add(
+        Wrap(
+          spacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (stat.value.isNotEmpty)
+              Text(
+                stat.value,
+                style: textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFFF8FAFC),
+                  fontSize: 16,
+                ),
+              ),
+            if (stat.label.isNotEmpty)
+              Text(
+                stat.label,
+                style: textTheme.bodySmall?.copyWith(
+                  color: const Color(0xFF94A3B8),
+                ),
+              ),
+          ],
+        ),
+      );
+      if (i < items.length - 1) {
+        children.add(
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              '·',
+              style: TextStyle(color: Color(0xFF475569), fontSize: 16),
+            ),
+          ),
+        );
+      }
+    }
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: children,
+    );
+  }
+}
+
+class CompactStat {
+  const CompactStat({required this.value, required this.label});
+
+  final String value;
+  final String label;
+}
+
+/// A collapsible section panel for progressive disclosure.
+/// Used in Export Center to hide detail sections behind expand/collapse.
+class CollapsiblePanel extends StatelessWidget {
+  const CollapsiblePanel({
+    super.key,
+    required this.title,
+    required this.child,
+    this.badge,
+    this.initiallyExpanded = false,
+  });
+
+  final String title;
+  final Widget child;
+  final String? badge;
+  final bool initiallyExpanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Card(
+      child: Theme(
+        // Override expansion tile divider colour so it matches dark card
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: initiallyExpanded,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(title, style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFFF8FAFC),
+                )),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF263345),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: const TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          children: [child],
+        ),
+      ),
+    );
+  }
+}

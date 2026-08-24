@@ -41,15 +41,19 @@ void main() {
     expect(snapshot.officerOptions, isEmpty);
   });
 
-  test('rejects liquidation for ongoing events', () async {
+  test('allows liquidation entries while event is ongoing', () async {
     await _seedOfficer(repository);
-    await _seedEvent(repository, endDate: DateTime(2026, 8, 20));
+    await _seedEvent(
+      repository,
+      endDate: DateTime(2026, 8, 20),
+      approvedBudgetBalance: Money.php(800),
+    );
+    await _seedFundRelease(repository, amount: Money.php(200));
 
     final result = await service.submitLiquidation(_command());
 
-    expect(result.isInvalid, isTrue);
-    expect(result.summary, contains('Only completed events'));
-    expect(await repository.listLiquidationReceipts(), isEmpty);
+    expect(result.isValid, isTrue);
+    expect(await repository.listLiquidationReceipts(), hasLength(1));
   });
 
   test('rejects receipt without attachment metadata', () async {
@@ -85,35 +89,34 @@ void main() {
     expect(badLine.summary, contains('unit cost must be greater than zero'));
   });
 
-  test(
-    'rejects released-funds liquidation when approved budget is insufficient',
-    () async {
-      await _seedOfficer(repository);
-      await _seedEvent(repository, approvedBudgetBalance: Money.php(100));
+  test('rejects released-funds liquidation when officer held funds are insufficient', () async {
+    await _seedOfficer(repository);
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(900));
+    await _seedFundRelease(repository, amount: Money.php(100));
 
-      final result = await service.submitLiquidation(
-        _command(
-          lines: const [
-            SubmitLiquidationLineDraft(
-              description: 'Meals',
-              quantity: 2,
-              unitCost: Money.centavos(10000),
-            ),
-          ],
-        ),
-      );
+    final result = await service.submitLiquidation(
+      _command(
+        lines: const [
+          SubmitLiquidationLineDraft(
+            description: 'Meals',
+            quantity: 2,
+            unitCost: Money.centavos(10000),
+          ),
+        ],
+      ),
+    );
 
-      expect(result.isInvalid, isTrue);
-      expect(
-        result.summary,
-        contains('Approved Budget balance is insufficient'),
-      );
-    },
-  );
+    expect(result.isInvalid, isTrue);
+    expect(
+      result.summary,
+      contains('accountable officer has insufficient held funds'),
+    );
+  });
 
-  test('valid released-funds liquidation persists receipt, lines, protected movement, audit log, and decreases budget', () async {
+  test('valid released-funds liquidation persists receipt, lines, protected movement, audit log, and reduces officer custody only', () async {
     await _seedOfficer(repository);
     await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+    await _seedFundRelease(repository, amount: Money.php(500));
 
     final result = await service.submitLiquidation(_command());
 
@@ -126,10 +129,16 @@ void main() {
     expect(result.isValid, isTrue);
     expect(receipts.single.payeeOrMerchant, 'Campus Canteen');
     expect(lines.single.total, Money.php(200));
-    expect(movements.single.type, FundMovementType.liquidationSubmitted);
-    expect(movements.single.isSystemGenerated, isTrue);
+    expect(
+      movements.map((movement) => movement.type),
+      contains(FundMovementType.liquidationSubmitted),
+    );
+    expect(movements.last.isSystemGenerated, isTrue);
     expect(logs.single.action, 'liquidation.submit');
-    expect(event.approvedBudgetBalance, Money.php(800));
+    expect(event.approvedBudgetBalance, Money.php(500));
+
+    final officerOptions = await service.listOfficerOptionsForEvent('event-1');
+    expect(officerOptions.single.fundCustodyBalance, Money.php(300));
   });
 
   test('valid out-of-pocket liquidation creates pending claims without decreasing budget', () async {
@@ -238,6 +247,7 @@ void main() {
   test('marks event liquidated only after explicit mark', () async {
     await _seedOfficer(repository);
     await _seedEvent(repository);
+    await _seedFundRelease(repository, amount: Money.php(500));
     await service.submitLiquidation(_command());
 
     var snapshot = await service.loadSnapshot(asOf: DateTime(2026, 8, 18));
@@ -344,6 +354,43 @@ Future<void> _seedEvent(
         amount: Money.centavos(100000),
       ),
     ],
+  );
+}
+
+Future<void> _seedFundRelease(
+  DriftAuditRepository repository, {
+  required Money amount,
+}) async {
+  final event = (await repository.listAuditEvents()).single;
+  await repository.updateAuditEvent(
+    AuditEvent(
+      id: event.id,
+      name: event.name,
+      type: event.type,
+      semester: event.semester,
+      schoolYear: event.schoolYear,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      permitApprovalDate: event.permitApprovalDate,
+      resolutionNumber: event.resolutionNumber,
+      budget: event.budget,
+      approvedBudgetBalance: event.approvedBudgetBalance - amount,
+      resolutionAttachment: event.resolutionAttachment,
+      isLiquidated: event.isLiquidated,
+    ),
+  );
+  await repository.saveFundMovement(
+    movement: FundMovement(
+      id: 'release-1',
+      reference: 'FM-20260818-RELEASE',
+      type: FundMovementType.fundRelease,
+      date: DateTime(2026, 8, 18),
+      amount: amount,
+      purpose: 'Release to officer',
+      eventId: event.id,
+      holderOfficerId: 'officer-1',
+      isSystemGenerated: false,
+    ),
   );
 }
 

@@ -75,6 +75,8 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                 totalBalance: Money.zero,
                 sources: [],
                 ledgerRows: [],
+                eventOptions: [],
+                officerOptions: [],
               ),
           onAddFund: _showAddFundDialog,
           onManualMovement: _showManualMovementDialog,
@@ -115,6 +117,8 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
       builder: (context) => _ManualMovementDialog(
         service: widget.service,
         sources: snapshot.sources,
+        events: snapshot.eventOptions,
+        officers: snapshot.officerOptions,
       ),
     );
     if (!mounted || result == null || result.isInvalid) {
@@ -159,27 +163,25 @@ class _TreasuryContent extends StatelessWidget {
                     onManualMovement: onManualMovement,
                   ),
                   const SizedBox(height: 20),
-                  _TreasurySummary(snapshot: snapshot),
-                  const SizedBox(height: 20),
                   if (isWide)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
                           flex: 2,
-                          child: _SourcePanel(sources: snapshot.sources),
+                          child: _SourceSection(sources: snapshot.sources),
                         ),
                         const SizedBox(width: 20),
                         Expanded(
                           flex: 3,
-                          child: _LedgerPanel(rows: snapshot.ledgerRows),
+                          child: _LedgerSection(rows: snapshot.ledgerRows),
                         ),
                       ],
                     )
                   else ...[
-                    _SourcePanel(sources: snapshot.sources),
-                    const SizedBox(height: 20),
-                    _LedgerPanel(rows: snapshot.ledgerRows),
+                    _SourceSection(sources: snapshot.sources),
+                    const SizedBox(height: 16),
+                    _LedgerSection(rows: snapshot.ledgerRows),
                   ],
                 ]),
               ),
@@ -204,28 +206,35 @@ class _TreasuryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Wrap(
-      alignment: WrapAlignment.spaceBetween,
-      crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 12,
       runSpacing: 12,
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Treasury',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Track local source funds, Add Fund support files, and auditable ledger movements.',
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-            ],
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Treasury', style: textTheme.headlineMedium),
+            const SizedBox(height: 8),
+            CompactStatRow(
+              items: [
+                CompactStat(
+                  value: formatPhpMoney(snapshot.totalBalance),
+                  label: 'Unallocated Treasury Balance',
+                ),
+                CompactStat(
+                  value: snapshot.sources.length.toString(),
+                  label: snapshot.sources.length == 1 ? 'source' : 'sources',
+                ),
+                CompactStat(
+                  value: snapshot.ledgerRows.length.toString(),
+                  label: 'ledger rows',
+                ),
+              ],
+            ),
+          ],
         ),
         Wrap(
           spacing: 10,
@@ -250,92 +259,32 @@ class _TreasuryHeader extends StatelessWidget {
   }
 }
 
-class _TreasurySummary extends StatelessWidget {
-  const _TreasurySummary({required this.snapshot});
+class _SourceSection extends StatelessWidget {
+  const _SourceSection({required this.sources});
 
-  final TreasurySnapshot snapshot;
-
-  @override
-  Widget build(BuildContext context) {
-    final crossAxisCount = MediaQuery.sizeOf(context).width >= 700 ? 3 : 1;
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: 3,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        mainAxisExtent: 184,
-      ),
-      itemBuilder: (context, index) {
-        return switch (index) {
-          0 => _SummaryCard(
-            icon: Icons.account_balance_wallet_outlined,
-            label: 'Unallocated Treasury Balance',
-            value: formatPhpMoney(snapshot.totalBalance),
-            detail: '${snapshot.sources.length} source funds',
-          ),
-          1 => _SummaryCard(
-            icon: Icons.source_outlined,
-            label: 'Source Funds',
-            value: snapshot.sources.length.toString(),
-            detail: snapshot.sources.isEmpty
-                ? 'No encoded sources yet'
-                : 'Balances update from ledger entries',
-          ),
-          _ => _SummaryCard(
-            icon: Icons.receipt_long_outlined,
-            label: 'Ledger Rows',
-            value: snapshot.ledgerRows.length.toString(),
-            detail: 'Newest movement first',
-          ),
-        };
-      },
-    );
-  }
-}
-
-class _SummaryCard extends StatelessWidget {
-  const _SummaryCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.detail,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-  final String detail;
+  final List<TreasurySourceView> sources;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: const Color(0xFF1E3A8A), size: 28),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(value, style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 2),
-                  Text(
-                    label,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis),
-                ],
-              ),
+            Text(
+              'Source Balances',
+              style: Theme.of(context).textTheme.titleLarge,
             ),
+            const SizedBox(height: 16),
+            if (sources.isEmpty)
+              const _EmptyPanelMessage(
+                icon: Icons.account_balance_outlined,
+                text: 'Add the first fund source to begin the Treasury ledger.',
+              )
+            else
+              for (final source in sources)
+                _SourceRow(source: source, showDivider: source != sources.last),
           ],
         ),
       ),
@@ -343,29 +292,32 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _SourcePanel extends StatelessWidget {
-  const _SourcePanel({required this.sources});
+class _LedgerSection extends StatelessWidget {
+  const _LedgerSection({required this.rows});
 
-  final List<TreasurySourceView> sources;
+  final List<TreasuryLedgerRow> rows;
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Source Balances',
-      child: sources.isEmpty
-          ? const _EmptyPanelMessage(
-              icon: Icons.account_balance_outlined,
-              text: 'Add the first fund source to begin the Treasury ledger.',
-            )
-          : Column(
-              children: [
-                for (final source in sources)
-                  _SourceRow(
-                    source: source,
-                    showDivider: source != sources.last,
-                  ),
-              ],
-            ),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ledger', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 16),
+            if (rows.isEmpty)
+              const _EmptyPanelMessage(
+                icon: Icons.timeline_outlined,
+                text: 'Ledger movements appear after funds are added.',
+              )
+            else
+              for (final row in rows)
+                _LedgerRow(row: row, showDivider: row != rows.last),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -419,30 +371,6 @@ class _SourceRow extends StatelessWidget {
         ),
         if (showDivider) const Divider(height: 1),
       ],
-    );
-  }
-}
-
-class _LedgerPanel extends StatelessWidget {
-  const _LedgerPanel({required this.rows});
-
-  final List<TreasuryLedgerRow> rows;
-
-  @override
-  Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Ledger',
-      child: rows.isEmpty
-          ? const _EmptyPanelMessage(
-              icon: Icons.timeline_outlined,
-              text: 'Ledger movements appear after funds are added.',
-            )
-          : Column(
-              children: [
-                for (final row in rows)
-                  _LedgerRow(row: row, showDivider: row != rows.last),
-              ],
-            ),
     );
   }
 }
@@ -542,19 +470,16 @@ class _AddFundDialog extends StatefulWidget {
 
 class _AddFundDialogState extends State<_AddFundDialog> {
   final _formKey = GlobalKey<FormState>();
-  final _labelController = TextEditingController();
   final _amountController = TextEditingController();
   final _remarksController = TextEditingController();
   AttachmentRef? _supportingAttachment;
   TreasuryFundSourceType _type = TreasuryFundSourceType.previousAdmin;
-  StableId? _existingSourceId;
   String? _serviceError;
   String? _formError;
   var _isSubmitting = false;
 
   @override
   void dispose() {
-    _labelController.dispose();
     _amountController.dispose();
     _remarksController.dispose();
     super.dispose();
@@ -597,60 +522,25 @@ class _AddFundDialogState extends State<_AddFundDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (widget.sources.isNotEmpty)
-                DropdownButtonFormField<StableId?>(
-                  key: const Key('addFundExistingSourceField'),
-                  initialValue: _existingSourceId,
-                  decoration: const InputDecoration(
-                    labelText: 'Apply to source',
-                  ),
-                  items: [
-                    const DropdownMenuItem<StableId?>(
-                      child: Text('Create new source'),
-                    ),
-                    for (final source in widget.sources)
-                      DropdownMenuItem<StableId?>(
-                        value: source.id,
-                        child: Text(source.label),
-                      ),
-                  ],
-                  onChanged: (value) {
-                    setState(() {
-                      _existingSourceId = value;
-                      final existing = _sourceById(widget.sources, value);
-                      if (existing != null) {
-                        _type = existing.type;
-                        _labelController.text = existing.label;
-                      }
-                    });
-                  },
-                ),
-              if (widget.sources.isNotEmpty) const SizedBox(height: 12),
               DropdownButtonFormField<TreasuryFundSourceType>(
                 key: const Key('addFundTypeField'),
                 initialValue: _type,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Source type'),
                 items: TreasuryFundSourceType.values
                     .map(
                       (type) => DropdownMenuItem(
                         value: type,
-                        child: Text(treasurySourceTypeLabel(type)),
+                        child: Text(
+                          treasurySourceTypeLabel(type),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     )
                     .toList(growable: false),
-                onChanged: _existingSourceId == null
-                    ? (value) => setState(() {
-                        _type = value ?? _type;
-                      })
-                    : null,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                key: const Key('addFundLabelField'),
-                controller: _labelController,
-                enabled: _existingSourceId == null,
-                decoration: const InputDecoration(labelText: 'Source label'),
-                validator: _requiredValidator,
+                onChanged: (value) => setState(() {
+                  _type = value ?? _type;
+                }),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -730,9 +620,7 @@ class _AddFundDialogState extends State<_AddFundDialog> {
     });
     final result = await widget.service.addFund(
       AddFundCommand(
-        existingSourceId: _existingSourceId,
         type: _type,
-        label: _labelController.text,
         amount: parsePhpMoney(_amountController.text)!,
         date: DateTime.now(),
         supportingAttachment: _supportingAttachment,
@@ -754,10 +642,17 @@ class _AddFundDialogState extends State<_AddFundDialog> {
 }
 
 class _ManualMovementDialog extends StatefulWidget {
-  const _ManualMovementDialog({required this.service, required this.sources});
+  const _ManualMovementDialog({
+    required this.service,
+    required this.sources,
+    required this.events,
+    required this.officers,
+  });
 
   final TreasuryService service;
   final List<TreasurySourceView> sources;
+  final List<TreasuryEventOption> events;
+  final List<TreasuryOfficerOption> officers;
 
   @override
   State<_ManualMovementDialog> createState() => _ManualMovementDialogState();
@@ -771,6 +666,8 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
   FundMovementType _type = FundMovementType.fundRelease;
   StableId? _fromFundSourceId;
   StableId? _toFundSourceId;
+  StableId? _eventId;
+  StableId? _officerId;
   String? _serviceError;
   String? _formError;
   var _isSubmitting = false;
@@ -780,6 +677,8 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
     super.initState();
     _fromFundSourceId = widget.sources.isEmpty ? null : widget.sources.first.id;
     _toFundSourceId = widget.sources.length > 1 ? widget.sources[1].id : null;
+    _eventId = widget.events.isEmpty ? null : widget.events.first.id;
+    _officerId = widget.officers.isEmpty ? null : widget.officers.first.id;
   }
 
   @override
@@ -830,12 +729,16 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
               DropdownButtonFormField<FundMovementType>(
                 key: const Key('manualMovementTypeField'),
                 initialValue: _type,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Movement type'),
                 items: FundMovementRules.manualTypes
                     .map(
                       (type) => DropdownMenuItem(
                         value: type,
-                        child: Text(fundMovementTypeLabel(type)),
+                        child: Text(
+                          fundMovementTypeLabel(type),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     )
                     .toList(growable: false),
@@ -844,42 +747,112 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
                 }),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<StableId>(
-                key: const Key('manualMovementFromSourceField'),
-                initialValue: _fromFundSourceId,
-                decoration: const InputDecoration(labelText: 'Source fund'),
-                items: widget.sources
-                    .map(
-                      (source) => DropdownMenuItem(
-                        value: source.id,
-                        child: Text(source.label),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) => setState(() {
-                  _fromFundSourceId = value;
-                }),
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<StableId?>(
-                key: const Key('manualMovementToSourceField'),
-                initialValue: _toFundSourceId,
-                decoration: const InputDecoration(labelText: 'Target fund'),
-                items: [
-                  const DropdownMenuItem<StableId?>(
-                    child: Text('No target fund'),
+              if (_type == FundMovementType.fundRelease) ...[
+                DropdownButtonFormField<StableId>(
+                  key: const Key('manualMovementEventField'),
+                  initialValue: _eventId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Event Approved Budget',
                   ),
-                  for (final source in widget.sources)
-                    DropdownMenuItem<StableId?>(
-                      value: source.id,
-                      child: Text(source.label),
-                    ),
+                  items: widget.events
+                      .map(
+                        (event) => DropdownMenuItem(
+                          value: event.id,
+                          child: Text(
+                            '${event.name} (${event.approvedBudgetBalanceLabel})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) =>
+                      value == null ? 'Select an event Approved Budget.' : null,
+                  onChanged: (value) => setState(() {
+                    _eventId = value;
+                  }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<StableId>(
+                  key: const Key('manualMovementOfficerField'),
+                  initialValue: _officerId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Fund custodian officer',
+                  ),
+                  items: widget.officers
+                      .map(
+                        (officer) => DropdownMenuItem(
+                          value: officer.id,
+                          child: Text(
+                            officer.fullName,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) =>
+                      value == null ? 'Select a fund custodian officer.' : null,
+                  onChanged: (value) => setState(() {
+                    _officerId = value;
+                  }),
+                ),
+                const SizedBox(height: 12),
+              ] else ...[
+                if (_type == FundMovementType.transfer) ...[
+                  DropdownButtonFormField<StableId>(
+                    key: const Key('manualMovementFromSourceField'),
+                    initialValue: _fromFundSourceId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(labelText: 'Source fund'),
+                    items: widget.sources
+                        .map(
+                          (source) => DropdownMenuItem(
+                            value: source.id,
+                            child: Text(
+                              source.label,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                    validator: (value) =>
+                        value == null ? 'Select a source fund.' : null,
+                    onChanged: (value) => setState(() {
+                      _fromFundSourceId = value;
+                    }),
+                  ),
+                  const SizedBox(height: 12),
                 ],
-                onChanged: (value) => setState(() {
-                  _toFundSourceId = value;
-                }),
-              ),
-              const SizedBox(height: 12),
+                DropdownButtonFormField<StableId?>(
+                  key: const Key('manualMovementToSourceField'),
+                  initialValue: _toFundSourceId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Target fund'),
+                  items: [
+                    const DropdownMenuItem<StableId?>(
+                      child: Text(
+                        'No target fund',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    for (final source in widget.sources)
+                      DropdownMenuItem<StableId?>(
+                        value: source.id,
+                        child: Text(
+                          source.label,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  validator: (value) =>
+                      value == null ? 'Select a target fund.' : null,
+                  onChanged: (value) => setState(() {
+                    _toFundSourceId = value;
+                  }),
+                ),
+                const SizedBox(height: 12),
+              ],
               TextFormField(
                 key: const Key('manualMovementAmountField'),
                 controller: _amountController,
@@ -932,10 +905,16 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
         remarks: _remarksController.text,
         fromFundSourceId: _type == FundMovementType.returnRefund
             ? null
+            : _type == FundMovementType.fundRelease
+            ? null
             : _fromFundSourceId,
         toFundSourceId: _type == FundMovementType.fundRelease
             ? null
             : _toFundSourceId,
+        holderOfficerId: _type == FundMovementType.fundRelease
+            ? _officerId
+            : null,
+        eventId: _type == FundMovementType.fundRelease ? _eventId : null,
       ),
     );
     if (!mounted) {
@@ -949,30 +928,6 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
       return;
     }
     Navigator.pop(context, result);
-  }
-}
-
-class _Panel extends StatelessWidget {
-  const _Panel({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            child,
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -1011,21 +966,6 @@ String? _moneyValidator(String? value) {
   }
   if (!money.isPositive) {
     return 'Amount must be greater than zero.';
-  }
-  return null;
-}
-
-TreasurySourceView? _sourceById(
-  List<TreasurySourceView> sources,
-  StableId? id,
-) {
-  if (id == null) {
-    return null;
-  }
-  for (final source in sources) {
-    if (source.id == id) {
-      return source;
-    }
   }
   return null;
 }

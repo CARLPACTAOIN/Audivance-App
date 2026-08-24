@@ -146,15 +146,10 @@ class _OrganizationContent extends StatelessWidget {
           onEditOrganization: onEditOrganization,
         ),
         const SizedBox(height: 16),
-        if (snapshot.readinessHints.isNotEmpty) ...[
-          _ReadinessPanel(hints: snapshot.readinessHints),
-          const SizedBox(height: 16),
-        ],
-        _CommitteeSummaryPanel(summaries: snapshot.committeeSummaries),
-        const SizedBox(height: 16),
         _OfficerRosterPanel(
           activeOfficers: snapshot.activeOfficers,
           archivedOfficers: snapshot.archivedOfficers,
+          committeeSummaries: snapshot.committeeSummaries,
           onAddOfficer: onAddOfficer,
           onEditOfficer: onEditOfficer,
           onArchiveOfficer: onArchiveOfficer,
@@ -184,58 +179,72 @@ class _ProfileHeader extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 760),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        snapshot.organizationName,
-                        key: const Key('profileOrganizationName'),
-                        style: textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          MetadataChip(
-                            icon: Icons.calendar_month_outlined,
-                            label: snapshot.termLabel,
-                          ),
-                          MetadataChip(
-                            icon: Icons.school_outlined,
-                            label: organization?.type ?? 'No type',
-                          ),
-                          StatusBadge(
-                            label: snapshot.hasActiveOfficers
-                                ? 'Officer-ready'
-                                : 'Needs officers',
-                            icon: snapshot.hasActiveOfficers
-                                ? Icons.check_circle_outline
-                                : Icons.warning_amber_outlined,
-                            tone: snapshot.hasActiveOfficers
-                                ? InlineStatusTone.success
-                                : InlineStatusTone.warning,
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                FilledButton.icon(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth >= 600;
+                final textBlock = Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      snapshot.organizationName,
+                      key: const Key('profileOrganizationName'),
+                      style: textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        MetadataChip(
+                          icon: Icons.calendar_month_outlined,
+                          label: snapshot.termLabel,
+                        ),
+                        MetadataChip(
+                          icon: Icons.school_outlined,
+                          label: organization?.type ?? 'No type',
+                        ),
+                        StatusBadge(
+                          label: snapshot.hasActiveOfficers
+                              ? 'Officer-ready'
+                              : 'Needs officers',
+                          icon: snapshot.hasActiveOfficers
+                              ? Icons.check_circle_outline
+                              : Icons.warning_amber_outlined,
+                          tone: snapshot.hasActiveOfficers
+                              ? InlineStatusTone.success
+                              : InlineStatusTone.warning,
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+                final editButton = FilledButton.icon(
                   key: const Key('profileEditOrganizationButton'),
                   onPressed: onEditOrganization,
                   icon: const Icon(Icons.edit_outlined),
                   label: const Text('Edit Profile'),
-                ),
-              ],
+                );
+
+                if (!isWide) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      textBlock,
+                      const SizedBox(height: 14),
+                      editButton,
+                    ],
+                  );
+                }
+
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: textBlock),
+                    const SizedBox(width: 16),
+                    editButton,
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 18),
             if (organization == null)
@@ -259,108 +268,12 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-class _ReadinessPanel extends StatelessWidget {
-  const _ReadinessPanel({required this.hints});
-
-  final List<OrganizationReadinessHint> hints;
-
-  @override
-  Widget build(BuildContext context) {
-    return InlineStatusPanel(
-      title: 'Profile readiness needs attention',
-      message: hints.map((hint) => hint.message).join('\n'),
-      tone: InlineStatusTone.warning,
-    );
-  }
-}
-
-class _CommitteeSummaryPanel extends StatelessWidget {
-  const _CommitteeSummaryPanel({required this.summaries});
-
-  final List<CommitteeSummaryView> summaries;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Committee Summary',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 14),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 700;
-                final cards = summaries
-                    .map((summary) => _CommitteeSummaryCard(summary: summary))
-                    .toList();
-                if (!isWide) {
-                  return Column(
-                    children: [
-                      for (final card in cards) ...[
-                        card,
-                        if (card != cards.last) const SizedBox(height: 10),
-                      ],
-                    ],
-                  );
-                }
-                return Row(
-                  children: [
-                    for (final card in cards) ...[
-                      Expanded(child: card),
-                      if (card != cards.last) const SizedBox(width: 12),
-                    ],
-                  ],
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CommitteeSummaryCard extends StatelessWidget {
-  const _CommitteeSummaryCard({required this.summary});
-
-  final CommitteeSummaryView summary;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFFE2E8F0)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              summary.committeeLabel,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text('Head: ${summary.headName ?? 'Not assigned'}'),
-            const SizedBox(height: 4),
-            Text('Members: ${summary.memberCount}'),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _OfficerRosterPanel extends StatelessWidget {
   const _OfficerRosterPanel({
     required this.activeOfficers,
     required this.archivedOfficers,
+    required this.committeeSummaries,
     required this.onAddOfficer,
     required this.onEditOfficer,
     required this.onArchiveOfficer,
@@ -369,6 +282,7 @@ class _OfficerRosterPanel extends StatelessWidget {
 
   final List<OfficerRowView> activeOfficers;
   final List<OfficerRowView> archivedOfficers;
+  final List<CommitteeSummaryView> committeeSummaries;
   final VoidCallback onAddOfficer;
   final ValueChanged<OfficerRowView> onEditOfficer;
   final ValueChanged<OfficerRowView> onArchiveOfficer;
@@ -376,30 +290,42 @@ class _OfficerRosterPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Roster header with Add Officer button
             Wrap(
               spacing: 12,
-              runSpacing: 12,
+              runSpacing: 10,
               crossAxisAlignment: WrapCrossAlignment.center,
+              alignment: WrapAlignment.spaceBetween,
               children: [
-                Text(
-                  'Officer Roster',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                StatusBadge(
-                  label: '${activeOfficers.length} active',
-                  icon: Icons.person_outline,
-                  tone: InlineStatusTone.info,
-                ),
-                StatusBadge(
-                  label: '${archivedOfficers.length} archived',
-                  icon: Icons.inventory_2_outlined,
-                  tone: InlineStatusTone.warning,
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Officer Roster', style: textTheme.titleLarge),
+                    const SizedBox(height: 6),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: [
+                        StatusBadge(
+                          label: '${activeOfficers.length} active',
+                          icon: Icons.person_outline,
+                          tone: InlineStatusTone.info,
+                        ),
+                        StatusBadge(
+                          label: '${archivedOfficers.length} archived',
+                          icon: Icons.inventory_2_outlined,
+                          tone: InlineStatusTone.warning,
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
                 FilledButton.icon(
                   key: const Key('profileAddOfficerButton'),
@@ -409,7 +335,32 @@ class _OfficerRosterPanel extends StatelessWidget {
                 ),
               ],
             ),
+            // Committee summary inline — compact chips instead of separate card section
+            if (committeeSummaries.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      for (final summary in committeeSummaries)
+                        ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: constraints.maxWidth,
+                          ),
+                          child: _CommitteeChip(summary: summary),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ],
             const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 4),
             if (activeOfficers.isEmpty)
               const AppStateView.empty(
                 title: 'No Active Officers',
@@ -445,6 +396,48 @@ class _OfficerRosterPanel extends StatelessWidget {
   }
 }
 
+class _CommitteeChip extends StatelessWidget {
+  const _CommitteeChip({required this.summary});
+
+  final CommitteeSummaryView summary;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF334155)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            summary.committeeLabel,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFFF8FAFC),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            summary.headName != null
+                ? 'Head: ${summary.headName}'
+                : '${summary.memberCount} member${summary.memberCount == 1 ? '' : 's'} · No head assigned',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: const Color(0xFF94A3B8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OfficerRow extends StatelessWidget {
   const _OfficerRow({
     required this.officer,
@@ -458,66 +451,42 @@ class _OfficerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final badgeTone = officer.isArchived
-        ? InlineStatusTone.warning
-        : InlineStatusTone.success;
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                officer.isArchived
-                    ? Icons.inventory_2_outlined
-                    : Icons.badge_outlined,
-                color: const Color(0xFF1E3A8A),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              Row(
+                children: [
+                  Icon(
+                    officer.isArchived
+                        ? Icons.inventory_2_outlined
+                        : Icons.badge_outlined,
+                    color: officer.isArchived
+                        ? const Color(0xFF64748B)
+                        : const Color(0xFF10B981),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
                       officer.fullName,
                       key: Key('profileOfficerName${officer.id}'),
-                      style: Theme.of(context).textTheme.titleMedium,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        StatusBadge(
-                          label: officer.isArchived ? 'Archived' : 'Active',
-                          icon: officer.isArchived
-                              ? Icons.inventory_2_outlined
-                              : Icons.check_circle_outline,
-                          tone: badgeTone,
-                        ),
-                        MetadataChip(
-                          icon: Icons.assignment_ind_outlined,
-                          label: officer.positionLabel,
-                        ),
-                        MetadataChip(
-                          icon: Icons.groups_outlined,
-                          label: officer.committeeLabel,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Wrap(
-                spacing: 6,
-                children: [
+                  ),
                   IconButton(
                     key: Key('profileOfficerEdit${officer.id}'),
                     tooltip: 'Edit officer',
                     onPressed: onEdit,
-                    icon: const Icon(Icons.edit_outlined),
+                    icon: const Icon(Icons.edit_outlined, size: 20),
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    padding: EdgeInsets.zero,
                   ),
                   IconButton(
                     key: Key(
@@ -525,15 +494,38 @@ class _OfficerRow extends StatelessWidget {
                           ? 'profileOfficerRestore${officer.id}'
                           : 'profileOfficerArchive${officer.id}',
                     ),
-                    tooltip: officer.isArchived
-                        ? 'Restore officer'
-                        : 'Archive officer',
+                    tooltip: officer.isArchived ? 'Restore officer' : 'Archive officer',
                     onPressed: onArchive,
                     icon: Icon(
-                      officer.isArchived
-                          ? Icons.restore_outlined
-                          : Icons.archive_outlined,
+                      officer.isArchived ? Icons.restore_outlined : Icons.archive_outlined,
+                      size: 20,
                     ),
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    padding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  StatusBadge(
+                    label: officer.isArchived ? 'Archived' : 'Active',
+                    icon: officer.isArchived
+                        ? Icons.inventory_2_outlined
+                        : Icons.check_circle_outline,
+                    tone: officer.isArchived
+                        ? InlineStatusTone.warning
+                        : InlineStatusTone.success,
+                  ),
+                  MetadataChip(
+                    icon: Icons.assignment_ind_outlined,
+                    label: officer.positionLabel,
+                  ),
+                  MetadataChip(
+                    icon: Icons.groups_outlined,
+                    label: officer.committeeLabel,
                   ),
                 ],
               ),
@@ -803,15 +795,16 @@ class _OfficerDialogState extends State<_OfficerDialog> {
               DropdownButtonFormField<OfficerPosition>(
                 key: const Key('profileOfficerPositionField'),
                 initialValue: _position,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Position'),
                 items: const [
                   DropdownMenuItem(
                     value: OfficerPosition.member,
-                    child: Text('Member'),
+                    child: Text('Member', overflow: TextOverflow.ellipsis),
                   ),
                   DropdownMenuItem(
                     value: OfficerPosition.head,
-                    child: Text('Head'),
+                    child: Text('Head', overflow: TextOverflow.ellipsis),
                   ),
                 ],
                 onChanged: _isSubmitting
@@ -827,19 +820,26 @@ class _OfficerDialogState extends State<_OfficerDialog> {
               DropdownButtonFormField<Committee?>(
                 key: const Key('profileOfficerCommitteeField'),
                 initialValue: _committee,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Committee'),
                 items: const [
                   DropdownMenuItem<Committee?>(
                     value: null,
-                    child: Text('No committee'),
+                    child: Text('No committee', overflow: TextOverflow.ellipsis),
                   ),
                   DropdownMenuItem<Committee?>(
                     value: Committee.finance,
-                    child: Text('Finance Committee'),
+                    child: Text(
+                      'Finance Committee',
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   DropdownMenuItem<Committee?>(
                     value: Committee.audit,
-                    child: Text('Audit Committee'),
+                    child: Text(
+                      'Audit Committee',
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
                 validator: (value) {

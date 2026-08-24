@@ -99,7 +99,9 @@ void main() {
     await tester.tap(find.byKey(const Key('setupGetStartedButton')));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.byKey(const Key('setupContinueToOrgButton')));
+    await tester.ensureVisible(
+      find.byKey(const Key('setupContinueToOrgButton')),
+    );
     await tester.tap(find.byKey(const Key('setupContinueToOrgButton')));
     await tester.pumpAndSettle();
 
@@ -130,7 +132,9 @@ void main() {
       '567890',
     );
 
-    await tester.ensureVisible(find.byKey(const Key('setupContinueToOrgButton')));
+    await tester.ensureVisible(
+      find.byKey(const Key('setupContinueToOrgButton')),
+    );
     await tester.tap(find.byKey(const Key('setupContinueToOrgButton')));
     await tester.pumpAndSettle();
 
@@ -511,13 +515,9 @@ void main() {
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
     await _openEvents(tester);
-    await tester.scrollUntilVisible(
-      find.text('0 accountable officers'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await _openEventDetails(tester, 'event-1');
 
-    final button = tester.widget<OutlinedButton>(
+    final button = tester.widget<FilledButton>(
       find.byKey(const Key('eventLiquidationButtonevent-1')),
     );
     expect(find.text('Archived Treasurer'), findsNothing);
@@ -741,7 +741,7 @@ void main() {
       find.text('Fix the highlighted fields before saving this fund.'),
       findsOneWidget,
     );
-    expect(find.text('This field is required.'), findsWidgets);
+    expect(find.text('Select a supporting attachment.'), findsOneWidget);
     expect(find.text('Enter a valid PHP amount.'), findsOneWidget);
   });
 
@@ -784,10 +784,6 @@ void main() {
     await tester.tap(find.byKey(const Key('treasuryAddFundButton')));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.byKey(const Key('addFundLabelField')),
-      'Student Collections',
-    );
-    await tester.enterText(
       find.byKey(const Key('addFundAmountField')),
       '12845.50',
     );
@@ -796,7 +792,7 @@ void main() {
     await tester.tap(find.byKey(const Key('addFundSubmitButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Student Collections'), findsWidgets);
+    expect(find.text('Fund from previous admin'), findsWidgets);
     expect(find.text('PHP 12,845.50'), findsWidgets);
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -500));
@@ -812,6 +808,8 @@ void main() {
     addTearDown(harness.close);
     await harness.seedSetup();
     await harness.seedTreasurySource(balance: Money.php(100));
+    await harness.seedOfficer();
+    await harness.seedCompletedEvent(approvedBudgetBalance: Money.php(100));
     await harness.unlockService.configurePin('123456');
 
     await tester.pumpWidget(harness.app());
@@ -888,32 +886,34 @@ void main() {
 
     expect(find.text('This field is required.'), findsWidgets);
     expect(find.text('Enter a valid date.'), findsWidgets);
-    expect(find.text('Enter a valid PHP amount.'), findsWidgets);
+    expect(find.text('Enter a valid PHP amount.'), findsOneWidget);
   });
 
-  testWidgets('Create Event form shows split funding mismatch error', (
-    tester,
-  ) async {
-    final harness = _WidgetHarness();
-    addTearDown(harness.close);
-    await harness.seedSetup();
-    await harness.seedTreasurySource(balance: Money.php(5000));
-    await harness.unlockService.configurePin('123456');
+  testWidgets(
+    'Create Event derives total budget from source allocations and validates source balance',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedTreasurySource(balance: Money.php(5000));
+      await harness.unlockService.configurePin('123456');
 
-    await tester.pumpWidget(harness.app());
-    await tester.pumpAndSettle();
-    await _openEvents(tester);
-    await tester.tap(find.byKey(const Key('eventCreateButton')));
-    await tester.pumpAndSettle();
-    await _fillEventForm(tester, allocationAmount: '500');
-    await tester.tap(find.byKey(const Key('eventCreateSubmitButton')));
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+      await tester.tap(find.byKey(const Key('eventCreateButton')));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.text('Split funding allocations must equal the event budget.'),
-      findsOneWidget,
-    );
-  });
+      await _fillEventForm(tester, allocationAmount: '6000');
+      await tester.tap(find.byKey(const Key('eventCreateSubmitButton')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('insufficient balance'),
+        findsOneWidget,
+      );
+    },
+  );
 
   testWidgets('successful event creation updates Events and Dashboard', (
     tester,
@@ -942,6 +942,30 @@ void main() {
     expect(find.text('Approved Budget'), findsOneWidget);
     expect(find.text('PHP 4,000'), findsOneWidget);
   });
+
+  testWidgets(
+    'Create Event allows selecting Project, Program, or Activity as event type',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedTreasurySource(balance: Money.php(5000));
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+      await tester.tap(find.byKey(const Key('eventCreateButton')));
+      await tester.pumpAndSettle();
+
+      await _fillEventForm(tester, type: 'Activity');
+      await tester.tap(find.byKey(const Key('eventCreateSubmitButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Leadership Summit'), findsOneWidget);
+      expect(find.textContaining('Activity'), findsWidgets);
+    },
+  );
 
   testWidgets('Create Event date pickers open calendar dialogs and set dates', (
     tester,
@@ -973,6 +997,47 @@ void main() {
     expect(startDateField.controller.text, isNotEmpty);
   });
 
+  testWidgets(
+    'tapping Manage Event opens Event Details screen and navigates back',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedCompletedEvent();
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+
+      expect(find.text('Event Records'), findsOneWidget);
+      expect(find.byKey(const Key('eventManageButtonevent-1')), findsOneWidget);
+
+      await _openEventDetails(tester, 'event-1');
+      expect(find.text('Event Financials'), findsOneWidget);
+      expect(find.text('Financial Summary'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('Liquidation Receipts'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Liquidation Receipts'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.text('Reimbursements'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Reimbursements'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('eventDetailsBackButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Event Records'), findsOneWidget);
+    },
+  );
+
   testWidgets('Events screen shows Adjust Budget for non-liquidated events', (
     tester,
   ) async {
@@ -985,6 +1050,7 @@ void main() {
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
     await _openEvents(tester);
+    await _openEventDetails(tester, 'event-1');
 
     await tester.scrollUntilVisible(
       find.byKey(const Key('eventAdjustBudgetButtonevent-1')),
@@ -1061,6 +1127,9 @@ void main() {
 
       expect(find.text('PHP 1,500'), findsWidgets);
 
+      await tester.tap(find.byKey(const Key('eventDetailsBackButton')));
+      await tester.pumpAndSettle();
+
       await tester.tap(find.text('Dashboard').last);
       await tester.pumpAndSettle();
       expect(find.text('PHP 1,500'), findsOneWidget);
@@ -1101,6 +1170,9 @@ void main() {
 
     expect(find.text('PHP 700'), findsWidgets);
 
+    await tester.tap(find.byKey(const Key('eventDetailsBackButton')));
+    await tester.pumpAndSettle();
+
     await _openTreasury(tester);
     expect(find.text('PHP 5,300'), findsWidgets);
   });
@@ -1117,8 +1189,9 @@ void main() {
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
     await _openEvents(tester);
+    await _openEventDetails(tester, 'event-1');
 
-    expect(find.text('Liquidated'), findsOneWidget);
+    expect(find.text('Liquidated'), findsWidgets);
     expect(
       find.byKey(const Key('eventAdjustBudgetButtonevent-1')),
       findsNothing,
@@ -1144,8 +1217,8 @@ void main() {
     expect(find.text('PHP 1,000'), findsWidgets);
     expect(find.text('PHP 200'), findsWidgets);
     expect(find.text('PHP 800'), findsWidgets);
-    expect(find.text('20.00%'), findsOneWidget);
-    expect(find.text('Healthy'), findsOneWidget);
+    expect(find.text('20.00%'), findsWidgets);
+    expect(find.text('Healthy'), findsWidgets);
   });
 
   testWidgets('auditor review form validates and saves history', (
@@ -1292,7 +1365,7 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Reimbursements'), findsOneWidget);
-      expect(find.textContaining('Pending'), findsOneWidget);
+      expect(find.textContaining('Pending'), findsWidgets);
       expect(find.text('PHP 200'), findsWidgets);
     },
   );
@@ -1311,14 +1384,19 @@ void main() {
       await tester.pumpWidget(harness.app());
       await tester.pumpAndSettle();
       await _openEvents(tester);
+      await _openEventDetails(tester, 'event-1');
+      final payButton = find.byKey(const Key('reimbursementPayButtonclaim-1'));
       await tester.scrollUntilVisible(
-        find.byKey(const Key('reimbursementPayButtonclaim-1')),
+        payButton,
         300,
         scrollable: find.byType(Scrollable).first,
       );
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -80));
+      await Scrollable.ensureVisible(
+        tester.element(payButton),
+        alignment: 0.35,
+      );
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('reimbursementPayButtonclaim-1')));
+      await tester.tap(payButton);
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byKey(const Key('reimbursementPaymentDateField')),
@@ -1331,6 +1409,9 @@ void main() {
 
       final claim = (await harness.repository.listReimbursementClaims()).single;
       expect(claim.status, ReimbursementStatus.paid);
+
+      await tester.tap(find.byKey(const Key('eventDetailsBackButton')));
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('Dashboard').last);
       await tester.pumpAndSettle();
@@ -1352,15 +1433,13 @@ void main() {
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
     await _openEvents(tester);
+    await _openEventDetails(tester, 'event-1');
     await tester.scrollUntilVisible(
       find.byKey(const Key('eventMarkLiquidatedButtonevent-1')),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    final button = tester.widget<FilledButton>(
-      find.byKey(const Key('eventMarkLiquidatedButtonevent-1')),
-    );
-    button.onPressed!();
+    await tester.tap(find.byKey(const Key('eventMarkLiquidatedButtonevent-1')));
     await tester.pumpAndSettle();
 
     final event = (await harness.repository.listAuditEvents()).single;
@@ -1404,6 +1483,8 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Readiness Issues'), findsOneWidget);
+    await tester.tap(find.text('Readiness Issues'));
+    await tester.pumpAndSettle();
     expect(
       find.text('At least one Treasury source fund is required.'),
       findsOneWidget,
@@ -1414,6 +1495,43 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('Export Center expandable panels default to minimized', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedExportWorkspace();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openExport(tester);
+
+    await tester.scrollUntilVisible(
+      find.text('Record Counts'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Record Counts'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('Package Structure'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Package Structure'), findsOneWidget);
+    expect(find.text('manifest.json'), findsNothing);
+
+    await tester.scrollUntilVisible(
+      find.text('USM-OSA-F46 Liquidation Reports'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('USM-OSA-F46 Liquidation Reports'), findsOneWidget);
+    expect(find.text('USM-OSA-F46 Liquidation Report'), findsNothing);
   });
 
   testWidgets(
@@ -1435,6 +1553,8 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Record Counts'), findsOneWidget);
+      await tester.tap(find.text('Record Counts'));
+      await tester.pumpAndSettle();
       expect(find.text('Events'), findsWidgets);
       await tester.scrollUntilVisible(
         find.text('Package Structure'),
@@ -1442,6 +1562,8 @@ void main() {
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Package Structure'), findsOneWidget);
+      await tester.tap(find.text('Package Structure'));
+      await tester.pumpAndSettle();
       expect(find.text('manifest.json'), findsOneWidget);
       expect(find.text('data/audit_events.json'), findsOneWidget);
       expect(find.text('data/budget_vs_actual.json'), findsOneWidget);
@@ -1474,6 +1596,8 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('USM-OSA-F46 Liquidation Reports'), findsOneWidget);
+    await tester.tap(find.text('USM-OSA-F46 Liquidation Reports'));
+    await tester.pumpAndSettle();
     expect(find.text('USM-OSA-F46 Liquidation Report'), findsOneWidget);
     expect(
       find.text('reports/liquidation/Leadership-Summit-event-1.pdf'),
@@ -1526,6 +1650,8 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     expect(find.text('Generated Preview'), findsOneWidget);
+    await tester.tap(find.text('Generated Preview'));
+    await tester.pumpAndSettle();
     expect(
       find.text(
         'Audivance-Junior-Philippine-Institute-of-Accountants-2026-2027-1st-Semester-2026-08-18.zip',
@@ -1839,6 +1965,7 @@ Future<void> _fillProfileOfficerForm(
 
 Future<void> _fillEventForm(
   WidgetTester tester, {
+  String type = 'Project',
   String allocationAmount = '4000',
 }) async {
   await _enterTextByKey(
@@ -1846,7 +1973,12 @@ Future<void> _fillEventForm(
     const Key('eventNameField'),
     'Leadership Summit',
   );
-  await _enterTextByKey(tester, const Key('eventTypeField'), 'Leadership');
+  if (type != 'Project') {
+    await tester.tap(find.byKey(const Key('eventTypeField')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(Key('eventTypeOption$type')).last);
+    await tester.pumpAndSettle();
+  }
   await _enterTextByKey(tester, const Key('eventStartDateField'), '2026-08-20');
   await _enterTextByKey(tester, const Key('eventEndDateField'), '2026-08-21');
   await _enterTextByKey(
@@ -1854,7 +1986,6 @@ Future<void> _fillEventForm(
     const Key('eventResolutionNumberField'),
     'RES-2026-001',
   );
-  await _enterTextByKey(tester, const Key('eventBudgetField'), '4000');
   await tester.ensureVisible(
     find.byKey(const Key('eventResolutionAttachmentSelectButton')),
   );
@@ -1869,8 +2000,36 @@ Future<void> _fillEventForm(
   );
 }
 
-Future<void> _openLiquidationDialog(WidgetTester tester) async {
-  final button = find.byKey(const Key('eventLiquidationButtonevent-1'));
+Future<void> _openEventDetails(WidgetTester tester, String eventId) async {
+  final manageButton = find.byKey(Key('eventManageButton$eventId'));
+  if (manageButton.evaluate().isNotEmpty) {
+    await tester.scrollUntilVisible(
+      manageButton,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(manageButton);
+    await tester.pumpAndSettle();
+  } else {
+    final card = find.byKey(Key('eventCard$eventId'));
+    if (card.evaluate().isNotEmpty) {
+      await tester.scrollUntilVisible(
+        card,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.tap(card);
+      await tester.pumpAndSettle();
+    }
+  }
+}
+
+Future<void> _openLiquidationDialog(
+  WidgetTester tester, {
+  String eventId = 'event-1',
+}) async {
+  await _openEventDetails(tester, eventId);
+  final button = find.byKey(Key('eventLiquidationButton$eventId'));
   await tester.scrollUntilVisible(
     button,
     300,
@@ -1882,8 +2041,12 @@ Future<void> _openLiquidationDialog(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _openBudgetAdjustmentDialog(WidgetTester tester) async {
-  final button = find.byKey(const Key('eventAdjustBudgetButtonevent-1'));
+Future<void> _openBudgetAdjustmentDialog(
+  WidgetTester tester, {
+  String eventId = 'event-1',
+}) async {
+  await _openEventDetails(tester, eventId);
+  final button = find.byKey(Key('eventAdjustBudgetButton$eventId'));
   await tester.scrollUntilVisible(
     button,
     300,
@@ -1895,8 +2058,12 @@ Future<void> _openBudgetAdjustmentDialog(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _openBudgetReviewDialog(WidgetTester tester) async {
-  final button = find.byKey(const Key('eventBudgetReviewButtonevent-1'));
+Future<void> _openBudgetReviewDialog(
+  WidgetTester tester, {
+  String eventId = 'event-1',
+}) async {
+  await _openEventDetails(tester, eventId);
+  final button = find.byKey(Key('eventBudgetReviewButton$eventId'));
   await tester.scrollUntilVisible(
     button,
     300,
