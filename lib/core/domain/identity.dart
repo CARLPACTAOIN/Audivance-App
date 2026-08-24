@@ -1,0 +1,1 @@
+typedef StableId = String;

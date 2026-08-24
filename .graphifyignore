@@ -1,0 +1,39 @@
+# Flutter and Dart generated output
+.dart_tool/
+build/
+coverage/
+**/doc/api/
+**/.packages
+
+# Platform build caches and generated ephemerals
+android/.gradle/
+android/app/build/
+ios/Pods/
+ios/Flutter/.last_build_id
+macos/Pods/
+linux/flutter/ephemeral/
+windows/flutter/ephemeral/
+
+# IDE and local workspace metadata
+.idea/
+.vscode/
+*.iml
+*.log
+
+# Agent/tooling bundles; they are not Audivance application code
+.agents/
+.codex/skills/
+
+# Flutter platform shell code is mostly generated/scaffolded
+android/
+ios/
+linux/
+macos/
+web/
+windows/
+
+# Graphify output from previous runs
+graphify-out/
+
+# Large generated Dart sources
+lib/features/audit/data/audit_database.g.dart
