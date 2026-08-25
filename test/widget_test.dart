@@ -85,7 +85,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('setupBrandLogo')), findsOneWidget);
-    expect(find.text('Set up Audivance'), findsOneWidget);
+    expect(find.text('Audivance'), findsWidgets);
+    expect(find.text('Your offline audit workspace.'), findsOneWidget);
     expect(find.byKey(const Key('setupGetStartedButton')), findsOneWidget);
   });
 
@@ -106,6 +107,89 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('This field is required.'), findsWidgets);
+  });
+
+  testWidgets(
+    'setup form clears field error on interaction while preserving errors on other fields',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byKey(const Key('setupGetStartedButton')));
+      await tester.tap(find.byKey(const Key('setupGetStartedButton')));
+      await tester.pumpAndSettle();
+
+      // Submit with empty fields to trigger validation errors
+      await tester.ensureVisible(
+        find.byKey(const Key('setupContinueToOrgButton')),
+      );
+      await tester.tap(find.byKey(const Key('setupContinueToOrgButton')));
+      await tester.pumpAndSettle();
+
+      // Initial validation state: multiple fields show 'This field is required.' (4 fields in step 1)
+      expect(find.text('This field is required.'), findsNWidgets(4));
+
+      // Tap / focus the first field (setupDisplayNameField)
+      await tester.tap(find.byKey(const Key('setupDisplayNameField')));
+      await tester.pumpAndSettle();
+
+      // The focused field's error clears immediately, while the other 3 fields still show errors
+      expect(find.text('This field is required.'), findsNWidgets(3));
+
+      // Type text into setupDisplayNameField
+      await tester.enterText(
+        find.byKey(const Key('setupDisplayNameField')),
+        'Auditor Name',
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('This field is required.'), findsNWidgets(3));
+
+      // Tap into the second field (setupEmailOrStudentIdField)
+      await tester.tap(find.byKey(const Key('setupEmailOrStudentIdField')));
+      await tester.pumpAndSettle();
+
+      // Now only 2 fields remain with errors
+      expect(find.text('This field is required.'), findsNWidgets(2));
+    },
+  );
+
+  testWidgets('setup form dismisses active field focus on submit', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const Key('setupGetStartedButton')));
+    await tester.tap(find.byKey(const Key('setupGetStartedButton')));
+    await tester.pumpAndSettle();
+
+    // Focus and enter text in account name
+    await tester.tap(find.byKey(const Key('setupDisplayNameField')));
+    await tester.pumpAndSettle();
+    expect(
+      FocusScope.of(
+        tester.element(find.byKey(const Key('setupDisplayNameField'))),
+      ).hasFocus,
+      isTrue,
+    );
+
+    // Tap submit button
+    await tester.ensureVisible(
+      find.byKey(const Key('setupContinueToOrgButton')),
+    );
+    await tester.tap(find.byKey(const Key('setupContinueToOrgButton')));
+    await tester.pumpAndSettle();
+
+    // Focus is removed from the input field
+    final primaryFocus = FocusManager.instance.primaryFocus;
+    final isTextFieldFocused =
+        primaryFocus?.context?.widget is EditableText ||
+        primaryFocus?.context?.widget is TextField;
+    expect(isTextFieldFocused, isFalse);
   });
 
   testWidgets('setup form rejects mismatched PIN confirmation', (tester) async {
@@ -908,10 +992,7 @@ void main() {
       await tester.tap(find.byKey(const Key('eventCreateSubmitButton')));
       await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('insufficient balance'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('insufficient balance'), findsOneWidget);
     },
   );
 
@@ -2568,10 +2649,17 @@ class _FakeAttachmentStorageService implements AttachmentStorageService {
     _counter += 1;
     final id = 'attachment-import-$_counter';
     final size = attachment.bytes?.length ?? 0;
+    final relativePath = buildNormalizedAttachmentRelativePath(
+      module: owner.module,
+      id: id,
+      originalFileName: attachment.fileName,
+      purpose: owner.purpose,
+      contextLabel: owner.resolvedContextLabel,
+    );
     return AttachmentRef(
       id: id,
       fileName: attachment.fileName,
-      localPath: 'attachments/${owner.module}/$id-${attachment.fileName}',
+      localPath: relativePath,
       sizeBytes: size,
       checksum: 'checksum-$_counter',
     );

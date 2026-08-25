@@ -13,6 +13,7 @@ import '../../core/domain/validation_result.dart';
 import '../audit/data/audit_repository.dart';
 import '../audit/domain/audit_models.dart';
 import '../audit/domain/audit_rules.dart';
+import '../treasury/treasury_formatters.dart';
 import 'pdf_report_service.dart';
 
 class ExportService {
@@ -309,6 +310,7 @@ class ExportAttachmentView {
     required this.recordId,
     required this.fileName,
     required this.localPath,
+    this.contextLabel,
     this.sizeBytes,
     this.checksum,
   });
@@ -317,6 +319,7 @@ class ExportAttachmentView {
   final StableId recordId;
   final String fileName;
   final String localPath;
+  final String? contextLabel;
   final int? sizeBytes;
   final String? checksum;
 }
@@ -390,11 +393,17 @@ enum ExportArchiveEntrySource {
 }
 
 class _AttachmentRecord {
-  const _AttachmentRecord(this.module, this.recordId, this.attachment);
+  const _AttachmentRecord({
+    required this.module,
+    required this.recordId,
+    required this.attachment,
+    this.contextLabel,
+  });
 
   final String module;
   final StableId recordId;
   final AttachmentRef attachment;
+  final String? contextLabel;
 }
 
 class _ArchiveFileData {
@@ -629,10 +638,7 @@ List<ExportRecordCount> _buildRecordCounts(_ExportData data) {
 
 List<ExportAttachmentView> _buildAttachments(_ExportData data) {
   return _buildAttachmentRecords(data)
-      .map(
-        (record) =>
-            _attachmentView(record.module, record.recordId, record.attachment),
-      )
+      .map(_attachmentView)
       .toList(growable: false);
 }
 
@@ -700,35 +706,60 @@ List<_AttachmentRecord> _buildAttachmentRecords(_ExportData data) {
   for (final source in data.treasurySources) {
     final attachment = source.supportingAttachment;
     if (attachment != null) {
-      records.add(_AttachmentRecord('treasury', source.id, attachment));
+      final label = source.label.trim().isNotEmpty
+          ? source.label.trim()
+          : treasurySourceTypeLabel(source.type);
+      records.add(
+        _AttachmentRecord(
+          module: 'treasury',
+          recordId: source.id,
+          attachment: attachment,
+          contextLabel: label,
+        ),
+      );
     }
   }
   for (final event in data.events) {
     final attachment = event.resolutionAttachment;
     if (attachment != null) {
-      records.add(_AttachmentRecord('events', event.id, attachment));
+      records.add(
+        _AttachmentRecord(
+          module: 'events',
+          recordId: event.id,
+          attachment: attachment,
+          contextLabel: event.name.trim().isNotEmpty ? event.name.trim() : null,
+        ),
+      );
     }
   }
   for (final receipt in data.receipts) {
+    final event = data.events
+        .where((event) => event.id == receipt.eventId)
+        .firstOrNull;
+    final contextLabel = event != null && event.name.trim().isNotEmpty
+        ? event.name.trim()
+        : receipt.payeeOrMerchant.trim();
     records.add(
-      _AttachmentRecord('liquidation', receipt.id, receipt.attachment),
+      _AttachmentRecord(
+        module: 'liquidation',
+        recordId: receipt.id,
+        attachment: receipt.attachment,
+        contextLabel: contextLabel.isNotEmpty ? contextLabel : null,
+      ),
     );
   }
   return records;
 }
 
-ExportAttachmentView _attachmentView(
-  String module,
-  StableId recordId,
-  AttachmentRef attachment,
-) {
+ExportAttachmentView _attachmentView(_AttachmentRecord record) {
   return ExportAttachmentView(
-    module: module,
-    recordId: recordId,
-    fileName: attachment.fileName,
-    localPath: attachment.localPath,
-    sizeBytes: attachment.sizeBytes,
-    checksum: attachment.checksum,
+    module: record.module,
+    recordId: record.recordId,
+    fileName: record.attachment.fileName,
+    localPath: record.attachment.localPath,
+    contextLabel: record.contextLabel,
+    sizeBytes: record.attachment.sizeBytes,
+    checksum: record.attachment.checksum,
   );
 }
 
@@ -907,11 +938,19 @@ Future<List<_ArchiveFileData>> _archiveAttachmentEntries(
 }
 
 String _attachmentArchivePath(_AttachmentRecord record) {
+  final folder = record.contextLabel != null &&
+          record.contextLabel!.trim().isNotEmpty
+      ? sanitizeAttachmentPathSegment(record.contextLabel!)
+      : sanitizeAttachmentPathSegment(record.recordId);
+  final rawFileName = p.basename(record.attachment.localPath);
+  final fileName = sanitizeAttachmentFileName(
+    rawFileName.isNotEmpty ? rawFileName : record.attachment.fileName,
+  );
   return p.posix.join(
     'attachments',
     sanitizeAttachmentPathSegment(record.module),
-    sanitizeAttachmentPathSegment(record.recordId),
-    sanitizeAttachmentFileName(record.attachment.fileName),
+    folder,
+    fileName,
   );
 }
 

@@ -218,7 +218,14 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     AttachmentSelector(
-                      owner: const AttachmentOwner(module: 'events'),
+                      owner: AttachmentOwner(
+                        module: 'events',
+                        purpose: 'resolution',
+                        contextLabelProvider: () =>
+                            _nameController.text.trim().isNotEmpty
+                                ? _nameController.text.trim()
+                                : null,
+                      ),
                       picker: widget.attachmentPicker,
                       storage: widget.attachmentStorage,
                       selectedAttachment: _resolutionAttachment,
@@ -1175,7 +1182,11 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       AttachmentSelector(
-                        owner: const AttachmentOwner(module: 'liquidation'),
+                        owner: AttachmentOwner(
+                          module: 'liquidation',
+                          purpose: 'receipt',
+                          contextLabel: widget.event.name,
+                        ),
                         picker: widget.attachmentPicker,
                         storage: widget.attachmentStorage,
                         selectedAttachment: _receiptAttachment,

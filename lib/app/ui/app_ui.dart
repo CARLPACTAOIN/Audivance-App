@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 export 'app_date_picker_form_field.dart';
+export 'topographic_background.dart';
 
 enum InlineStatusTone { info, success, warning, error }
 
@@ -443,15 +444,21 @@ class CollapsiblePanel extends StatelessWidget {
           title: Row(
             children: [
               Expanded(
-                child: Text(title, style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFFF8FAFC),
-                )),
+                child: Text(
+                  title,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFFF8FAFC),
+                  ),
+                ),
               ),
               if (badge != null) ...[
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF263345),
                     borderRadius: BorderRadius.circular(20),

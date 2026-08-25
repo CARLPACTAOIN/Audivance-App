@@ -36,6 +36,34 @@ void main() {
       'treasury-sources',
     );
     expect(sanitizeAttachmentPathSegment(''), 'general');
+    expect(defaultAttachmentPurposeFor('treasury'), 'supporting');
+    expect(defaultAttachmentPurposeFor('events'), 'resolution');
+    expect(defaultAttachmentPurposeFor('liquidation'), 'receipt');
+    expect(normalizeAttachmentFileExtension('scan.JPEG'), '.jpeg');
+    expect(normalizeAttachmentFileExtension('no-ext'), '');
+  });
+
+  test('builds normalized attachment filenames and paths', () {
+    final fileName = buildNormalizedAttachmentFileName(
+      module: 'treasury',
+      id: 'att-1',
+      originalFileName: 'Official Receipt #12.pdf',
+      purpose: 'supporting',
+      contextLabel: 'Student Activity Fee',
+    );
+    expect(fileName, 'treasury-supporting-student-activity-fee-att-1.pdf');
+
+    final relativePath = buildNormalizedAttachmentRelativePath(
+      module: 'events',
+      id: 'att-2',
+      originalFileName: 'doc.PNG',
+      purpose: 'resolution',
+      contextLabel: 'Acquaintance Party 2026',
+    );
+    expect(
+      relativePath,
+      'attachments/events/events-resolution-acquaintance-party-2026-att-2.png',
+    );
   });
 
   test('imports picked bytes into app-private attachment storage', () async {
@@ -44,14 +72,17 @@ void main() {
         fileName: 'receipt.pdf',
         bytes: Uint8List.fromList('hello'.codeUnits),
       ),
-      owner: const AttachmentOwner(module: 'liquidation'),
+      owner: const AttachmentOwner(
+        module: 'liquidation',
+        contextLabel: 'Acquaintance Party',
+      ),
     );
 
     expect(attachment.id, 'attachment-1');
     expect(attachment.fileName, 'receipt.pdf');
     expect(
       attachment.localPath,
-      'attachments/liquidation/attachment-1-receipt.pdf',
+      'attachments/liquidation/liquidation-receipt-acquaintance-party-attachment-1.pdf',
     );
     expect(attachment.sizeBytes, 5);
     expect(
@@ -62,6 +93,29 @@ void main() {
     expect(
       await File(await service.resolveLocalPath(attachment)).readAsString(),
       'hello',
+    );
+  });
+
+  test('evaluates dynamic context label providers at import time', () async {
+    var dynamicEventName = 'Initial Event';
+    final owner = AttachmentOwner(
+      module: 'events',
+      purpose: 'resolution',
+      contextLabelProvider: () => dynamicEventName,
+    );
+
+    dynamicEventName = 'Updated General Assembly';
+    final attachment = await service.importAttachment(
+      attachment: PickedAttachment(
+        fileName: 'resolution.pdf',
+        bytes: Uint8List.fromList('resolution-bytes'.codeUnits),
+      ),
+      owner: owner,
+    );
+
+    expect(
+      attachment.localPath,
+      'attachments/events/events-resolution-updated-general-assembly-attachment-1.pdf',
     );
   });
 

@@ -78,6 +78,7 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   void _goToStep(int step) {
+    FocusScope.of(context).unfocus();
     setState(() {
       _submitError = null;
     });
@@ -89,6 +90,7 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   void _onStep1Next() {
+    FocusScope.of(context).unfocus();
     setState(() => _submitError = null);
     if (!_step1FormKey.currentState!.validate()) {
       return;
@@ -97,6 +99,7 @@ class _SetupScreenState extends State<SetupScreen> {
   }
 
   Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
     setState(() => _submitError = null);
     final isStep1Valid = _step1FormKey.currentState?.validate() ?? true;
     final isStep2Valid = _step2FormKey.currentState?.validate() ?? true;
@@ -178,39 +181,39 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: PageView(
-          controller: _pageController,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            _WelcomeScreen(
-              onGetStarted: () => _goToStep(1),
-            ),
-            _Step1AccountScreen(
-              formKey: _step1FormKey,
-              displayNameController: _displayNameController,
-              emailOrStudentIdController: _emailOrStudentIdController,
-              pinController: _pinController,
-              pinConfirmationController: _pinConfirmationController,
-              pinValidator: _pinValidator,
-              pinConfirmationValidator: _pinConfirmationValidator,
-              onBack: () => _goToStep(0),
-              onNext: _onStep1Next,
-            ),
-            _Step2OrganizationScreen(
-              formKey: _step2FormKey,
-              organizationNameController: _organizationNameController,
-              organizationTypeController: _organizationTypeController,
-              adviserController: _adviserController,
-              semesterController: _semesterController,
-              schoolYearController: _schoolYearController,
-              signatoryNamesController: _signatoryNamesController,
-              isSubmitting: _isSubmitting,
-              submitError: _submitError,
-              onBack: () => _goToStep(1),
-              onSubmit: _submit,
-            ),
-          ],
+      body: AudivanceBackground(
+        child: SafeArea(
+          child: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
+            children: [
+              _WelcomeScreen(onGetStarted: () => _goToStep(1)),
+              _Step1AccountScreen(
+                formKey: _step1FormKey,
+                displayNameController: _displayNameController,
+                emailOrStudentIdController: _emailOrStudentIdController,
+                pinController: _pinController,
+                pinConfirmationController: _pinConfirmationController,
+                pinValidator: _pinValidator,
+                pinConfirmationValidator: _pinConfirmationValidator,
+                onBack: () => _goToStep(0),
+                onNext: _onStep1Next,
+              ),
+              _Step2OrganizationScreen(
+                formKey: _step2FormKey,
+                organizationNameController: _organizationNameController,
+                organizationTypeController: _organizationTypeController,
+                adviserController: _adviserController,
+                semesterController: _semesterController,
+                schoolYearController: _schoolYearController,
+                signatoryNamesController: _signatoryNamesController,
+                isSubmitting: _isSubmitting,
+                submitError: _submitError,
+                onBack: () => _goToStep(1),
+                onSubmit: _submit,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -228,122 +231,140 @@ class _WelcomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 540),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const SizedBox(height: 20),
-                  // Centered Circular Brand Logo with Subtle Ambient Halo
-                  Center(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF161C26),
-                        border: Border.all(color: const Color(0xFF263345), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFD97706).withValues(alpha: 0.15),
-                            blurRadius: 36,
-                            spreadRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: const BrandLogo(
-                        key: Key('setupBrandLogo'),
-                        size: 96,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  Text(
-                    'Set up Audivance',
-                    textAlign: TextAlign.center,
-                    style: textTheme.headlineMedium?.copyWith(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFFF8FAFC),
-                      letterSpacing: -0.6,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Your offline student organization audit workspace.\nBuilt for security, financial correctness, and COA compliance.',
-                    textAlign: TextAlign.center,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: const Color(0xFF94A3B8),
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // 3 Key Trust Cards
-                  const _TrustFeatureCard(
-                    icon: Icons.shield_outlined,
-                    iconColor: Color(0xFF10B981),
-                    title: '100% Offline & Local',
-                    description: 'No internet connection or cloud servers required. All financial records stay safely on this device.',
-                  ),
-                  const SizedBox(height: 12),
-                  const _TrustFeatureCard(
-                    icon: Icons.lock_person_outlined,
-                    iconColor: Color(0xFFF59E0B),
-                    title: 'Encrypted Device Storage',
-                    description: 'Your treasury, events, and receipts are locked with SQLCipher hardware-grade encryption using your local PIN.',
-                  ),
-                  const SizedBox(height: 12),
-                  const _TrustFeatureCard(
-                    icon: Icons.folder_zip_outlined,
-                    iconColor: Color(0xFF38BDF8),
-                    title: 'COA Export Ready',
-                    description: 'One-tap package export generates verified PDFs, ledgers, and attachments ready for submission.',
-                  ),
-                  const SizedBox(height: 36),
-
-                  // Primary Get Started CTA
-                  FilledButton.icon(
-                    key: const Key('setupGetStartedButton'),
-                    onPressed: onGetStarted,
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: const Color(0xFFD97706),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    icon: const Icon(Icons.arrow_forward_rounded, size: 20),
-                    label: const Text(
-                      'Get Started',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.verified_outlined, size: 14, color: Color(0xFF10B981)),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          'Offline Workspace · One Organization Per Device',
-                          textAlign: TextAlign.center,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFF64748B),
-                            fontWeight: FontWeight.w500,
-                          ),
+          physics: const BouncingScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: IntrinsicHeight(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 24,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 440),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const SizedBox(height: 16),
+                        // Upper / Hero Area: Centered Circular Brand Logo & Typography
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 114,
+                              height: 114,
+                              padding: const EdgeInsets.all(22),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: const Color(0xFF141A23),
+                                border: Border.all(
+                                  color: const Color(0xFFD97706)
+                                      .withValues(alpha: 0.38),
+                                  width: 1.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFD97706)
+                                        .withValues(alpha: 0.16),
+                                    blurRadius: 40,
+                                    spreadRadius: 2,
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.40),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: const BrandLogo(
+                                key: Key('setupBrandLogo'),
+                                size: 68,
+                              ),
+                            ),
+                            const SizedBox(height: 32),
+                            Text(
+                              'Audivance',
+                              textAlign: TextAlign.center,
+                              style: textTheme.headlineMedium?.copyWith(
+                                fontSize: 34,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFFF8FAFC),
+                                letterSpacing: -0.6,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              'Your offline audit workspace.',
+                              textAlign: TextAlign.center,
+                              style: textTheme.bodyLarge?.copyWith(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w400,
+                                color: const Color(0xFF94A3B8),
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 36),
+                        // CTA Section
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              height: 54,
+                              child: FilledButton(
+                                key: const Key('setupGetStartedButton'),
+                                onPressed: onGetStarted,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFFD97706),
+                                  foregroundColor: const Color(0xFF0F172A),
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(27),
+                                  ),
+                                ),
+                                child: const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Get Started',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Icon(Icons.arrow_forward_rounded, size: 20),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            Text(
+                              'Local-only • No internet required',
+                              textAlign: TextAlign.center,
+                              style: textTheme.bodySmall?.copyWith(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF64748B),
+                                letterSpacing: 0.1,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -417,7 +438,8 @@ class _Step1AccountScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                              color: const Color(0xFFF59E0B)
+                                  .withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -486,7 +508,10 @@ class _Step1AccountScreen extends StatelessWidget {
                     OutlinedButton.icon(
                       onPressed: onBack,
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                       ),
                       icon: const Icon(Icons.arrow_back, size: 18),
                       label: const Text('Back'),
@@ -596,7 +621,8 @@ class _Step2OrganizationScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withValues(alpha: 0.12),
+                              color: const Color(0xFF10B981)
+                                  .withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: const Icon(
@@ -675,7 +701,10 @@ class _Step2OrganizationScreen extends StatelessWidget {
                     OutlinedButton.icon(
                       onPressed: isSubmitting ? null : onBack,
                       style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                       ),
                       icon: const Icon(Icons.arrow_back, size: 18),
                       label: const Text('Back'),
@@ -698,13 +727,18 @@ class _Step2OrganizationScreen extends StatelessWidget {
                                 dimension: 18,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2.2,
-                                  valueColor: AlwaysStoppedAnimation(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation(
+                                    Colors.white,
+                                  ),
                                 ),
                               )
                             : const Icon(Icons.check_circle_outline, size: 18),
                         label: const Text(
                           'Create Local Workspace',
-                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14.5,
+                          ),
                         ),
                       ),
                     ),
@@ -715,7 +749,11 @@ class _Step2OrganizationScreen extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.lock_outline, size: 13, color: Color(0xFF64748B)),
+                      const Icon(
+                        Icons.lock_outline,
+                        size: 13,
+                        color: Color(0xFF64748B),
+                      ),
                       const SizedBox(width: 6),
                       Flexible(
                         child: Text(
@@ -769,7 +807,9 @@ class _StepHeader extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF382307),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFD97706).withValues(alpha: 0.4)),
+                border: Border.all(
+                  color: const Color(0xFFD97706).withValues(alpha: 0.4),
+                ),
               ),
               child: Text(
                 'Step $currentStep of $totalSteps',
@@ -812,83 +852,14 @@ class _StepHeader extends StatelessWidget {
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: textTheme.bodyMedium?.copyWith(
-            color: const Color(0xFF94A3B8),
-          ),
+          style: textTheme.bodyMedium?.copyWith(color: const Color(0xFF94A3B8)),
         ),
       ],
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// TRUST CARD COMPONENT
-// ---------------------------------------------------------------------------
-class _TrustFeatureCard extends StatelessWidget {
-  const _TrustFeatureCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.description,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String description;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF161C26),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF263345)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 22),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF8FAFC),
-                    fontSize: 14.5,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  description,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFF94A3B8),
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LabeledTextField extends StatelessWidget {
+class _LabeledTextField extends StatefulWidget {
   const _LabeledTextField({
     super.key,
     required this.controller,
@@ -911,20 +882,92 @@ class _LabeledTextField extends StatelessWidget {
   final TextInputAction? textInputAction;
 
   @override
+  State<_LabeledTextField> createState() => _LabeledTextFieldState();
+}
+
+class _LabeledTextFieldState extends State<_LabeledTextField> {
+  final _focusNode = FocusNode();
+  String? _displayedError;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+    widget.controller.addListener(_onTextChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _LabeledTextField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_onTextChange);
+      widget.controller.addListener(_onTextChange);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    widget.controller.removeListener(_onTextChange);
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus && _displayedError != null) {
+      _clearError();
+    }
+  }
+
+  void _onTextChange() {
+    if (_displayedError != null) {
+      _clearError();
+    }
+  }
+
+  void _clearError() {
+    if (_displayedError != null) {
+      setState(() {
+        _displayedError = null;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      textInputAction: textInputAction,
-      decoration: InputDecoration(
-        labelText: label,
-        helperText: helperText,
-        prefixIcon: prefixIcon != null
-            ? Icon(prefixIcon, size: 20, color: const Color(0xFF64748B))
-            : null,
-      ),
-      validator: validator ?? _requiredValidator,
+    return FormField<String>(
+      initialValue: widget.controller.text,
+      validator: (_) {
+        final error =
+            (widget.validator ?? _requiredValidator)(widget.controller.text);
+        if (_displayedError != error) {
+          _displayedError = error;
+        }
+        return error;
+      },
+      builder: (fieldState) {
+        return TextField(
+          controller: widget.controller,
+          focusNode: _focusNode,
+          obscureText: widget.obscureText,
+          keyboardType: widget.keyboardType,
+          textInputAction: widget.textInputAction,
+          onTap: _clearError,
+          onChanged: (_) => _clearError(),
+          decoration: InputDecoration(
+            labelText: widget.label,
+            helperText: widget.helperText,
+            prefixIcon: widget.prefixIcon != null
+                ? Icon(
+                    widget.prefixIcon,
+                    size: 20,
+                    color: const Color(0xFF64748B),
+                  )
+                : null,
+            errorText: _displayedError,
+          ),
+        );
+      },
     );
   }
 }

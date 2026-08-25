@@ -11,10 +11,29 @@ import '../domain/stable_id_generator.dart';
 import 'attachment_picker.dart';
 
 class AttachmentOwner {
-  const AttachmentOwner({required this.module, this.recordId});
+  const AttachmentOwner({
+    required this.module,
+    this.recordId,
+    this.purpose,
+    this.contextLabel,
+    this.contextLabelProvider,
+  });
 
   final String module;
   final StableId? recordId;
+  final String? purpose;
+  final String? contextLabel;
+  final String? Function()? contextLabelProvider;
+
+  String? get resolvedContextLabel =>
+      contextLabelProvider?.call() ?? contextLabel;
+
+  String get resolvedPurpose {
+    if (purpose != null && purpose!.trim().isNotEmpty) {
+      return purpose!.trim();
+    }
+    return defaultAttachmentPurposeFor(module);
+  }
 }
 
 class AttachmentIntegrityResult {
@@ -83,9 +102,13 @@ class FileSystemAttachmentStorageService implements AttachmentStorageService {
   }) async {
     final bytes = await _readPickedAttachment(attachment);
     final id = idGenerator.nextId('attachment');
-    final fileName = sanitizeAttachmentFileName(attachment.fileName);
-    final module = sanitizeAttachmentPathSegment(owner.module);
-    final relativePath = p.posix.join('attachments', module, '$id-$fileName');
+    final relativePath = buildNormalizedAttachmentRelativePath(
+      module: owner.module,
+      id: id,
+      originalFileName: attachment.fileName,
+      purpose: owner.purpose,
+      contextLabel: owner.resolvedContextLabel,
+    );
     final destinationPath = await _absolutePath(relativePath);
     final destination = File(destinationPath);
     await destination.parent.create(recursive: true);
@@ -93,7 +116,7 @@ class FileSystemAttachmentStorageService implements AttachmentStorageService {
 
     return AttachmentRef(
       id: id,
-      fileName: fileName,
+      fileName: attachment.fileName,
       localPath: relativePath,
       sizeBytes: bytes.length,
       checksum: _sha256Hex(bytes),
@@ -142,6 +165,72 @@ class FileSystemAttachmentStorageService implements AttachmentStorageService {
     final base = await _baseDirectoryProvider();
     return p.joinAll([base.path, ...p.posix.split(relativePath)]);
   }
+}
+
+String defaultAttachmentPurposeFor(String module) {
+  final normalized = sanitizeAttachmentPathSegment(module);
+  return switch (normalized) {
+    'treasury' => 'supporting',
+    'events' => 'resolution',
+    'liquidation' => 'receipt',
+    _ => 'document',
+  };
+}
+
+String normalizeAttachmentFileExtension(String fileName) {
+  final ext = p.extension(fileName.trim()).toLowerCase();
+  if (ext.isEmpty) {
+    return '';
+  }
+  final cleanExt = ext.replaceAll(RegExp(r'[^a-z0-9.]'), '');
+  return cleanExt.startsWith('.') ? cleanExt : '.$cleanExt';
+}
+
+String buildNormalizedAttachmentFileName({
+  required String module,
+  required String id,
+  required String originalFileName,
+  String? purpose,
+  String? contextLabel,
+}) {
+  final moduleSegment = sanitizeAttachmentPathSegment(module);
+  final purposeSegment = sanitizeAttachmentPathSegment(
+    (purpose != null && purpose.trim().isNotEmpty)
+        ? purpose
+        : defaultAttachmentPurposeFor(moduleSegment),
+  );
+  final idSegment = sanitizeAttachmentPathSegment(id);
+  final ext = normalizeAttachmentFileExtension(originalFileName);
+
+  final segments = <String>[moduleSegment, purposeSegment];
+  if (contextLabel != null && contextLabel.trim().isNotEmpty) {
+    final contextSegment = sanitizeAttachmentPathSegment(contextLabel);
+    if (contextSegment != 'general') {
+      segments.add(contextSegment);
+    }
+  }
+  segments.add(idSegment);
+
+  final baseName = segments.join('-');
+  return '$baseName$ext';
+}
+
+String buildNormalizedAttachmentRelativePath({
+  required String module,
+  required String id,
+  required String originalFileName,
+  String? purpose,
+  String? contextLabel,
+}) {
+  final moduleSegment = sanitizeAttachmentPathSegment(module);
+  final fileName = buildNormalizedAttachmentFileName(
+    module: module,
+    id: id,
+    originalFileName: originalFileName,
+    purpose: purpose,
+    contextLabel: contextLabel,
+  );
+  return p.posix.join('attachments', moduleSegment, fileName);
 }
 
 String sanitizeAttachmentFileName(String fileName) {

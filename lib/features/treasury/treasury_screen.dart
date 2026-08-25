@@ -563,7 +563,12 @@ class _AddFundDialogState extends State<_AddFundDialog> {
                   children: [
                     AttachmentSelector(
                       label: 'Supporting attachment',
-                      owner: const AttachmentOwner(module: 'treasury'),
+                      owner: AttachmentOwner(
+                        module: 'treasury',
+                        purpose: 'supporting',
+                        contextLabelProvider: () =>
+                            treasurySourceTypeLabel(_type),
+                      ),
                       picker: widget.attachmentPicker,
                       storage: widget.attachmentStorage,
                       selectedAttachment: _supportingAttachment,

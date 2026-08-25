@@ -1050,7 +1050,10 @@ class _AttachmentPanel extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   subtitle: Text(
-                    '${attachment.module} - ${attachment.localPath}',
+                    attachment.contextLabel != null &&
+                            attachment.contextLabel!.trim().isNotEmpty
+                        ? '${attachment.module} • ${attachment.contextLabel} - ${attachment.localPath}'
+                        : '${attachment.module} - ${attachment.localPath}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),

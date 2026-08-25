@@ -241,9 +241,18 @@ void main() {
       paths,
       contains('reports/liquidation/Leadership-Summit-event-1.pdf'),
     );
-    expect(paths, contains('attachments/treasury/source-1/support.pdf'));
-    expect(paths, contains('attachments/events/event-1/support.pdf'));
-    expect(paths, contains('attachments/liquidation/receipt-1/support.pdf'));
+    expect(
+      paths,
+      contains('attachments/treasury/student-collections/support.pdf'),
+    );
+    expect(
+      paths,
+      contains('attachments/events/leadership-summit/support.pdf'),
+    );
+    expect(
+      paths,
+      contains('attachments/liquidation/leadership-summit/support.pdf'),
+    );
     expect(package.byteLength, greaterThan(0));
     expect(package.checksum, hasLength(64));
     expect(
