@@ -7,7 +7,6 @@ import '../core/storage/audit_storage_paths.dart';
 import '../features/audit/data/audit_repository.dart';
 import '../features/backup/backup_package_io.dart';
 import '../features/backup/backup_history_service.dart';
-import '../features/backup/backup_screen.dart';
 import '../features/backup/backup_service.dart';
 import '../features/export/export_history_service.dart';
 import '../features/dashboard/dashboard_screen.dart';
@@ -18,11 +17,12 @@ import '../features/export/export_package_writer.dart';
 import '../features/export/export_screen.dart';
 import '../features/export/export_service.dart';
 import '../features/liquidation/liquidation_service.dart';
-import '../features/organization/organization_screen.dart';
 import '../features/organization/organization_service.dart';
 import '../features/treasury/treasury_screen.dart';
 import '../features/treasury/treasury_service.dart';
+import 'admin_drawer.dart';
 import 'brand_logo.dart';
+import 'floating_pill_navigation_bar.dart';
 
 class WorkspaceShell extends StatefulWidget {
   const WorkspaceShell({
@@ -62,6 +62,7 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBody: true,
       appBar: AppBar(
         title: const Row(
           mainAxisSize: MainAxisSize.min,
@@ -82,45 +83,20 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
             icon: const Icon(Icons.search),
           ),
           IconButton(
+            key: const Key('workspaceSettingsButton'),
             tooltip: 'Open settings',
-            onPressed: _showBackupRestore,
+            onPressed: _openAdminMenu,
             icon: const Icon(Icons.settings_outlined),
           ),
         ],
       ),
-      body: SafeArea(child: _selectedPage()),
-      bottomNavigationBar: NavigationBar(
+      body: SafeArea(
+        bottom: false,
+        child: _selectedPage(),
+      ),
+      bottomNavigationBar: FloatingPillNavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: (index) {
-          _selectIndex(index);
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Dashboard',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_outlined),
-            selectedIcon: Icon(Icons.account_balance),
-            label: 'Treasury',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.event_note_outlined),
-            selectedIcon: Icon(Icons.event_note),
-            label: 'Events',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.archive_outlined),
-            selectedIcon: Icon(Icons.archive),
-            label: 'Export',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.business_outlined),
-            selectedIcon: Icon(Icons.business),
-            label: 'Profile',
-          ),
-        ],
+        onDestinationSelected: _selectIndex,
       ),
     );
   }
@@ -161,7 +137,7 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
         attachmentStorage: widget.attachmentStorage,
         asOf: widget.asOf,
       ),
-      3 => ExportScreen(
+      _ => ExportScreen(
         service: ExportService(
           repository: widget.repository,
           attachmentStorage: widget.attachmentStorage,
@@ -187,32 +163,19 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
             widget.exportPackageWriter ?? const FilePickerExportPackageWriter(),
         asOf: widget.asOf,
       ),
-      _ => OrganizationScreen(
-        service: OrganizationService(
-          repository: widget.repository,
-          idGenerator: widget.idGenerator,
-        ),
-      ),
     };
   }
 
-  Future<void> _showBackupRestore() {
-    return showDialog<void>(
-      context: context,
-      builder: (context) => BackupRestoreScreen(
-        service:
-            widget.backupService ??
-            BackupService(storagePaths: widget.storagePaths),
-        writer:
-            widget.backupPackageWriter ?? const FilePickerBackupPackageWriter(),
-        reader:
-            widget.backupPackageReader ?? const FilePickerBackupPackageReader(),
-        historyService: BackupHistoryService(
-          repository: widget.repository,
-          idGenerator: widget.idGenerator,
-        ),
-        onRestoreBackup: widget.onRestoreBackup,
-      ),
+  Future<void> _openAdminMenu() {
+    return AdminMenuSheet.show(
+      context,
+      repository: widget.repository,
+      idGenerator: widget.idGenerator,
+      backupService: widget.backupService,
+      backupPackageWriter: widget.backupPackageWriter,
+      backupPackageReader: widget.backupPackageReader,
+      onRestoreBackup: widget.onRestoreBackup,
+      storagePaths: widget.storagePaths,
     );
   }
 

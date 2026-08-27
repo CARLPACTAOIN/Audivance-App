@@ -304,19 +304,19 @@ class _EventDetailsContent extends StatelessWidget {
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 isWide ? 32 : 16,
-                20,
+                16,
                 isWide ? 32 : 16,
                 80,
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   _EventHeaderCard(event: data.event),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   _FinancialSummaryCard(
                     event: data.event,
                     budgetActual: data.budgetActual,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   _EventActionsBar(
                     event: data.event,
                     liquidationEvent: data.liquidationEvent,
@@ -326,13 +326,13 @@ class _EventDetailsContent extends StatelessWidget {
                     onSubmitLiquidation: onSubmitLiquidation,
                     onMarkLiquidated: onMarkLiquidated,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
                   _LiquidationSection(
                     receipts: data.receipts,
                     officerCount: data.officerOptions.length,
                     onCreateOfficer: onCreateOfficer,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
                   _ReimbursementsSection(
                     claims: data.claims,
                     onPayReimbursement: onPayReimbursement,
@@ -364,7 +364,7 @@ class _EventHeaderCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -383,7 +383,7 @@ class _EventHeaderCard extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       '${event.type} · ${event.semester} (${event.schoolYear})',
                       style: textTheme.bodyMedium?.copyWith(
@@ -401,12 +401,12 @@ class _EventHeaderCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
+            const Divider(height: 1, color: Color(0xFF1E293B)),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 16,
-              runSpacing: 8,
+              runSpacing: 6,
               children: [
                 _MetaItem(
                   icon: Icons.calendar_month_outlined,
@@ -443,8 +443,8 @@ class _MetaItem extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: const Color(0xFF64748B)),
-        const SizedBox(width: 6),
+        Icon(icon, size: 15, color: const Color(0xFF64748B)),
+        const SizedBox(width: 5),
         Text(
           '$label: ',
           style: Theme.of(context).textTheme.bodySmall
@@ -478,7 +478,7 @@ class _FinancialSummaryCard extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -508,7 +508,7 @@ class _FinancialSummaryCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             CompactStatRow(
               items: [
                 CompactStat(value: event.budgetLabel, label: 'Approved Budget'),
@@ -528,7 +528,7 @@ class _FinancialSummaryCard extends StatelessWidget {
               ],
             ),
             if (budgetActual != null && budgetActual!.isOverBudget) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               const InlineStatusPanel(
                 tone: InlineStatusTone.error,
                 message:
@@ -570,12 +570,12 @@ class _EventActionsBar extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Actions', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 10,
               runSpacing: 10,
@@ -583,20 +583,20 @@ class _EventActionsBar extends StatelessWidget {
                 FilledButton.icon(
                   key: Key('eventLiquidationButton${event.id}'),
                   onPressed: canLiquidate ? onSubmitLiquidation : null,
-                  icon: const Icon(Icons.add_task),
+                  icon: const Icon(Icons.add_task, size: 18),
                   label: const Text('Liquidate / Add Receipt'),
                 ),
                 OutlinedButton.icon(
                   key: Key('eventBudgetReviewButton${event.id}'),
                   onPressed: onReviewBudget,
-                  icon: const Icon(Icons.analytics_outlined),
+                  icon: const Icon(Icons.analytics_outlined, size: 18),
                   label: const Text('Budget Review'),
                 ),
                 if (event.canAdjustBudget)
                   OutlinedButton.icon(
                     key: Key('eventAdjustBudgetButton${event.id}'),
                     onPressed: onAdjustBudget,
-                    icon: const Icon(Icons.tune),
+                    icon: const Icon(Icons.tune, size: 18),
                     label: const Text('Adjust Budget'),
                   ),
                 FilledButton.tonalIcon(
@@ -604,7 +604,7 @@ class _EventActionsBar extends StatelessWidget {
                   onPressed: event.status == AuditEventStatus.liquidated
                       ? null
                       : onMarkLiquidated,
-                  icon: const Icon(Icons.verified_outlined),
+                  icon: const Icon(Icons.verified_outlined, size: 18),
                   label: const Text('Mark Liquidated'),
                 ),
               ],
@@ -631,7 +631,7 @@ class _LiquidationSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -657,24 +657,78 @@ class _LiquidationSection extends StatelessWidget {
             ),
             if (officerCount == 0) ...[
               const SizedBox(height: 12),
-              const InlineStatusPanel(
-                tone: InlineStatusTone.warning,
-                message: 'No accountable officers registered. Add an officer before submitting receipts.',
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                  border: Border.all(
+                    color: const Color(0xFFF59E0B).withValues(alpha: 0.32),
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_outlined,
+                      color: Color(0xFFF59E0B),
+                      size: 22,
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Accountable Officer Required',
+                            style: TextStyle(
+                              color: Color(0xFFF59E0B),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Add an officer to unlock receipt submission for this event.',
+                            style: TextStyle(
+                              color: Color(0xFFCBD5E1),
+                              fontSize: 11.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      key: const Key('eventAddOfficerPromptButton'),
+                      onPressed: onCreateOfficer,
+                      icon: const Icon(Icons.person_add_alt_1, size: 16),
+                      label: const Text('Add Officer'),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        minimumSize: const Size(0, 36),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             if (receipts.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
+                padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Center(
                   child: Column(
                     children: [
                       const Icon(
                         Icons.receipt_outlined,
-                        size: 40,
+                        size: 36,
                         color: Color(0xFF64748B),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Text(
                         'No receipts submitted yet for this event.',
                         style: Theme.of(context).textTheme.bodyMedium
@@ -687,10 +741,10 @@ class _LiquidationSection extends StatelessWidget {
             else
               Column(
                 children: [
-                  for (final receipt in receipts)
+                  for (var i = 0; i < receipts.length; i++)
                     _ReceiptRow(
-                      receipt: receipt,
-                      showDivider: receipt != receipts.last,
+                      receipt: receipts[i],
+                      showDivider: i < receipts.length - 1,
                     ),
                 ],
               ),
@@ -709,67 +763,58 @@ class _ReceiptRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(
-                Icons.receipt_long,
-                color: Color(0xFF10B981),
-                size: 22,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      receipt.payeeOrMerchant,
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        MetadataChip(
-                          icon: Icons.tag,
-                          label: 'Ref #${receipt.evidenceNumber}',
-                        ),
-                        MetadataChip(
-                          icon: Icons.calendar_today_outlined,
-                          label: receipt.dateLabel,
-                        ),
-                        MetadataChip(
-                          icon: Icons.payments_outlined,
-                          label: receipt.fundingModeLabel,
-                        ),
-                        MetadataChip(
-                          icon: Icons.person_outline,
-                          label: receipt.accountableOfficerName,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                receipt.totalLabel,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: const Color(0xFF10B981),
-                ),
-              ),
-            ],
-          ),
+    return ExpandableListRow(
+      leading: const Icon(
+        Icons.receipt_long,
+        color: Color(0xFF10B981),
+        size: 18,
+      ),
+      title: Text(
+        receipt.payeeOrMerchant,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: Color(0xFFF8FAFC),
         ),
-        if (showDivider) const Divider(height: 1),
-      ],
+      ),
+      subtitle: Text(
+        'Ref #${receipt.evidenceNumber} · ${receipt.dateLabel} · ${receipt.accountableOfficerName}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Color(0xFF94A3B8),
+          fontSize: 11.5,
+        ),
+      ),
+      trailing: Text(
+        receipt.totalLabel,
+        style: const TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 13,
+          color: Color(0xFF10B981),
+        ),
+      ),
+      expandedContent: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          MetadataChip(
+            icon: Icons.payments_outlined,
+            label: receipt.fundingModeLabel,
+          ),
+          MetadataChip(
+            icon: Icons.person_outline,
+            label: 'Custodian: ${receipt.accountableOfficerName}',
+          ),
+          MetadataChip(
+            icon: Icons.tag,
+            label: 'Evidence #${receipt.evidenceNumber}',
+          ),
+        ],
+      ),
+      showDivider: showDivider,
     );
   }
 }
@@ -791,7 +836,7 @@ class _ReimbursementsSection extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -815,19 +860,19 @@ class _ReimbursementsSection extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             if (claims.isEmpty)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 24),
+                padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Center(
                   child: Column(
                     children: [
                       const Icon(
                         Icons.check_circle_outline,
-                        size: 40,
+                        size: 36,
                         color: Color(0xFF64748B),
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Text(
                         'No reimbursement requests for this event.',
                         style: Theme.of(context).textTheme.bodyMedium
@@ -840,11 +885,11 @@ class _ReimbursementsSection extends StatelessWidget {
             else
               Column(
                 children: [
-                  for (final claim in claims)
+                  for (var i = 0; i < claims.length; i++)
                     _ReimbursementClaimRow(
-                      claim: claim,
-                      showDivider: claim != claims.last,
-                      onPay: () => onPayReimbursement(claim),
+                      claim: claims[i],
+                      showDivider: i < claims.length - 1,
+                      onPay: () => onPayReimbursement(claims[i]),
                     ),
                 ],
               ),
@@ -869,76 +914,57 @@ class _ReimbursementClaimRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPending = claim.status == ReimbursementStatus.pending;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                isPending ? Icons.schedule : Icons.check_circle_outline,
-                color: isPending
-                    ? const Color(0xFFF59E0B)
-                    : const Color(0xFF10B981),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      claim.officerName,
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 4,
-                      children: [
-                        StatusBadge(
-                          label: claim.statusLabel,
-                          tone: isPending
-                              ? InlineStatusTone.warning
-                              : InlineStatusTone.success,
-                        ),
-                        MetadataChip(
-                          icon: Icons.account_balance_wallet_outlined,
-                          label: 'After: ${claim.projectedRemainingLabel}',
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    claim.amountLabel,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: const Color(0xFFF59E0B),
-                    ),
-                  ),
-                  if (claim.canPay) ...[
-                    const SizedBox(height: 6),
-                    FilledButton.icon(
-                      key: Key('reimbursementPayButton${claim.id}'),
-                      onPressed: onPay,
-                      icon: const Icon(Icons.payments_outlined, size: 16),
-                      label: const Text('Pay'),
-                    ),
-                  ],
-                ],
-              ),
-            ],
-          ),
+    return ExpandableListRow(
+      leading: Icon(
+        isPending ? Icons.schedule : Icons.check_circle_outline,
+        color: isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+        size: 18,
+      ),
+      title: Text(
+        claim.officerName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: Color(0xFFF8FAFC),
         ),
-        if (showDivider) const Divider(height: 1),
-      ],
+      ),
+      subtitle: Text(
+        '${claim.statusLabel} · After: ${claim.projectedRemainingLabel}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Color(0xFF94A3B8),
+          fontSize: 11.5,
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            claim.amountLabel,
+            style: const TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              color: Color(0xFFF59E0B),
+            ),
+          ),
+          if (claim.canPay) ...[
+            const SizedBox(width: 8),
+            FilledButton(
+              key: Key('reimbursementPayButton${claim.id}'),
+              onPressed: onPay,
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                minimumSize: const Size(0, 32),
+              ),
+              child: const Text('Pay', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ],
+      ),
+      showDivider: showDivider,
     );
   }
 }

@@ -148,6 +148,15 @@ void main() {
     expect(body, contains('Php 200.00'));
     expect(body, contains('ARI SANTOS'));
     expect(body, contains('BEA REYES'));
+
+    expect(
+      body.indexOf('USM-OSA-F46-Rev.0.2025.05.05'),
+      lessThan(body.indexOf('Name of Organization')),
+    );
+    expect(
+      body.indexOf('USM-OSA-F46-Rev.0.2025.05.05'),
+      lessThan(body.indexOf('Campus Canteen')),
+    );
   });
 
   test('liquidation PDF generation constrains long dynamic values', () async {
@@ -245,10 +254,7 @@ void main() {
       paths,
       contains('attachments/treasury/student-collections/support.pdf'),
     );
-    expect(
-      paths,
-      contains('attachments/events/leadership-summit/support.pdf'),
-    );
+    expect(paths, contains('attachments/events/leadership-summit/support.pdf'));
     expect(
       paths,
       contains('attachments/liquidation/leadership-summit/support.pdf'),

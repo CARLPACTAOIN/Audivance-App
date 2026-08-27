@@ -518,7 +518,7 @@ class _ExportContent extends StatelessWidget {
                 isWide ? 32 : 16,
                 20,
                 isWide ? 32 : 16,
-                32,
+                100,
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([

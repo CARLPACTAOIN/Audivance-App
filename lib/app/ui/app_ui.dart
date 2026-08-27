@@ -331,7 +331,8 @@ class StatusBadge extends StatelessWidget {
               Icon(icon, size: 15, color: color),
               const SizedBox(width: 6),
             ],
-            Flexible(
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 240),
               child: Text(
                 label,
                 overflow: TextOverflow.ellipsis,
@@ -481,3 +482,123 @@ class CollapsiblePanel extends StatelessWidget {
     );
   }
 }
+
+/// A compact, readable list row with optional tap-to-expand details.
+/// Standardizes list row density across Ledger, Receipts, Fund Movements, and Claims.
+class ExpandableListRow extends StatefulWidget {
+  const ExpandableListRow({
+    super.key,
+    this.leading,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.expandedContent,
+    this.showDivider = true,
+    this.padding = const EdgeInsets.symmetric(vertical: 8),
+    this.initiallyExpanded = false,
+    this.onTap,
+  });
+
+  final Widget? leading;
+  final Widget title;
+  final Widget? subtitle;
+  final Widget? trailing;
+  final Widget? expandedContent;
+  final bool showDivider;
+  final EdgeInsetsGeometry padding;
+  final bool initiallyExpanded;
+  final VoidCallback? onTap;
+
+  @override
+  State<ExpandableListRow> createState() => _ExpandableListRowState();
+}
+
+class _ExpandableListRowState extends State<ExpandableListRow> {
+  late bool _isExpanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _isExpanded = widget.initiallyExpanded;
+  }
+
+  void _toggle() {
+    if (widget.onTap != null) {
+      widget.onTap!();
+    } else if (widget.expandedContent != null) {
+      setState(() {
+        _isExpanded = !_isExpanded;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasExpandable = widget.expandedContent != null;
+    final rowContent = InkWell(
+      onTap: hasExpandable || widget.onTap != null ? _toggle : null,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: widget.padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (widget.leading != null) ...[
+                  widget.leading!,
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      widget.title,
+                      if (widget.subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        widget.subtitle!,
+                      ],
+                    ],
+                  ),
+                ),
+                if (widget.trailing != null) ...[
+                  const SizedBox(width: 10),
+                  widget.trailing!,
+                ],
+                if (hasExpandable) ...[
+                  const SizedBox(width: 4),
+                  Icon(
+                    _isExpanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                    color: const Color(0xFF64748B),
+                  ),
+                ],
+              ],
+            ),
+            if (hasExpandable && _isExpanded)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, left: 2),
+                child: widget.expandedContent!,
+              ),
+          ],
+        ),
+      ),
+    );
+
+    if (!widget.showDivider) {
+      return rowContent;
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        rowContent,
+        const Divider(height: 1, color: Color(0xFF1E293B)),
+      ],
+    );
+  }
+}
+

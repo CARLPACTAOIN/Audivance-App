@@ -452,8 +452,12 @@ class _AudivanceAppState extends State<AudivanceApp> {
         helperStyle: const TextStyle(color: Color(0xFF64748B)),
         errorStyle: const TextStyle(color: Color(0xFFF87171)),
       ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFF111620),
+        backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         indicatorColor: const Color(0xFF382307),

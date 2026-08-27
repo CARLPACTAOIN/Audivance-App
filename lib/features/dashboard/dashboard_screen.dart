@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../app/brand_logo.dart';
 import '../../app/ui/app_ui.dart';
 import 'dashboard_models.dart';
 import 'dashboard_service.dart';
@@ -118,16 +117,16 @@ class _DashboardContent extends StatelessWidget {
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 isWide ? 32 : 16,
-                20,
+                16,
                 isWide ? 32 : 16,
-                32,
+                100,
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   _DashboardHeader(snapshot: snapshot),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
                   _MetricGrid(metrics: snapshot.metrics),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 14),
                   if (isWide)
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,7 +138,7 @@ class _DashboardContent extends StatelessWidget {
                             onOpenLedger: onOpenLedger,
                           ),
                         ),
-                        const SizedBox(width: 20),
+                        const SizedBox(width: 14),
                         Expanded(
                           flex: 2,
                           child: _ReadinessPanel(
@@ -154,7 +153,7 @@ class _DashboardContent extends StatelessWidget {
                       snapshot: snapshot,
                       onOpenExportCenter: onOpenExportCenter,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 14),
                     _FundMovementPanel(
                       movements: snapshot.movements,
                       onOpenLedger: onOpenLedger,
@@ -181,27 +180,11 @@ class _DashboardHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const BrandLogo(
-              key: Key('dashboardBrandLogo'),
-              size: 48,
-              decorative: true,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(
-                snapshot.organizationName,
-                style: textTheme.headlineMedium,
-              ),
-            ),
-          ],
-        ),
+        Text(snapshot.organizationName, style: textTheme.headlineMedium),
         const SizedBox(height: 8),
         Wrap(
-          spacing: 10,
-          runSpacing: 10,
+          spacing: 8,
+          runSpacing: 8,
           children: [
             _StatusChip(
               icon: Icons.calendar_month_outlined,
@@ -227,17 +210,23 @@ class _MetricGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: metrics.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        mainAxisExtent: 84,
-      ),
-      itemBuilder: (context, index) => _MetricCard(metric: metrics[index]),
+    return Column(
+      children: [
+        for (var i = 0; i < metrics.length; i += 2) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _MetricCard(metric: metrics[i])),
+              const SizedBox(width: 10),
+              if (i + 1 < metrics.length)
+                Expanded(child: _MetricCard(metric: metrics[i + 1]))
+              else
+                const Spacer(),
+            ],
+          ),
+          if (i + 2 < metrics.length) const SizedBox(height: 10),
+        ],
+      ],
     );
   }
 }
@@ -310,21 +299,23 @@ class _ReadinessPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    // Show only the first unresolved (non-success) task to avoid duplicating
-    // the full checklist that already lives in the Export Center screen.
     final firstTask = snapshot.tasks.isNotEmpty ? snapshot.tasks.first : null;
     final score = snapshot.exportReadiness;
     final scoreColor = score >= 80
         ? const Color(0xFF10B981)
         : score >= 50
-            ? const Color(0xFFF59E0B)
-            : const Color(0xFFEF4444);
+        ? const Color(0xFFF59E0B)
+        : const Color(0xFFEF4444);
     return _Panel(
       title: 'Export Readiness',
       action: FilledButton.icon(
         onPressed: onOpenExportCenter,
-        icon: const Icon(Icons.archive_outlined),
+        icon: const Icon(Icons.archive_outlined, size: 16),
         label: const Text('Export Center'),
+        style: FilledButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          minimumSize: const Size(0, 36),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,7 +348,7 @@ class _ReadinessPanel extends StatelessWidget {
             color: scoreColor,
           ),
           if (firstTask != null) ...[
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             _TaskRow(task: firstTask),
             if (snapshot.tasks.length > 1) ...[
               const SizedBox(height: 8),
@@ -393,23 +384,34 @@ class _TaskRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 10,
-          height: 10,
+          width: 8,
+          height: 8,
           margin: const EdgeInsets.only(top: 6),
           decoration: BoxDecoration(color: toneColor, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(task.title, style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                task.title,
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                task.detail,
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+              ),
               const SizedBox(height: 3),
-              Text(task.detail),
-              const SizedBox(height: 4),
               Text(
                 task.status,
-                style: TextStyle(color: toneColor, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                  color: toneColor,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 11.5,
+                ),
               ),
             ],
           ),
@@ -434,8 +436,12 @@ class _FundMovementPanel extends StatelessWidget {
       title: 'Recent Fund Movements',
       action: OutlinedButton.icon(
         onPressed: onOpenLedger,
-        icon: const Icon(Icons.list_alt_outlined),
+        icon: const Icon(Icons.list_alt_outlined, size: 16),
         label: const Text('View Ledger'),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          minimumSize: const Size(0, 36),
+        ),
       ),
       child: Column(
         children: [
@@ -446,10 +452,10 @@ class _FundMovementPanel extends StatelessWidget {
                   'Fund activity will appear after treasury records are saved.',
             )
           else
-            for (final movement in movements)
+            for (var i = 0; i < movements.length; i++)
               _MovementRow(
-                movement: movement,
-                showDivider: movement != movements.last,
+                movement: movements[i],
+                showDivider: i < movements.length - 1,
               ),
         ],
       ),
@@ -492,68 +498,56 @@ class _MovementRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                movement.isSystemGenerated
-                    ? Icons.lock_outline
-                    : Icons.edit_note_outlined,
-                color: movement.isSystemGenerated
-                    ? const Color(0xFF1E3A8A)
-                    : const Color(0xFF475569),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      movement.description,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${movement.reference} - ${movement.date}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    StatusBadge(
-                      label: movement.isSystemGenerated
-                          ? 'System-generated'
-                          : 'Manual',
-                      icon: movement.isSystemGenerated
-                          ? Icons.lock_outline
-                          : Icons.edit_note_outlined,
-                      tone: movement.isSystemGenerated
-                          ? InlineStatusTone.info
-                          : InlineStatusTone.warning,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: Text(
-                  movement.amount,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
-          ),
+    return ExpandableListRow(
+      initiallyExpanded: true,
+      leading: Icon(
+        movement.isSystemGenerated
+            ? Icons.lock_outline
+            : Icons.edit_note_outlined,
+        color: movement.isSystemGenerated
+            ? const Color(0xFF38BDF8)
+            : const Color(0xFFF59E0B),
+        size: 18,
+      ),
+      title: Text(
+        movement.description,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: Color(0xFFF8FAFC),
         ),
-        if (showDivider) const Divider(height: 1),
-      ],
+      ),
+      subtitle: Text(
+        '${movement.reference} · ${movement.date}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5),
+      ),
+      trailing: Text(
+        movement.amount,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: Color(0xFFF8FAFC),
+        ),
+      ),
+      expandedContent: Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: StatusBadge(
+          label: movement.isSystemGenerated
+              ? 'System-generated'
+              : 'Manual movement',
+          icon: movement.isSystemGenerated
+              ? Icons.lock_outline
+              : Icons.edit_note_outlined,
+          tone: movement.isSystemGenerated
+              ? InlineStatusTone.info
+              : InlineStatusTone.warning,
+        ),
+      ),
+      showDivider: showDivider,
     );
   }
 }
@@ -569,24 +563,24 @@ class _Panel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 12,
-              runSpacing: 10,
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.titleLarge,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                 ),
                 ?action,
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             child,
           ],
         ),

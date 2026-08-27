@@ -175,7 +175,7 @@ class _ProfileHeader extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -246,20 +246,30 @@ class _ProfileHeader extends StatelessWidget {
                 );
               },
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 14),
             if (organization == null)
               const Text('Complete the organization profile for COA export.')
             else
-              Wrap(
-                spacing: 24,
-                runSpacing: 12,
-                children: [
-                  _InfoBlock(label: 'Adviser', value: organization.adviser),
-                  _InfoBlock(
-                    label: 'Signatories',
-                    value: organization.signatoryNames.join(', '),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return Wrap(
+                    spacing: 24,
+                    runSpacing: 12,
+                    children: [
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                        child: _InfoBlock(label: 'Adviser', value: organization.adviser),
+                      ),
+                      ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                        child: _InfoBlock(
+                          label: 'Signatories',
+                          value: organization.signatoryNames.join(', '),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
           ],
         ),
@@ -293,7 +303,7 @@ class _OfficerRosterPanel extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -546,16 +556,13 @@ class _InfoBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 520),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.labelLarge),
-          const SizedBox(height: 4),
-          Text(value),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 4),
+        Text(value),
+      ],
     );
   }
 }

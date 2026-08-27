@@ -61,6 +61,7 @@ class PdfReportInput {
 }
 
 const usmOsaF46ReportLabel = 'USM-OSA-F46 Liquidation Report';
+const _usmOsaF46FormCode = 'USM-OSA-F46-Rev.0.2025.05.05';
 const _f46Metrics = UsmOsaF46TemplateMetrics();
 
 bool isUsmOsaF46LiquidationReportPath(String path) {
@@ -92,6 +93,7 @@ class UsmOsaF46TemplateMetrics {
   static const logoColumnWidth = 92.0;
   static const headerHeight = 72.0;
   static const titleBandHeight = 18.0;
+  static const formCodeHeight = 14.0;
   static const logoSize = 54.0;
   static const metadataMinHeight = 58.0;
   static const itemHeaderHeight = 20.0;
@@ -557,11 +559,6 @@ Future<PdfReportFile> _liquidationPdfFile({
         ),
         pw.SizedBox(height: 58),
         _commissionerLines(),
-        pw.SizedBox(height: 52),
-        pw.Text(
-          'USM-OSA-F46-Rev.0.2025.05.05',
-          style: _officialTextStyle(fontSize: 8, bold: true),
-        ),
       ],
     ),
   );
@@ -573,9 +570,11 @@ pw.Widget _officialHeader(pw.MemoryImage? logo) {
   return pw.Column(
     children: [
       pw.Table(
-        border: pw.TableBorder.all(
-          color: PdfColors.black,
-          width: UsmOsaF46TemplateMetrics.headerBorderWidth,
+        border: pw.TableBorder.symmetric(
+          outside: const pw.BorderSide(
+            color: PdfColors.black,
+            width: UsmOsaF46TemplateMetrics.headerBorderWidth,
+          ),
         ),
         columnWidths: const {
           0: pw.FixedColumnWidth(UsmOsaF46TemplateMetrics.logoColumnWidth),
@@ -652,6 +651,14 @@ pw.Widget _officialHeader(pw.MemoryImage? logo) {
         child: pw.Text(
           'LIQUIDATION REPORT',
           style: _officialTextStyle(fontSize: 12, bold: true),
+        ),
+      ),
+      pw.Container(
+        height: UsmOsaF46TemplateMetrics.formCodeHeight,
+        alignment: pw.Alignment.centerLeft,
+        child: pw.Text(
+          _usmOsaF46FormCode,
+          style: _officialTextStyle(fontSize: 8, bold: true),
         ),
       ),
     ],

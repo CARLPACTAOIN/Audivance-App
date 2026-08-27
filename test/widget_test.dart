@@ -117,7 +117,9 @@ void main() {
 
       await tester.pumpWidget(harness.app());
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.byKey(const Key('setupGetStartedButton')));
+      await tester.ensureVisible(
+        find.byKey(const Key('setupGetStartedButton')),
+      );
       await tester.tap(find.byKey(const Key('setupGetStartedButton')));
       await tester.pumpAndSettle();
 
@@ -238,7 +240,7 @@ void main() {
 
     expect(find.text('Audivance'), findsOneWidget);
     expect(find.byKey(const Key('workspaceBrandLogo')), findsOneWidget);
-    expect(find.byKey(const Key('dashboardBrandLogo')), findsOneWidget);
+    expect(find.byKey(const Key('dashboardBrandLogo')), findsNothing);
     expect(find.text('Treasury Balance'), findsOneWidget);
     expect(find.text('PHP 0'), findsWidgets);
 
@@ -356,7 +358,7 @@ void main() {
 
     expect(find.text('Audivance'), findsOneWidget);
     expect(find.byKey(const Key('workspaceBrandLogo')), findsOneWidget);
-    expect(find.byKey(const Key('dashboardBrandLogo')), findsOneWidget);
+    expect(find.byKey(const Key('dashboardBrandLogo')), findsNothing);
     expect(
       find.text('Junior Philippine Institute of Accountants'),
       findsOneWidget,
@@ -649,8 +651,7 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Open settings'));
-    await tester.pumpAndSettle();
+    await _openBackup(tester);
 
     expect(find.text('Backup & Restore'), findsOneWidget);
     expect(find.textContaining('encrypted SQLite database'), findsOneWidget);
@@ -669,8 +670,7 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Open settings'));
-    await tester.pumpAndSettle();
+    await _openBackup(tester);
 
     expect(find.text('Recent Backup History'), findsOneWidget);
     expect(find.text('Saved backup'), findsOneWidget);
@@ -694,8 +694,7 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Open settings'));
-    await tester.pumpAndSettle();
+    await _openBackup(tester);
     await tester.tap(find.byKey(const Key('backupValidateButton')));
     await tester.pumpAndSettle();
 
@@ -731,8 +730,7 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('Open settings'));
-    await tester.pumpAndSettle();
+    await _openBackup(tester);
     await tester.tap(find.byKey(const Key('backupValidateButton')));
     await tester.pumpAndSettle();
 
@@ -2007,7 +2005,22 @@ Future<void> _openExport(WidgetTester tester) async {
 }
 
 Future<void> _openProfile(WidgetTester tester) async {
-  await tester.tap(find.text('Profile').last);
+  final directProfile = find.text('Profile');
+  if (directProfile.evaluate().isNotEmpty) {
+    await tester.tap(directProfile.last);
+    await tester.pumpAndSettle();
+    return;
+  }
+  await tester.tap(find.byKey(const Key('workspaceSettingsButton')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('adminMenuProfileTile')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openBackup(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('workspaceSettingsButton')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('adminMenuBackupTile')));
   await tester.pumpAndSettle();
 }
 

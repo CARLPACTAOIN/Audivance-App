@@ -159,9 +159,9 @@ class _EventOverviewContent extends StatelessWidget {
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 isWide ? 32 : 16,
-                20,
+                16,
                 isWide ? 32 : 16,
-                120,
+                100,
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
@@ -169,7 +169,7 @@ class _EventOverviewContent extends StatelessWidget {
                     snapshot: snapshot,
                     onCreateEvent: onCreateEvent,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
                   _EventCardList(
                     events: snapshot.events,
                     onSelectEvent: onSelectEvent,
@@ -213,7 +213,7 @@ class _EventOverviewHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Events', style: textTheme.headlineMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             CompactStatRow(
               items: [
                 CompactStat(
@@ -269,7 +269,7 @@ class _EventCardList extends StatelessWidget {
                     event: event,
                     onTap: () => onSelectEvent(event),
                   ),
-                  if (event != events.last) const SizedBox(height: 12),
+                  if (event != events.last) const SizedBox(height: 10),
                 ],
               ],
             ),
@@ -302,86 +302,76 @@ class _EventCard extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Wrap(
-                spacing: 12,
-                runSpacing: 8,
-                alignment: WrapAlignment.spaceBetween,
-                crossAxisAlignment: WrapCrossAlignment.center,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.event_note,
-                        color: Color(0xFFD97706),
-                        size: 24,
-                      ),
-                      const SizedBox(width: 10),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            event.name,
-                            style: textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${event.type} · ${event.dateRangeLabel}',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: const Color(0xFF94A3B8),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                  const Icon(
+                    Icons.event_note,
+                    color: Color(0xFFD97706),
+                    size: 22,
                   ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          event.name,
+                          style: textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${event.type} · ${event.dateRangeLabel}',
+                          style: textTheme.bodySmall?.copyWith(
+                            color: const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   StatusBadge(
                     label: event.statusLabel,
                     tone: tone,
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
-              const Divider(height: 1),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
+              const Divider(height: 1, color: Color(0xFF1E293B)),
+              const SizedBox(height: 10),
               Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      children: [
-                        _StatBadge(
-                          label: 'Budget',
+                    child: CompactStatRow(
+                      items: [
+                        CompactStat(
                           value: event.budgetLabel,
-                          color: const Color(0xFFF8FAFC),
+                          label: 'budget',
                         ),
-                        _StatBadge(
-                          label: 'Balance',
+                        CompactStat(
                           value: event.approvedBudgetBalanceLabel,
-                          color: const Color(0xFF10B981),
+                          label: 'balance',
                         ),
-                        _StatBadge(
-                          label: 'Resolution',
+                        CompactStat(
                           value: event.resolutionNumber,
-                          color: const Color(0xFF94A3B8),
+                          label: 'res',
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
+                  IconButton(
                     key: Key('eventManageButton${event.id}'),
+                    icon: const Icon(Icons.arrow_forward_ios, size: 14),
+                    color: const Color(0xFF94A3B8),
                     onPressed: onTap,
-                    icon: const Icon(Icons.arrow_forward, size: 16),
-                    label: const Text('Manage Event'),
+                    tooltip: 'Manage Event',
                   ),
                 ],
               ),
@@ -389,42 +379,6 @@ class _EventCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _StatBadge extends StatelessWidget {
-  const _StatBadge({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: const Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: color,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -439,7 +393,7 @@ class _OverviewPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -447,7 +401,7 @@ class _OverviewPanel extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             child,
           ],
         ),

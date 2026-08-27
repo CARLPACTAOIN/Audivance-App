@@ -10,6 +10,7 @@ import '../../core/domain/money.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 import '../audit/domain/audit_rules.dart';
+import 'ledger_screen.dart';
 import 'treasury_formatters.dart';
 import 'treasury_service.dart';
 
@@ -80,8 +81,21 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
               ),
           onAddFund: _showAddFundDialog,
           onManualMovement: _showManualMovementDialog,
+          onOpenFullLedger: () => _openFullLedger(snapshot.data?.ledgerRows ?? const []),
         );
       },
+    );
+  }
+
+  void _openFullLedger(List<TreasuryLedgerRow> rows) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LedgerScreen(
+          service: widget.service,
+          initialRows: rows,
+        ),
+      ),
     );
   }
 
@@ -135,11 +149,13 @@ class _TreasuryContent extends StatelessWidget {
     required this.snapshot,
     required this.onAddFund,
     required this.onManualMovement,
+    required this.onOpenFullLedger,
   });
 
   final TreasurySnapshot snapshot;
   final VoidCallback onAddFund;
   final VoidCallback onManualMovement;
+  final VoidCallback onOpenFullLedger;
 
   @override
   Widget build(BuildContext context) {
@@ -151,9 +167,9 @@ class _TreasuryContent extends StatelessWidget {
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
                 isWide ? 32 : 16,
-                20,
+                16,
                 isWide ? 32 : 16,
-                32,
+                100,
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
@@ -162,27 +178,13 @@ class _TreasuryContent extends StatelessWidget {
                     onAddFund: onAddFund,
                     onManualMovement: onManualMovement,
                   ),
-                  const SizedBox(height: 20),
-                  if (isWide)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: _SourceSection(sources: snapshot.sources),
-                        ),
-                        const SizedBox(width: 20),
-                        Expanded(
-                          flex: 3,
-                          child: _LedgerSection(rows: snapshot.ledgerRows),
-                        ),
-                      ],
-                    )
-                  else ...[
-                    _SourceSection(sources: snapshot.sources),
-                    const SizedBox(height: 16),
-                    _LedgerSection(rows: snapshot.ledgerRows),
-                  ],
+                  const SizedBox(height: 16),
+                  _SourceGridSection(sources: snapshot.sources),
+                  const SizedBox(height: 16),
+                  _RecentLedgerSection(
+                    rows: snapshot.ledgerRows,
+                    onOpenFullLedger: onOpenFullLedger,
+                  ),
                 ]),
               ),
             ),
@@ -217,7 +219,7 @@ class _TreasuryHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Treasury', style: textTheme.headlineMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             CompactStatRow(
               items: [
                 CompactStat(
@@ -259,8 +261,8 @@ class _TreasuryHeader extends StatelessWidget {
   }
 }
 
-class _SourceSection extends StatelessWidget {
-  const _SourceSection({required this.sources});
+class _SourceGridSection extends StatelessWidget {
+  const _SourceGridSection({required this.sources});
 
   final List<TreasurySourceView> sources;
 
@@ -268,23 +270,54 @@ class _SourceSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Source Balances',
-              style: Theme.of(context).textTheme.titleLarge,
+            Row(
+              children: [
+                const Icon(
+                  Icons.account_balance,
+                  size: 20,
+                  color: Color(0xFF38BDF8),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Fund Sources',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const Spacer(),
+                StatusBadge(
+                  label: '${sources.length} source${sources.length == 1 ? '' : 's'}',
+                  tone: InlineStatusTone.info,
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             if (sources.isEmpty)
               const _EmptyPanelMessage(
                 icon: Icons.account_balance_outlined,
                 text: 'Add the first fund source to begin the Treasury ledger.',
               )
             else
-              for (final source in sources)
-                _SourceRow(source: source, showDivider: source != sources.last),
+              Column(
+                children: [
+                  for (var i = 0; i < sources.length; i += 2) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _SourceCard(source: sources[i])),
+                        const SizedBox(width: 10),
+                        if (i + 1 < sources.length)
+                          Expanded(child: _SourceCard(source: sources[i + 1]))
+                        else
+                          const Spacer(),
+                      ],
+                    ),
+                    if (i + 2 < sources.length) const SizedBox(height: 10),
+                  ],
+                ],
+              ),
           ],
         ),
       ),
@@ -292,161 +325,198 @@ class _SourceSection extends StatelessWidget {
   }
 }
 
-class _LedgerSection extends StatelessWidget {
-  const _LedgerSection({required this.rows});
+class _SourceCard extends StatelessWidget {
+  const _SourceCard({required this.source});
 
-  final List<TreasuryLedgerRow> rows;
+  final TreasurySourceView source;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 76),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161C26),
+        border: Border.all(color: const Color(0xFF263345)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            source.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.labelMedium?.copyWith(
+              color: const Color(0xFF94A3B8),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            source.balanceLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF10B981),
+            ),
+          ),
+          if (source.supportingAttachment != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              source.supportingAttachment!.fileName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xFF64748B),
+                fontSize: 10.5,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _RecentLedgerSection extends StatelessWidget {
+  const _RecentLedgerSection({
+    required this.rows,
+    required this.onOpenFullLedger,
+  });
+
+  final List<TreasuryLedgerRow> rows;
+  final VoidCallback onOpenFullLedger;
+
+  @override
+  Widget build(BuildContext context) {
+    final recentRows = rows.take(5).toList(growable: false);
+
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Ledger', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(
+                  Icons.timeline_outlined,
+                  size: 20,
+                  color: Color(0xFFF59E0B),
+                ),
+                const SizedBox(width: 8),
+                Text('Ledger', style: Theme.of(context).textTheme.titleLarge),
+                const Spacer(),
+                OutlinedButton.icon(
+                  key: const Key('treasuryViewFullLedgerButton'),
+                  onPressed: onOpenFullLedger,
+                  icon: const Icon(Icons.list_alt, size: 16),
+                  label: const Text('View Full Ledger'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    minimumSize: const Size(0, 36),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             if (rows.isEmpty)
               const _EmptyPanelMessage(
                 icon: Icons.timeline_outlined,
                 text: 'Ledger movements appear after funds are added.',
               )
-            else
-              for (final row in rows)
-                _LedgerRow(row: row, showDivider: row != rows.last),
+            else ...[
+              for (var i = 0; i < recentRows.length; i++)
+                _buildCompactLedgerRow(recentRows[i], i == recentRows.length - 1 && rows.length <= 5),
+              if (rows.length > 5) ...[
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: onOpenFullLedger,
+                    icon: const Icon(Icons.arrow_forward, size: 14),
+                    label: Text(
+                      'View all ${rows.length} records in full ledger',
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ],
         ),
       ),
     );
   }
-}
 
-class _SourceRow extends StatelessWidget {
-  const _SourceRow({required this.source, required this.showDivider});
-
-  final TreasurySourceView source;
-  final bool showDivider;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.account_balance, color: Color(0xFF1E3A8A)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      source.label,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(source.typeLabel),
-                    if (source.supportingAttachment != null) ...[
-                      const SizedBox(height: 4),
-                      Text(source.supportingAttachment!.fileName),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: Text(
-                  source.balanceLabel,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
-          ),
+  Widget _buildCompactLedgerRow(TreasuryLedgerRow row, bool isLast) {
+    return ExpandableListRow(
+      key: Key('treasuryLedgerRow${row.id}'),
+      leading: Icon(
+        row.isSystemGenerated ? Icons.lock_outline : Icons.edit_note,
+        color: row.isSystemGenerated
+            ? const Color(0xFF38BDF8)
+            : const Color(0xFFF59E0B),
+        size: 18,
+      ),
+      title: Text(
+        row.purpose,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: Color(0xFFF8FAFC),
         ),
-        if (showDivider) const Divider(height: 1),
-      ],
-    );
-  }
-}
-
-class _LedgerRow extends StatelessWidget {
-  const _LedgerRow({required this.row, required this.showDivider});
-
-  final TreasuryLedgerRow row;
-  final bool showDivider;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                row.isSystemGenerated ? Icons.lock_outline : Icons.edit_note,
-                color: row.isSystemGenerated
-                    ? const Color(0xFF1E3A8A)
-                    : const Color(0xFF475569),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      row.purpose,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${row.reference} - ${row.typeLabel} - ${row.dateLabel}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    StatusBadge(
-                      label: row.isSystemGenerated
-                          ? 'System-generated, protected'
-                          : 'Manual movement',
-                      icon: row.isSystemGenerated
-                          ? Icons.lock_outline
-                          : Icons.edit_note,
-                      tone: row.isSystemGenerated
-                          ? InlineStatusTone.info
-                          : InlineStatusTone.warning,
-                    ),
-                    if (row.remarks != null) ...[
-                      const SizedBox(height: 4),
-                      Text(row.remarks!),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 12),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: Text(
-                  row.amountLabel,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.end,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ),
-            ],
-          ),
+      ),
+      subtitle: Text(
+        '${row.reference} · ${row.typeLabel} · ${row.dateLabel}',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+          color: Color(0xFF94A3B8),
+          fontSize: 11.5,
         ),
-        if (showDivider) const Divider(height: 1),
-      ],
+      ),
+      trailing: Text(
+        row.amountLabel,
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: Color(0xFFF8FAFC),
+        ),
+      ),
+      expandedContent: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          StatusBadge(
+            label: row.isSystemGenerated
+                ? 'System-generated, protected'
+                : 'Manual movement',
+            icon: row.isSystemGenerated
+                ? Icons.lock_outline
+                : Icons.edit_note,
+            tone: row.isSystemGenerated
+                ? InlineStatusTone.info
+                : InlineStatusTone.warning,
+          ),
+          if (row.remarks != null && row.remarks!.trim().isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Remarks: ${row.remarks!}',
+              style: const TextStyle(
+                color: Color(0xFFCBD5E1),
+                fontSize: 11.5,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ],
+      ),
+      showDivider: !isLast,
     );
   }
 }
