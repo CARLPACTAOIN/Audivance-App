@@ -16,8 +16,19 @@
               "icon": "lucide-git-fork",
               "title": "Graph view"
             }
+          },
+          {
+            "id": "94aa6ef1a7ac11fe",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "New tab"
+            }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -37,7 +48,7 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical",
-                "autoReveal": false,
+                "autoReveal": true,
                 "showSearch": false,
                 "searchQuery": ""
               },
@@ -181,10 +192,13 @@
       "bases:Create new base": false
     }
   },
-  "active": "59b74aad81a59690",
+  "active": "94aa6ef1a7ac11fe",
   "lastOpenFiles": [
-    "Untitled.canvas",
+    "Untitled.md",
+    "Untitled.base",
     "Concepts/Audit Database.md",
+    "Untitled",
+    "Untitled.canvas",
     "Concepts/Officer.md",
     "README.md",
     "00 - System Overview.md",
