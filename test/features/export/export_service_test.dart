@@ -150,12 +150,8 @@ void main() {
     expect(body, contains('BEA REYES'));
 
     expect(
-      body.indexOf('USM-OSA-F46-Rev.0.2025.05.05'),
-      lessThan(body.indexOf('Name of Organization')),
-    );
-    expect(
-      body.indexOf('USM-OSA-F46-Rev.0.2025.05.05'),
-      lessThan(body.indexOf('Campus Canteen')),
+      _pdfContextAround(liquidation.bytes, 'USM-OSA-F46-Rev.0.2025.05.05'),
+      contains('1 0 0 1 40 34 cm'),
     );
   });
 
@@ -257,7 +253,9 @@ void main() {
     expect(paths, contains('attachments/events/leadership-summit/support.pdf'));
     expect(
       paths,
-      contains('attachments/liquidation/leadership-summit/support.pdf'),
+      contains(
+        'attachments/liquidation/leadership-summit-event-1/receipts.pdf',
+      ),
     );
     expect(package.byteLength, greaterThan(0));
     expect(package.checksum, hasLength(64));
@@ -284,6 +282,86 @@ void main() {
       contains('reports/liquidation/Leadership-Summit-event-1.pdf'),
     );
   });
+
+  test(
+    'receipt attachments are bundled into one ordered PDF per event',
+    () async {
+      await _seedCompleteWorkspace(
+        repository,
+        receiptAttachment: _receiptImageAttachment,
+      );
+      await repository.saveLiquidationReceipt(
+        LiquidationReceipt(
+          id: 'receipt-2',
+          eventId: 'event-1',
+          payeeOrMerchant: 'Campus Bookstore',
+          date: DateTime(2026, 8, 18),
+          evidenceNumber: 'OR-101',
+          receiptType: ReceiptType.salesInvoice,
+          fundingMode: FundingMode.outOfPocket,
+          accountableOfficerId: 'officer-1',
+          attachment: _receiptImageAttachmentTwo,
+        ),
+      );
+      service = ExportService(
+        repository: repository,
+        attachmentStorage: _FakeAttachmentStorage.valid(
+          bytesByLocalPath: {
+            _receiptImageAttachment.localPath: _transparentPngBytes,
+            _receiptImageAttachmentTwo.localPath: _transparentPngBytes,
+          },
+        ),
+      );
+
+      final package = await service.buildArchive(
+        asOf: DateTime(2026, 8, 18, 12),
+      );
+      final decoded = ZipDecoder().decodeBytes(package.bytes);
+      final paths = decoded.files.map((file) => file.name).toList();
+      final receiptEntries = decoded.files
+          .where(
+            (file) => file.name.startsWith(
+              'attachments/liquidation/leadership-summit-event-1/',
+            ),
+          )
+          .toList(growable: false);
+      final receiptEntry = receiptEntries.single;
+
+      expect(
+        receiptEntry.name,
+        'attachments/liquidation/leadership-summit-event-1/receipts.pdf',
+      );
+      expect(
+        paths,
+        isNot(
+          contains(
+            'attachments/liquidation/leadership-summit-event-1/001-2026-08-18-or-100.pdf',
+          ),
+        ),
+      );
+      expect(
+        paths,
+        isNot(
+          contains(
+            'attachments/liquidation/leadership-summit-event-1/receipt.png',
+          ),
+        ),
+      );
+      expect(receiptEntries, hasLength(1));
+      expect(receiptEntry.content.take(4), '%PDF'.codeUnits);
+      final receiptPdfText = _pdfExtractedText(receiptEntry.content);
+      expect(receiptPdfText, contains('Receipt 001'));
+      expect(receiptPdfText, contains('Evidence: OR-100'));
+      expect(receiptPdfText, contains('Receipt 002'));
+      expect(receiptPdfText, contains('Evidence: OR-101'));
+      expect(
+        (package.manifest['files'] as List<Object?>)
+            .cast<Map<String, Object?>>()
+            .map((file) => file['path']),
+        contains(receiptEntry.name),
+      );
+    },
+  );
 
   test('missing attachment file blocks ZIP generation', () async {
     await _seedCompleteWorkspace(repository);
@@ -573,6 +651,17 @@ String _pdfExtractedText(List<int> bytes) {
   return buffer.toString();
 }
 
+String _pdfContextAround(List<int> bytes, String text) {
+  final raw = latin1.decode(bytes, allowInvalid: true);
+  final index = raw.indexOf(text);
+  if (index == -1) {
+    return '';
+  }
+  final start = (index - 120).clamp(0, raw.length);
+  final end = (index + text.length + 40).clamp(0, raw.length);
+  return raw.substring(start, end);
+}
+
 Future<void> _seedCompleteWorkspace(
   DriftAuditRepository repository, {
   String organizationName = 'JPIA',
@@ -789,10 +878,31 @@ const _attachment = AttachmentRef(
   checksum: 'abc123',
 );
 
-class _FakeAttachmentStorage implements AttachmentStorageService {
-  const _FakeAttachmentStorage({required this.result});
+const _receiptImageAttachment = AttachmentRef(
+  id: 'attachment-receipt-image',
+  fileName: 'receipt.png',
+  localPath: 'attachments/receipt.png',
+  sizeBytes: 68,
+  checksum: 'image-checksum',
+);
 
-  const _FakeAttachmentStorage.valid()
+const _receiptImageAttachmentTwo = AttachmentRef(
+  id: 'attachment-receipt-image-2',
+  fileName: 'receipt-2.png',
+  localPath: 'attachments/receipt-2.png',
+  sizeBytes: 68,
+  checksum: 'image-checksum-2',
+);
+
+final _transparentPngBytes = base64Decode(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGP4DwQACfsD/fteaysAAAAASUVORK5CYII=',
+);
+
+class _FakeAttachmentStorage implements AttachmentStorageService {
+  const _FakeAttachmentStorage({required this.result})
+    : bytesByLocalPath = const {};
+
+  const _FakeAttachmentStorage.valid({this.bytesByLocalPath = const {}})
     : result = const AttachmentIntegrityResult.present(
         checksumMatches: true,
         sizeMatches: true,
@@ -801,6 +911,7 @@ class _FakeAttachmentStorage implements AttachmentStorageService {
       );
 
   final AttachmentIntegrityResult result;
+  final Map<String, List<int>> bytesByLocalPath;
 
   @override
   Future<AttachmentRef> importAttachment({
@@ -822,6 +933,10 @@ class _FakeAttachmentStorage implements AttachmentStorageService {
   Future<Uint8List> readBytes(AttachmentRef attachment) async {
     if (!result.exists) {
       throw StateError('Attachment is missing.');
+    }
+    final bytes = bytesByLocalPath[attachment.localPath];
+    if (bytes != null) {
+      return Uint8List.fromList(bytes);
     }
     return Uint8List.fromList(utf8.encode(attachment.localPath));
   }

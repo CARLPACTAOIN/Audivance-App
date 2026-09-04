@@ -244,10 +244,6 @@ void main() {
     expect(find.text('Treasury Balance'), findsOneWidget);
     expect(find.text('PHP 0'), findsWidgets);
 
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -500));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Add the first treasury source'), findsOneWidget);
     expect(await harness.repository.isSetupComplete(), isTrue);
     expect(await harness.unlockService.hasStoredCredential(), isTrue);
   });
@@ -444,7 +440,7 @@ void main() {
     expect(find.text('Profile'), findsWidgets);
     expect(find.text('Officer Roster'), findsOneWidget);
     expect(find.byKey(const Key('profileOrganizationName')), findsOneWidget);
-    expect(find.text('Prof. Santos'), findsOneWidget);
+    expect(find.text('Prof. Santos'), findsWidgets);
     expect(find.text('Needs officers'), findsOneWidget);
   });
 
@@ -466,7 +462,15 @@ void main() {
       '',
     );
     await tester.enterText(
-      find.byKey(const Key('profileSignatoriesField')),
+      find.byKey(const Key('profileTreasurerField')),
+      '',
+    );
+    await tester.enterText(
+      find.byKey(const Key('profileAuditorField')),
+      '',
+    );
+    await tester.enterText(
+      find.byKey(const Key('profileHeadField')),
       '',
     );
     await tester.tap(find.byKey(const Key('profileOrganizationSubmitButton')));
@@ -483,8 +487,16 @@ void main() {
       'Updated Accounting Guild',
     );
     await tester.enterText(
-      find.byKey(const Key('profileSignatoriesField')),
-      'Ari Santos, Bea Reyes, Cia Lim',
+      find.byKey(const Key('profileTreasurerField')),
+      'Ari Santos',
+    );
+    await tester.enterText(
+      find.byKey(const Key('profileAuditorField')),
+      'Bea Reyes',
+    );
+    await tester.enterText(
+      find.byKey(const Key('profileHeadField')),
+      'Cia Lim',
     );
     await tester.tap(find.byKey(const Key('profileOrganizationSubmitButton')));
     await tester.pumpAndSettle();
@@ -520,7 +532,10 @@ void main() {
     await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Ari Santos'), findsOneWidget);
+    expect(
+      find.byKey(const Key('profileOfficerNameofficer-1')),
+      findsOneWidget,
+    );
     expect(find.text('Finance Committee'), findsWidgets);
 
     await _tapVisible(tester, find.byKey(const Key('profileAddOfficerButton')));
@@ -608,6 +623,45 @@ void main() {
     );
     expect(find.text('Archived Treasurer'), findsNothing);
     expect(button.onPressed, isNull);
+  });
+
+  testWidgets('liquidation officer prompt opens Profile add officer form', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openEvents(tester);
+    await _openEventDetails(tester, 'event-1');
+
+    final promptButton = find.byKey(const Key('eventAddOfficerPromptButton'));
+    await tester.scrollUntilVisible(
+      promptButton,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _tapVisible(tester, promptButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Profile'), findsWidgets);
+    expect(find.byKey(const Key('profileOfficerNameField')), findsOneWidget);
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'New Liquidation Officer',
+      position: OfficerPosition.member,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+
+    final officers = await harness.repository.listOfficers();
+    expect(officers, hasLength(1));
+    expect(officers.single.fullName, 'New Liquidation Officer');
+    expect(find.text('New Liquidation Officer'), findsOneWidget);
   });
 
   testWidgets('Profile handles long labels at 375px width', (tester) async {
@@ -1983,11 +2037,8 @@ Future<void> _fillSetupForm(
     find.byKey(const Key('setupSchoolYearField')),
     '2026-2027',
   );
-  await tester.enterText(
-    find.byKey(const Key('setupSignatoryNamesField')),
-    'Ari Santos, Bea Reyes',
-  );
 }
+
 
 Future<void> _openTreasury(WidgetTester tester) async {
   await tester.tap(find.text('Treasury').last);

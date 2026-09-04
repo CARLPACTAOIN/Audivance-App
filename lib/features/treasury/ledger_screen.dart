@@ -8,11 +8,7 @@ import 'treasury_service.dart';
 enum LedgerTypeFilter { all, systemGenerated, manual }
 
 class LedgerScreen extends StatefulWidget {
-  const LedgerScreen({
-    super.key,
-    required this.service,
-    this.initialRows,
-  });
+  const LedgerScreen({super.key, required this.service, this.initialRows});
 
   final TreasuryService service;
   final List<TreasuryLedgerRow>? initialRows;
@@ -64,52 +60,58 @@ class _LedgerScreenState extends State<LedgerScreen> {
   }
 
   List<TreasuryLedgerRow> _applyFilters(List<TreasuryLedgerRow> rows) {
-    return rows.where((row) {
-      // Type filter
-      if (_typeFilter == LedgerTypeFilter.systemGenerated &&
-          !row.isSystemGenerated) {
-        return false;
-      }
-      if (_typeFilter == LedgerTypeFilter.manual && row.isSystemGenerated) {
-        return false;
-      }
-      if (_specificType != null && row.type != _specificType) {
-        return false;
-      }
+    return rows
+        .where((row) {
+          // Type filter
+          if (_typeFilter == LedgerTypeFilter.systemGenerated &&
+              !row.isSystemGenerated) {
+            return false;
+          }
+          if (_typeFilter == LedgerTypeFilter.manual && row.isSystemGenerated) {
+            return false;
+          }
+          if (_specificType != null && row.type != _specificType) {
+            return false;
+          }
 
-      // Date range filter
-      if (_dateRange != null) {
-        final rowDate = DateTime(row.date.year, row.date.month, row.date.day);
-        final start = DateTime(
-          _dateRange!.start.year,
-          _dateRange!.start.month,
-          _dateRange!.start.day,
-        );
-        final end = DateTime(
-          _dateRange!.end.year,
-          _dateRange!.end.month,
-          _dateRange!.end.day,
-        );
-        if (rowDate.isBefore(start) || rowDate.isAfter(end)) {
-          return false;
-        }
-      }
+          // Date range filter
+          if (_dateRange != null) {
+            final rowDate = DateTime(
+              row.date.year,
+              row.date.month,
+              row.date.day,
+            );
+            final start = DateTime(
+              _dateRange!.start.year,
+              _dateRange!.start.month,
+              _dateRange!.start.day,
+            );
+            final end = DateTime(
+              _dateRange!.end.year,
+              _dateRange!.end.month,
+              _dateRange!.end.day,
+            );
+            if (rowDate.isBefore(start) || rowDate.isAfter(end)) {
+              return false;
+            }
+          }
 
-      // Search query filter
-      if (_searchQuery.isNotEmpty) {
-        final q = _searchQuery.toLowerCase();
-        final matchPurpose = row.purpose.toLowerCase().contains(q);
-        final matchRef = row.reference.toLowerCase().contains(q);
-        final matchType = row.typeLabel.toLowerCase().contains(q);
-        final matchRemarks =
-            row.remarks != null && row.remarks!.toLowerCase().contains(q);
-        if (!matchPurpose && !matchRef && !matchType && !matchRemarks) {
-          return false;
-        }
-      }
+          // Search query filter
+          if (_searchQuery.isNotEmpty) {
+            final q = _searchQuery.toLowerCase();
+            final matchPurpose = row.purpose.toLowerCase().contains(q);
+            final matchRef = row.reference.toLowerCase().contains(q);
+            final matchType = row.typeLabel.toLowerCase().contains(q);
+            final matchRemarks =
+                row.remarks != null && row.remarks!.toLowerCase().contains(q);
+            if (!matchPurpose && !matchRef && !matchType && !matchRemarks) {
+              return false;
+            }
+          }
 
-      return true;
-    }).toList(growable: false);
+          return true;
+        })
+        .toList(growable: false);
   }
 
   @override
@@ -158,28 +160,30 @@ class _LedgerScreenState extends State<LedgerScreen> {
             children: [
               // Search and Quick filter bar
               _buildSearchBar(),
-              if (_hasActiveFilters) _buildActiveFilterChips(allRows.length, filteredRows.length),
+              if (_hasActiveFilters)
+                _buildActiveFilterChips(allRows.length, filteredRows.length),
               Expanded(
                 child: filteredRows.isEmpty
                     ? (allRows.isEmpty
-                        ? const AppStateView.empty(
-                            title: 'No Ledger Entries',
-                            message:
-                                'Fund movements will appear here once funds are added or allocated.',
-                          )
-                        : AppStateView.empty(
-                            title: 'No Matching Movements',
-                            message:
-                                'No fund movements match your selected filters.',
-                            actionLabel: 'Clear Filters',
-                            onAction: _clearFilters,
-                          ))
+                          ? const AppStateView.empty(
+                              title: 'No Ledger Entries',
+                              message: 'Fund movements will appear here once funds are added or allocated.',
+                            )
+                          : AppStateView.empty(
+                              title: 'No Matching Movements',
+                              message: 'No fund movements match your selected filters.',
+                              actionLabel: 'Clear Filters',
+                              onAction: _clearFilters,
+                            ))
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
                         itemCount: filteredRows.length,
                         itemBuilder: (context, index) {
                           final row = filteredRows[index];
-                          return _buildLedgerItem(row, index == filteredRows.length - 1);
+                          return _buildLedgerItem(
+                            row,
+                            index == filteredRows.length - 1,
+                          );
                         },
                       ),
               ),
@@ -210,7 +214,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
                   },
                 )
               : null,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 10,
+          ),
           isDense: true,
         ),
         onChanged: (value) {
@@ -223,73 +230,88 @@ class _LedgerScreenState extends State<LedgerScreen> {
   }
 
   Widget _buildActiveFilterChips(int totalCount, int filteredCount) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      color: const Color(0xFF161C26),
-      child: Row(
-        children: [
-          Text(
-            '$filteredCount of $totalCount rows',
-            style: const TextStyle(
-              color: Color(0xFF94A3B8),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
+    return AnimatedSize(
+      duration: AppMotion.durationFast,
+      curve: AppMotion.curveStandard,
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: 6,
+        ),
+        color: AppColors.surfaceSubtle,
+        child: Row(
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
+                  Text(
+                    '$filteredCount of $totalCount rows',
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   if (_typeFilter != LedgerTypeFilter.all)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: InputChip(
-                        label: Text(
-                          _typeFilter == LedgerTypeFilter.systemGenerated
-                              ? 'System'
-                              : 'Manual',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        onDeleted: () => setState(() => _typeFilter = LedgerTypeFilter.all),
+                    Chip(
+                      label: Text(
+                        _typeFilter == LedgerTypeFilter.systemGenerated
+                            ? 'System-generated'
+                            : 'Manual',
+                        style: const TextStyle(fontSize: 11),
                       ),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      onDeleted: () {
+                        setState(() {
+                          _typeFilter = LedgerTypeFilter.all;
+                        });
+                      },
                     ),
                   if (_specificType != null)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: InputChip(
-                        label: Text(
-                          fundMovementTypeLabel(_specificType!),
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        onDeleted: () => setState(() => _specificType = null),
+                    Chip(
+                      label: Text(
+                        fundMovementTypeLabel(_specificType!),
+                        style: const TextStyle(fontSize: 11),
                       ),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      onDeleted: () {
+                        setState(() {
+                          _specificType = null;
+                        });
+                      },
                     ),
                   if (_dateRange != null)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: InputChip(
-                        label: Text(
-                          '${formatDate(_dateRange!.start)} - ${formatDate(_dateRange!.end)}',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                        onDeleted: () => setState(() => _dateRange = null),
+                    Chip(
+                      label: Text(
+                        '${formatDate(_dateRange!.start)} – ${formatDate(_dateRange!.end)}',
+                        style: const TextStyle(fontSize: 11),
                       ),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      onDeleted: () {
+                        setState(() {
+                          _dateRange = null;
+                        });
+                      },
                     ),
                 ],
               ),
             ),
-          ),
-          TextButton(
-            onPressed: _clearFilters,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              minimumSize: const Size(0, 32),
+            TextButton(
+              onPressed: _clearFilters,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                minimumSize: const Size(0, 28),
+              ),
+              child: const Text('Reset', style: TextStyle(fontSize: 12)),
             ),
-            child: const Text('Reset', style: TextStyle(fontSize: 12)),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -299,9 +321,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
       key: Key('ledgerRow${row.id}'),
       leading: Icon(
         row.isSystemGenerated ? Icons.lock_outline : Icons.edit_note,
-        color: row.isSystemGenerated
-            ? const Color(0xFF38BDF8)
-            : const Color(0xFFF59E0B),
+        color: row.isSystemGenerated ? AppColors.info : AppColors.warning,
         size: 20,
       ),
       title: Text(
@@ -309,24 +329,21 @@ class _LedgerScreenState extends State<LedgerScreen> {
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           fontSize: 13.5,
-          color: Color(0xFFF8FAFC),
+          color: AppColors.textPrimary,
         ),
       ),
       subtitle: Text(
         '${row.reference} · ${row.typeLabel} · ${row.dateLabel}',
-        style: const TextStyle(
-          color: Color(0xFF94A3B8),
-          fontSize: 11.5,
-        ),
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
       ),
       trailing: Text(
         row.amountLabel,
         style: const TextStyle(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           fontSize: 13.5,
-          color: Color(0xFFF8FAFC),
+          color: AppColors.textPrimary,
         ),
       ),
       expandedContent: Column(
@@ -350,12 +367,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
             ],
           ),
           if (row.remarks != null && row.remarks!.trim().isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
               'Remarks: ${row.remarks!}',
               style: const TextStyle(
                 color: Color(0xFFCBD5E1),
-                fontSize: 12,
+                fontSize: 11.5,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -366,20 +383,20 @@ class _LedgerScreenState extends State<LedgerScreen> {
     );
   }
 
-  Future<void> _openFilterSheet() async {
+  void _openFilterSheet() {
     var tempTypeFilter = _typeFilter;
-    FundMovementType? tempSpecificType = _specificType;
-    DateTimeRange? tempDateRange = _dateRange;
+    var tempSpecificType = _specificType;
+    var tempDateRange = _dateRange;
 
-    await showModalBottomSheet<void>(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF161C26),
+      backgroundColor: AppColors.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        side: BorderSide(color: Color(0xFF263345)),
+        side: BorderSide(color: AppColors.borderSubtle),
       ),
-      builder: (context) {
+      builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setSheetState) {
             return SafeArea(
@@ -391,23 +408,25 @@ class _LedgerScreenState extends State<LedgerScreen> {
                   children: [
                     Center(
                       child: Container(
-                        width: 40,
+                        width: 36,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: const Color(0xFF334155),
+                          color: AppColors.borderStrong,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: AppSpacing.lg),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
                           'Filter Ledger',
-                          style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w800,
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textPrimary,
+                              ),
                         ),
                         TextButton(
                           onPressed: () {
@@ -421,12 +440,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: AppSpacing.md),
                     const Text(
                       'Origin Category',
                       style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
                         fontSize: 12,
                       ),
                     ),

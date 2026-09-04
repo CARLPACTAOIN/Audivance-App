@@ -20,11 +20,13 @@ class TreasuryScreen extends StatefulWidget {
     required this.service,
     required this.attachmentPicker,
     required this.attachmentStorage,
+    this.refreshTrigger = 0,
   });
 
   final TreasuryService service;
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
+  final int refreshTrigger;
 
   @override
   State<TreasuryScreen> createState() => _TreasuryScreenState();
@@ -32,45 +34,69 @@ class TreasuryScreen extends StatefulWidget {
 
 class _TreasuryScreenState extends State<TreasuryScreen> {
   late Future<TreasurySnapshot> _snapshotFuture;
+  TreasurySnapshot? _cachedSnapshot;
 
   @override
   void initState() {
     super.initState();
-    _snapshotFuture = widget.service.loadSnapshot();
+    _load();
   }
 
   @override
   void didUpdateWidget(TreasuryScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.service != widget.service) {
-      _snapshotFuture = widget.service.loadSnapshot();
+    if (oldWidget.service != widget.service ||
+        oldWidget.refreshTrigger != widget.refreshTrigger) {
+      _load();
     }
+  }
+
+  void _load() {
+    _snapshotFuture = widget.service.loadSnapshot().then((snapshot) {
+      if (mounted) {
+        setState(() {
+          _cachedSnapshot = snapshot;
+        });
+      }
+      return snapshot;
+    });
+  }
+
+  void _refresh() {
+    setState(_load);
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_cachedSnapshot != null) {
+      return _TreasuryContent(
+        key: const ValueKey('content'),
+        snapshot: _cachedSnapshot!,
+        onAddFund: _showAddFundDialog,
+        onManualMovement: _showManualMovementDialog,
+        onOpenFullLedger: () => _openFullLedger(_cachedSnapshot!.ledgerRows),
+      );
+    }
+
     return FutureBuilder<TreasurySnapshot>(
       future: _snapshotFuture,
       builder: (context, snapshot) {
+        final Widget child;
         if (snapshot.connectionState != ConnectionState.done) {
-          return const AppStateView.loading(
+          child = const AppStateView.loading(
+            key: ValueKey('loading'),
             title: 'Loading Treasury',
             message: 'Reading source balances and ledger rows.',
           );
-        }
-        if (snapshot.hasError) {
-          return AppStateView.error(
+        } else if (snapshot.hasError) {
+          child = AppStateView.error(
+            key: const ValueKey('error'),
             title: 'Treasury data could not be loaded',
             message: snapshot.error.toString(),
-            onAction: () {
-              setState(() {
-                _snapshotFuture = widget.service.loadSnapshot();
-              });
-            },
+            onAction: _refresh,
           );
-        }
-        return _TreasuryContent(
-          snapshot:
+        } else {
+          final data =
               snapshot.data ??
               const TreasurySnapshot(
                 totalBalance: Money.zero,
@@ -78,11 +104,17 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
                 ledgerRows: [],
                 eventOptions: [],
                 officerOptions: [],
-              ),
-          onAddFund: _showAddFundDialog,
-          onManualMovement: _showManualMovementDialog,
-          onOpenFullLedger: () => _openFullLedger(snapshot.data?.ledgerRows ?? const []),
-        );
+              );
+          _cachedSnapshot = data;
+          child = _TreasuryContent(
+            key: const ValueKey('content'),
+            snapshot: data,
+            onAddFund: _showAddFundDialog,
+            onManualMovement: _showManualMovementDialog,
+            onOpenFullLedger: () => _openFullLedger(data.ledgerRows),
+          );
+        }
+        return AppCrossfade(child: child);
       },
     );
   }
@@ -91,10 +123,8 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => LedgerScreen(
-          service: widget.service,
-          initialRows: rows,
-        ),
+        builder: (context) =>
+            LedgerScreen(service: widget.service, initialRows: rows),
       ),
     );
   }
@@ -116,9 +146,7 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     if (!mounted || result == null || result.isInvalid) {
       return;
     }
-    setState(() {
-      _snapshotFuture = widget.service.loadSnapshot();
-    });
+    _refresh();
   }
 
   Future<void> _showManualMovementDialog() async {
@@ -138,14 +166,13 @@ class _TreasuryScreenState extends State<TreasuryScreen> {
     if (!mounted || result == null || result.isInvalid) {
       return;
     }
-    setState(() {
-      _snapshotFuture = widget.service.loadSnapshot();
-    });
+    _refresh();
   }
 }
 
 class _TreasuryContent extends StatelessWidget {
   const _TreasuryContent({
+    super.key,
     required this.snapshot,
     required this.onAddFund,
     required this.onManualMovement,
@@ -173,17 +200,25 @@ class _TreasuryContent extends StatelessWidget {
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  _TreasuryHeader(
-                    snapshot: snapshot,
-                    onAddFund: onAddFund,
-                    onManualMovement: onManualMovement,
+                  AppSlideFadeIn(
+                    child: _TreasuryHeader(
+                      snapshot: snapshot,
+                      onAddFund: onAddFund,
+                      onManualMovement: onManualMovement,
+                    ),
                   ),
                   const SizedBox(height: 16),
-                  _SourceGridSection(sources: snapshot.sources),
+                  AppSlideFadeIn(
+                    delay: AppMotion.staggerStep,
+                    child: _SourceGridSection(sources: snapshot.sources),
+                  ),
                   const SizedBox(height: 16),
-                  _RecentLedgerSection(
-                    rows: snapshot.ledgerRows,
-                    onOpenFullLedger: onOpenFullLedger,
+                  AppSlideFadeIn(
+                    delay: AppMotion.staggerStep * 2,
+                    child: _RecentLedgerSection(
+                      rows: snapshot.ledgerRows,
+                      onOpenFullLedger: onOpenFullLedger,
+                    ),
                   ),
                 ]),
               ),
@@ -268,58 +303,46 @@ class _SourceGridSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(
+            icon: Icons.account_balance,
+            title: 'Fund Sources',
+            trailing: StatusBadge(
+              label:
+                  '${sources.length} source${sources.length == 1 ? '' : 's'}',
+              tone: InlineStatusTone.info,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (sources.isEmpty)
+            const _EmptyPanelMessage(
+              icon: Icons.account_balance_outlined,
+              text: 'Add the first fund source to begin the Treasury ledger.',
+            )
+          else
+            Column(
               children: [
-                const Icon(
-                  Icons.account_balance,
-                  size: 20,
-                  color: Color(0xFF38BDF8),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Fund Sources',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const Spacer(),
-                StatusBadge(
-                  label: '${sources.length} source${sources.length == 1 ? '' : 's'}',
-                  tone: InlineStatusTone.info,
-                ),
+                for (var i = 0; i < sources.length; i += 2) ...[
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _SourceCard(source: sources[i])),
+                      const SizedBox(width: AppSpacing.md),
+                      if (i + 1 < sources.length)
+                        Expanded(child: _SourceCard(source: sources[i + 1]))
+                      else
+                        const Spacer(),
+                    ],
+                  ),
+                  if (i + 2 < sources.length)
+                    const SizedBox(height: AppSpacing.md),
+                ],
               ],
             ),
-            const SizedBox(height: 12),
-            if (sources.isEmpty)
-              const _EmptyPanelMessage(
-                icon: Icons.account_balance_outlined,
-                text: 'Add the first fund source to begin the Treasury ledger.',
-              )
-            else
-              Column(
-                children: [
-                  for (var i = 0; i < sources.length; i += 2) ...[
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _SourceCard(source: sources[i])),
-                        const SizedBox(width: 10),
-                        if (i + 1 < sources.length)
-                          Expanded(child: _SourceCard(source: sources[i + 1]))
-                        else
-                          const Spacer(),
-                      ],
-                    ),
-                    if (i + 2 < sources.length) const SizedBox(height: 10),
-                  ],
-                ],
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -335,11 +358,14 @@ class _SourceCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Container(
       constraints: const BoxConstraints(minHeight: 76),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.md - 2,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFF161C26),
-        border: Border.all(color: const Color(0xFF263345)),
-        borderRadius: BorderRadius.circular(10),
+        color: AppColors.surfaceSubtle,
+        border: Border.all(color: AppColors.borderSubtle),
+        borderRadius: AppRadius.borderMd,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,8 +376,8 @@ class _SourceCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: textTheme.labelMedium?.copyWith(
-              color: const Color(0xFF94A3B8),
-              fontWeight: FontWeight.w600,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 4),
@@ -360,8 +386,8 @@ class _SourceCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF10B981),
+              fontWeight: FontWeight.w700,
+              color: AppColors.success,
             ),
           ),
           if (source.supportingAttachment != null) ...[
@@ -371,7 +397,7 @@ class _SourceCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                color: Color(0xFF64748B),
+                color: AppColors.textMuted,
                 fontSize: 10.5,
               ),
             ),
@@ -395,59 +421,54 @@ class _RecentLedgerSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final recentRows = rows.take(5).toList(growable: false);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.timeline_outlined,
-                  size: 20,
-                  color: Color(0xFFF59E0B),
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(
+            icon: Icons.timeline_outlined,
+            title: 'Ledger',
+            trailing: OutlinedButton.icon(
+              key: const Key('treasuryViewFullLedgerButton'),
+              onPressed: onOpenFullLedger,
+              icon: const Icon(Icons.list_alt, size: 16),
+              label: const Text('View Full Ledger'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
                 ),
-                const SizedBox(width: 8),
-                Text('Ledger', style: Theme.of(context).textTheme.titleLarge),
-                const Spacer(),
-                OutlinedButton.icon(
-                  key: const Key('treasuryViewFullLedgerButton'),
-                  onPressed: onOpenFullLedger,
-                  icon: const Icon(Icons.list_alt, size: 16),
-                  label: const Text('View Full Ledger'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    minimumSize: const Size(0, 36),
-                  ),
-                ),
-              ],
+                minimumSize: const Size(0, 36),
+              ),
             ),
-            const SizedBox(height: 12),
-            if (rows.isEmpty)
-              const _EmptyPanelMessage(
-                icon: Icons.timeline_outlined,
-                text: 'Ledger movements appear after funds are added.',
-              )
-            else ...[
-              for (var i = 0; i < recentRows.length; i++)
-                _buildCompactLedgerRow(recentRows[i], i == recentRows.length - 1 && rows.length <= 5),
-              if (rows.length > 5) ...[
-                const SizedBox(height: 8),
-                Center(
-                  child: TextButton.icon(
-                    onPressed: onOpenFullLedger,
-                    icon: const Icon(Icons.arrow_forward, size: 14),
-                    label: Text(
-                      'View all ${rows.length} records in full ledger',
-                      style: const TextStyle(fontSize: 12.5),
-                    ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (rows.isEmpty)
+            const _EmptyPanelMessage(
+              icon: Icons.timeline_outlined,
+              text: 'Ledger movements appear after funds are added.',
+            )
+          else ...[
+            for (var i = 0; i < recentRows.length; i++)
+              _buildCompactLedgerRow(
+                recentRows[i],
+                i == recentRows.length - 1 && rows.length <= 5,
+              ),
+            if (rows.length > 5) ...[
+              const SizedBox(height: AppSpacing.sm),
+              Center(
+                child: TextButton.icon(
+                  onPressed: onOpenFullLedger,
+                  icon: const Icon(Icons.arrow_forward, size: 14),
+                  label: Text(
+                    'View all ${rows.length} records in full ledger',
+                    style: const TextStyle(fontSize: 12.5),
                   ),
                 ),
-              ],
+              ),
             ],
           ],
-        ),
+        ],
       ),
     );
   }
@@ -476,10 +497,7 @@ class _RecentLedgerSection extends StatelessWidget {
         '${row.reference} · ${row.typeLabel} · ${row.dateLabel}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Color(0xFF94A3B8),
-          fontSize: 11.5,
-        ),
+        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5),
       ),
       trailing: Text(
         row.amountLabel,
@@ -496,9 +514,7 @@ class _RecentLedgerSection extends StatelessWidget {
             label: row.isSystemGenerated
                 ? 'System-generated, protected'
                 : 'Manual movement',
-            icon: row.isSystemGenerated
-                ? Icons.lock_outline
-                : Icons.edit_note,
+            icon: row.isSystemGenerated ? Icons.lock_outline : Icons.edit_note,
             tone: row.isSystemGenerated
                 ? InlineStatusTone.info
                 : InlineStatusTone.warning,

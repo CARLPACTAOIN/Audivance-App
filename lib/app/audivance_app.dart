@@ -131,46 +131,55 @@ class _AudivanceAppState extends State<AudivanceApp> {
       home: FutureBuilder<AppStartupState>(
         future: _startupState,
         builder: (context, snapshot) {
+          final Widget child;
           if (snapshot.connectionState != ConnectionState.done) {
-            return const _StartupLoadingScreen();
+            child = const _StartupLoadingScreen(key: ValueKey('loading'));
+          } else {
+            final startupError = _startupError ?? snapshot.error;
+            if (startupError != null) {
+              child = _StartupErrorScreen(
+                key: const ValueKey('error'),
+                error: startupError,
+                onRetry: _retryStartup,
+              );
+            } else {
+              final state = snapshot.data ?? AppStartupState.needsSetup;
+              child = KeyedSubtree(
+                key: ValueKey(state),
+                child: switch (state) {
+                  AppStartupState.needsSetup => SetupScreen(
+                    idGenerator: _idGenerator,
+                    onSubmitWorkspace: _submitSetupWorkspace,
+                    onSetupComplete: _showDashboard,
+                  ),
+                  AppStartupState.needsCredentialUpgrade =>
+                    CredentialUpgradeScreen(
+                      onSubmitCredential: _submitCredentialUpgrade,
+                      onConfigured: _showDashboard,
+                    ),
+                  AppStartupState.needsUnlock => UnlockScreen(
+                    unlockService: _unlockService,
+                    onUnlocked: _unlockAndShowDashboard,
+                  ),
+                  AppStartupState.ready => WorkspaceShell(
+                    repository: _repository!,
+                    idGenerator: _idGenerator,
+                    attachmentPicker: _attachmentPicker,
+                    attachmentStorage: _attachmentStorage,
+                    exportPackageWriter: widget.exportPackageWriter,
+                    backupService: widget.backupService,
+                    backupPackageWriter: widget.backupPackageWriter,
+                    backupPackageReader: widget.backupPackageReader,
+                    onRestoreBackup:
+                        widget.backupRestoreHandler ?? _restoreBackupAndReload,
+                    asOf: widget.asOf,
+                    storagePaths: _storagePaths,
+                  ),
+                },
+              );
+            }
           }
-          final startupError = _startupError ?? snapshot.error;
-          if (startupError != null) {
-            return _StartupErrorScreen(
-              error: startupError,
-              onRetry: _retryStartup,
-            );
-          }
-
-          return switch (snapshot.data ?? AppStartupState.needsSetup) {
-            AppStartupState.needsSetup => SetupScreen(
-              idGenerator: _idGenerator,
-              onSubmitWorkspace: _submitSetupWorkspace,
-              onSetupComplete: _showDashboard,
-            ),
-            AppStartupState.needsCredentialUpgrade => CredentialUpgradeScreen(
-              onSubmitCredential: _submitCredentialUpgrade,
-              onConfigured: _showDashboard,
-            ),
-            AppStartupState.needsUnlock => UnlockScreen(
-              unlockService: _unlockService,
-              onUnlocked: _unlockAndShowDashboard,
-            ),
-            AppStartupState.ready => WorkspaceShell(
-              repository: _repository!,
-              idGenerator: _idGenerator,
-              attachmentPicker: _attachmentPicker,
-              attachmentStorage: _attachmentStorage,
-              exportPackageWriter: widget.exportPackageWriter,
-              backupService: widget.backupService,
-              backupPackageWriter: widget.backupPackageWriter,
-              backupPackageReader: widget.backupPackageReader,
-              onRestoreBackup:
-                  widget.backupRestoreHandler ?? _restoreBackupAndReload,
-              asOf: widget.asOf,
-              storagePaths: _storagePaths,
-            ),
-          };
+          return AppCrossfade(child: child);
         },
       ),
     );
@@ -349,107 +358,119 @@ class _AudivanceAppState extends State<AudivanceApp> {
   ThemeData _buildTheme() {
     const colorScheme = ColorScheme(
       brightness: Brightness.dark,
-      primary: Color(0xFFD97706), // Warm Amber-Gold (Logo 'A')
-      onPrimary: Colors.white,
+      primary: AppColors.brand,
+      onPrimary: AppColors.onBrand,
       primaryContainer: Color(0xFF451A03),
       onPrimaryContainer: Color(0xFFFDE68A),
-      secondary: Color(0xFF10B981), // Emerald Green (Logo inner badge)
+      secondary: AppColors.success,
       onSecondary: Colors.white,
       secondaryContainer: Color(0xFF064E3B),
       onSecondaryContainer: Color(0xFFA7F3D0),
-      error: Color(0xFFEF4444),
+      error: AppColors.error,
       onError: Colors.white,
-      surface: Color(0xFF161C26), // Dark Slate Card & Dialog Surface
-      onSurface: Color(0xFFF8FAFC),
-      onSurfaceVariant: Color(0xFF94A3B8),
-      outline: Color(0xFF263345),
-      outlineVariant: Color(0xFF1E293B),
+      surface: AppColors.surface,
+      onSurface: AppColors.textPrimary,
+      onSurfaceVariant: AppColors.textSecondary,
+      outline: AppColors.borderStrong,
+      outlineVariant: AppColors.borderSubtle,
     );
 
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: colorScheme,
-      scaffoldBackgroundColor: const Color(0xFF0D1117),
-      canvasColor: const Color(0xFF0D1117),
+      scaffoldBackgroundColor: AppColors.canvas,
+      canvasColor: AppColors.canvas,
       appBarTheme: const AppBarTheme(
         centerTitle: false,
         backgroundColor: Color(0xFF111620),
-        foregroundColor: Color(0xFFF8FAFC),
+        foregroundColor: AppColors.textPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         titleTextStyle: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w700,
-          color: Color(0xFFF8FAFC),
+          color: AppColors.textPrimary,
           letterSpacing: -0.2,
         ),
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.borderLg,
+          side: const BorderSide(color: AppColors.borderSubtle),
+        ),
+      ),
       cardTheme: CardThemeData(
-        color: const Color(0xFF161C26),
+        color: AppColors.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: Color(0xFF263345)),
+          borderRadius: AppRadius.borderLg,
+          side: const BorderSide(color: AppColors.borderSubtle),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(44, 44),
-          backgroundColor: const Color(0xFFD97706),
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.brand,
+          foregroundColor: AppColors.onBrand,
           elevation: 0,
           textStyle: const TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.2,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
           ),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(44, 44),
-          foregroundColor: const Color(0xFFF8FAFC),
-          side: const BorderSide(color: Color(0xFF334155)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          foregroundColor: AppColors.textPrimary,
+          side: const BorderSide(color: AppColors.borderStrong),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.borderMd),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: const Color(0xFFF59E0B),
+          foregroundColor: AppColors.brandLight,
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF121824),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        fillColor: AppColors.surfaceSubtle,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.md + 2,
+        ),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF263345)),
+          borderRadius: AppRadius.borderMd,
+          borderSide: const BorderSide(color: AppColors.borderSubtle),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFF263345)),
+          borderRadius: AppRadius.borderMd,
+          borderSide: const BorderSide(color: AppColors.borderSubtle),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFD97706), width: 1.8),
+          borderRadius: AppRadius.borderMd,
+          borderSide: const BorderSide(color: AppColors.brand, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFEF4444)),
+          borderRadius: AppRadius.borderMd,
+          borderSide: const BorderSide(color: AppColors.error),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.8),
+          borderRadius: AppRadius.borderMd,
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
         ),
-        labelStyle: const TextStyle(color: Color(0xFF94A3B8)),
-        floatingLabelStyle: const TextStyle(color: Color(0xFFF59E0B)),
-        helperStyle: const TextStyle(color: Color(0xFF64748B)),
+        labelStyle: const TextStyle(color: AppColors.textSecondary),
+        floatingLabelStyle: const TextStyle(color: AppColors.brandLight),
+        helperStyle: const TextStyle(color: AppColors.textMuted),
         errorStyle: const TextStyle(color: Color(0xFFF87171)),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
@@ -460,66 +481,81 @@ class _AudivanceAppState extends State<AudivanceApp> {
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        indicatorColor: const Color(0xFF382307),
+        indicatorColor: AppColors.brandContainer,
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: Color(0xFFF59E0B));
+            return const IconThemeData(color: AppColors.brandLight);
           }
-          return const IconThemeData(color: Color(0xFF94A3B8));
+          return const IconThemeData(color: AppColors.textSecondary);
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return const TextStyle(
               fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFFF59E0B),
+              fontWeight: FontWeight.w600,
+              color: AppColors.brandLight,
             );
           }
           return const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w500,
-            color: Color(0xFF94A3B8),
+            color: AppColors.textSecondary,
           );
         }),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: const Color(0xFF121824),
-        disabledColor: const Color(0xFF161C26),
-        selectedColor: const Color(0xFF382307),
+        backgroundColor: AppColors.surfaceSubtle,
+        disabledColor: AppColors.surface,
+        selectedColor: AppColors.brandContainer,
         secondarySelectedColor: const Color(0xFF064E3B),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(color: Color(0xFF263345)),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm + 2,
+          vertical: AppSpacing.xs,
         ),
-        labelStyle: const TextStyle(color: Color(0xFFE2E8F0), fontSize: 13),
-        secondaryLabelStyle: const TextStyle(color: Color(0xFFF59E0B), fontSize: 13),
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.borderSm,
+          side: const BorderSide(color: AppColors.borderSubtle),
+        ),
+        labelStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+        secondaryLabelStyle: const TextStyle(
+          color: AppColors.brandLight,
+          fontSize: 13,
+        ),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+        },
       ),
       dividerTheme: const DividerThemeData(
-        color: Color(0xFF1E293B),
+        color: AppColors.divider,
         thickness: 1,
         space: 1,
       ),
       textTheme: const TextTheme(
         headlineMedium: TextStyle(
-          fontSize: 26,
-          fontWeight: FontWeight.w700,
-          height: 1.2,
-          color: Color(0xFFF8FAFC),
-          letterSpacing: -0.5,
-        ),
-        titleLarge: TextStyle(
-          fontSize: 19,
+          fontSize: 24,
           fontWeight: FontWeight.w700,
           height: 1.25,
-          color: Color(0xFFF8FAFC),
+          color: AppColors.textPrimary,
+          letterSpacing: -0.4,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          height: 1.3,
+          color: AppColors.textPrimary,
           letterSpacing: -0.2,
         ),
         titleMedium: TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.w600,
           height: 1.35,
-          color: Color(0xFFF1F5F9),
+          color: AppColors.textPrimary,
         ),
         bodyLarge: TextStyle(
           fontSize: 15,
@@ -529,18 +565,18 @@ class _AudivanceAppState extends State<AudivanceApp> {
         bodyMedium: TextStyle(
           fontSize: 14,
           height: 1.45,
-          color: Color(0xFF94A3B8),
+          color: AppColors.textSecondary,
         ),
         bodySmall: TextStyle(
           fontSize: 12,
           height: 1.4,
-          color: Color(0xFF64748B),
+          color: AppColors.textMuted,
         ),
         labelLarge: TextStyle(
           fontSize: 14,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           height: 1.3,
-          color: Color(0xFFF8FAFC),
+          color: AppColors.textPrimary,
         ),
       ),
     );
@@ -548,7 +584,7 @@ class _AudivanceAppState extends State<AudivanceApp> {
 }
 
 class _StartupLoadingScreen extends StatelessWidget {
-  const _StartupLoadingScreen();
+  const _StartupLoadingScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -578,7 +614,11 @@ class _StartupLoadingScreen extends StatelessWidget {
 }
 
 class _StartupErrorScreen extends StatelessWidget {
-  const _StartupErrorScreen({required this.error, required this.onRetry});
+  const _StartupErrorScreen({
+    super.key,
+    required this.error,
+    required this.onRetry,
+  });
 
   final Object? error;
   final VoidCallback onRetry;

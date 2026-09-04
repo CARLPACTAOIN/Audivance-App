@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../app/ui/app_ui.dart';
@@ -7,7 +9,6 @@ import '../../core/domain/money.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 import '../liquidation/liquidation_service.dart';
-import '../organization/organization_service.dart';
 import '../treasury/treasury_formatters.dart';
 import 'event_details_screen.dart';
 import 'event_dialogs.dart';
@@ -20,19 +21,21 @@ class EventScreen extends StatefulWidget {
   const EventScreen({
     super.key,
     required this.service,
-    required this.organizationService,
     required this.liquidationService,
     required this.attachmentPicker,
     required this.attachmentStorage,
     this.asOf,
+    this.refreshTrigger = 0,
+    this.onOpenOfficerManagement,
   });
 
   final EventService service;
-  final OrganizationService organizationService;
   final LiquidationService liquidationService;
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
   final DateTime? asOf;
+  final int refreshTrigger;
+  final VoidCallback? onOpenOfficerManagement;
 
   @override
   State<EventScreen> createState() => _EventScreenState();
@@ -40,21 +43,23 @@ class EventScreen extends StatefulWidget {
 
 class _EventScreenState extends State<EventScreen> {
   late Future<EventWorkspaceSnapshot> _snapshotFuture;
+  EventWorkspaceSnapshot? _cachedSnapshot;
 
   @override
   void initState() {
     super.initState();
-    _snapshotFuture = _loadSnapshot();
+    _load();
   }
 
   @override
   void didUpdateWidget(EventScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.service != widget.service ||
-        oldWidget.organizationService != widget.organizationService ||
         oldWidget.liquidationService != widget.liquidationService ||
-        oldWidget.asOf != widget.asOf) {
-      _snapshotFuture = _loadSnapshot();
+        oldWidget.asOf != widget.asOf ||
+        oldWidget.refreshTrigger != widget.refreshTrigger ||
+        oldWidget.onOpenOfficerManagement != widget.onOpenOfficerManagement) {
+      _load();
     }
   }
 
@@ -63,10 +68,19 @@ class _EventScreenState extends State<EventScreen> {
     return widget.service.loadSnapshot(asOf: asOf);
   }
 
-  void _refresh() {
-    setState(() {
-      _snapshotFuture = _loadSnapshot();
+  void _load() {
+    _snapshotFuture = _loadSnapshot().then((snapshot) {
+      if (mounted) {
+        setState(() {
+          _cachedSnapshot = snapshot;
+        });
+      }
+      return snapshot;
     });
+  }
+
+  void _refresh() {
+    setState(_load);
   }
 
   Future<void> _openEventDetails(EventCardView event) async {
@@ -76,11 +90,11 @@ class _EventScreenState extends State<EventScreen> {
         builder: (context) => EventDetailsScreen(
           eventId: event.id,
           service: widget.service,
-          organizationService: widget.organizationService,
           liquidationService: widget.liquidationService,
           attachmentPicker: widget.attachmentPicker,
           attachmentStorage: widget.attachmentStorage,
           asOf: widget.asOf,
+          onOpenOfficerManagement: widget.onOpenOfficerManagement,
         ),
       ),
     );
@@ -109,30 +123,46 @@ class _EventScreenState extends State<EventScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_cachedSnapshot != null) {
+      return _EventOverviewContent(
+        key: const ValueKey('content'),
+        snapshot: _cachedSnapshot!,
+        onCreateEvent: () =>
+            _showCreateEventDialog(_cachedSnapshot!.sourceOptions),
+        onSelectEvent: _openEventDetails,
+      );
+    }
+
     return FutureBuilder<EventWorkspaceSnapshot>(
       future: _snapshotFuture,
       builder: (context, snapshot) {
+        final Widget child;
         if (snapshot.connectionState != ConnectionState.done) {
-          return const AppStateView.loading(
+          child = const AppStateView.loading(
+            key: ValueKey('loading'),
             title: 'Loading Events',
             message: 'Reading events and treasury allocations.',
           );
-        }
-        if (snapshot.hasError) {
-          return AppStateView.error(
+        } else if (snapshot.hasError) {
+          child = AppStateView.error(
+            key: const ValueKey('error'),
             title: 'Events data could not be loaded',
             message: snapshot.error.toString(),
             onAction: _refresh,
           );
+        } else {
+          final data =
+              snapshot.data ??
+              const EventWorkspaceSnapshot(events: [], sourceOptions: []);
+          _cachedSnapshot = data;
+          child = _EventOverviewContent(
+            key: const ValueKey('content'),
+            snapshot: data,
+            onCreateEvent: () => _showCreateEventDialog(data.sourceOptions),
+            onSelectEvent: _openEventDetails,
+          );
         }
-        final data =
-            snapshot.data ??
-            const EventWorkspaceSnapshot(events: [], sourceOptions: []);
-        return _EventOverviewContent(
-          snapshot: data,
-          onCreateEvent: () => _showCreateEventDialog(data.sourceOptions),
-          onSelectEvent: _openEventDetails,
-        );
+        return AppCrossfade(child: child);
       },
     );
   }
@@ -140,6 +170,7 @@ class _EventScreenState extends State<EventScreen> {
 
 class _EventOverviewContent extends StatelessWidget {
   const _EventOverviewContent({
+    super.key,
     required this.snapshot,
     required this.onCreateEvent,
     required this.onSelectEvent,
@@ -165,14 +196,19 @@ class _EventOverviewContent extends StatelessWidget {
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  _EventOverviewHeader(
-                    snapshot: snapshot,
-                    onCreateEvent: onCreateEvent,
+                  AppSlideFadeIn(
+                    child: _EventOverviewHeader(
+                      snapshot: snapshot,
+                      onCreateEvent: onCreateEvent,
+                    ),
                   ),
                   const SizedBox(height: 16),
-                  _EventCardList(
-                    events: snapshot.events,
-                    onSelectEvent: onSelectEvent,
+                  AppSlideFadeIn(
+                    delay: AppMotion.staggerStep,
+                    child: _EventCardList(
+                      events: snapshot.events,
+                      onSelectEvent: onSelectEvent,
+                    ),
                   ),
                 ]),
               ),
@@ -200,8 +236,9 @@ class _EventOverviewHeader extends StatelessWidget {
       Money.zero,
       (total, event) => total + event.budget,
     );
-    final openEvents =
-        snapshot.events.where((e) => e.statusLabel != 'Liquidated').length;
+    final openEvents = snapshot.events
+        .where((e) => e.statusLabel != 'Liquidated')
+        .length;
 
     return Wrap(
       spacing: 12,
@@ -224,10 +261,7 @@ class _EventOverviewHeader extends StatelessWidget {
                   value: formatPhpMoney(totalBudget),
                   label: 'Approved Budget',
                 ),
-                CompactStat(
-                  value: '$openEvents open records',
-                  label: '',
-                ),
+                CompactStat(value: '$openEvents open records', label: ''),
               ],
             ),
           ],
@@ -244,10 +278,7 @@ class _EventOverviewHeader extends StatelessWidget {
 }
 
 class _EventCardList extends StatelessWidget {
-  const _EventCardList({
-    required this.events,
-    required this.onSelectEvent,
-  });
+  const _EventCardList({required this.events, required this.onSelectEvent});
 
   final List<EventCardView> events;
   final ValueChanged<EventCardView> onSelectEvent;
@@ -259,17 +290,19 @@ class _EventCardList extends StatelessWidget {
       child: events.isEmpty
           ? const _OverviewEmptyMessage(
               icon: Icons.event_busy_outlined,
-              text:
-                  'Fund Treasury first, then create the first event with split funding.',
+              text: 'Fund Treasury first, then create the first event with split funding.',
             )
           : Column(
               children: [
-                for (final event in events) ...[
-                  _EventCard(
-                    event: event,
-                    onTap: () => onSelectEvent(event),
+                for (var i = 0; i < events.length; i++) ...[
+                  AppSlideFadeIn(
+                    delay: AppMotion.staggerStep * math.min(i, 5),
+                    child: _EventCard(
+                      event: events[i],
+                      onTap: () => onSelectEvent(events[i]),
+                    ),
                   ),
-                  if (event != events.last) const SizedBox(height: 10),
+                  if (i < events.length - 1) const SizedBox(height: 10),
                 ],
               ],
             ),
@@ -278,10 +311,7 @@ class _EventCardList extends StatelessWidget {
 }
 
 class _EventCard extends StatelessWidget {
-  const _EventCard({
-    required this.event,
-    required this.onTap,
-  });
+  const _EventCard({required this.event, required this.onTap});
 
   final EventCardView event;
   final VoidCallback onTap;
@@ -296,13 +326,14 @@ class _EventCard extends StatelessWidget {
       AuditEventStatus.liquidated => InlineStatusTone.success,
     };
 
-    return Card(
+    return AppCard(
       key: Key('eventCard${event.id}'),
-      clipBehavior: Clip.antiAlias,
+      padding: EdgeInsets.zero,
       child: InkWell(
         onTap: onTap,
+        borderRadius: AppRadius.borderLg,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(AppSpacing.md + 2),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -311,10 +342,10 @@ class _EventCard extends StatelessWidget {
                 children: [
                   const Icon(
                     Icons.event_note,
-                    color: Color(0xFFD97706),
-                    size: 22,
+                    color: AppColors.brandLight,
+                    size: 20,
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,39 +353,34 @@ class _EventCard extends StatelessWidget {
                         Text(
                           event.name,
                           style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           '${event.type} · ${event.dateRangeLabel}',
                           style: textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFF94A3B8),
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  StatusBadge(
-                    label: event.statusLabel,
-                    tone: tone,
-                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  StatusBadge(label: event.statusLabel, tone: tone),
                 ],
               ),
-              const SizedBox(height: 10),
-              const Divider(height: 1, color: Color(0xFF1E293B)),
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpacing.md),
+              const Divider(height: 1, color: AppColors.divider),
+              const SizedBox(height: AppSpacing.md),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: CompactStatRow(
                       items: [
-                        CompactStat(
-                          value: event.budgetLabel,
-                          label: 'budget',
-                        ),
+                        CompactStat(value: event.budgetLabel, label: 'budget'),
                         CompactStat(
                           value: event.approvedBudgetBalanceLabel,
                           label: 'balance',
@@ -369,7 +395,7 @@ class _EventCard extends StatelessWidget {
                   IconButton(
                     key: Key('eventManageButton${event.id}'),
                     icon: const Icon(Icons.arrow_forward_ios, size: 14),
-                    color: const Color(0xFF94A3B8),
+                    color: AppColors.textMuted,
                     onPressed: onTap,
                     tooltip: 'Manage Event',
                   ),
@@ -391,20 +417,14 @@ class _OverviewPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(title: title),
+          const SizedBox(height: AppSpacing.md),
+          child,
+        ],
       ),
     );
   }
@@ -419,18 +439,20 @@ class _OverviewEmptyMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+      padding: const EdgeInsets.symmetric(
+        vertical: AppSpacing.xl,
+        horizontal: AppSpacing.sm,
+      ),
       child: Center(
         child: Column(
           children: [
-            Icon(icon, size: 40, color: const Color(0xFF64748B)),
-            const SizedBox(height: 12),
+            Icon(icon, size: 36, color: AppColors.textMuted),
+            const SizedBox(height: AppSpacing.md),
             Text(
               text,
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFF94A3B8),
-              ),
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: AppColors.textSecondary),
             ),
           ],
         ),

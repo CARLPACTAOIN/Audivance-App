@@ -10,7 +10,6 @@ import '../../core/domain/money.dart';
 import '../audit/domain/audit_models.dart';
 import '../treasury/treasury_formatters.dart';
 import '../liquidation/liquidation_service.dart';
-import '../organization/organization_service.dart';
 import 'event_service.dart';
 
 class CreateEventDialog extends StatefulWidget {
@@ -223,8 +222,8 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
                         purpose: 'resolution',
                         contextLabelProvider: () =>
                             _nameController.text.trim().isNotEmpty
-                                ? _nameController.text.trim()
-                                : null,
+                            ? _nameController.text.trim()
+                            : null,
                       ),
                       picker: widget.attachmentPicker,
                       storage: widget.attachmentStorage,
@@ -284,15 +283,11 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
                   vertical: 14,
                 ),
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest
                       .withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .outlineVariant
+                    color: Theme.of(context).colorScheme.outlineVariant
                         .withValues(alpha: 0.5),
                   ),
                 ),
@@ -302,17 +297,17 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
                     Text(
                       'Total Event Budget',
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: const Color(0xFF94A3B8),
-                          ),
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF94A3B8),
+                      ),
                     ),
                     Text(
                       formatPhpMoney(_totalBudget()),
                       key: const Key('eventDerivedTotalBudgetText'),
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF38BDF8),
-                          ),
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF38BDF8),
+                      ),
                     ),
                   ],
                 ),
@@ -854,97 +849,6 @@ class _BudgetReviewDialogState extends State<BudgetReviewDialog> {
         findings: _findingsController.text,
         cause: _causeController.text,
         recommendation: _recommendationController.text,
-      ),
-    );
-    if (!mounted) {
-      return;
-    }
-    if (result.isInvalid) {
-      setState(() {
-        _isSubmitting = false;
-        _serviceError = result.summary;
-      });
-      return;
-    }
-    Navigator.pop(context, result);
-  }
-}
-
-class CreateOfficerDialog extends StatefulWidget {
-  const CreateOfficerDialog({super.key, required this.service});
-
-  final OrganizationService service;
-
-  @override
-  State<CreateOfficerDialog> createState() => _CreateOfficerDialogState();
-}
-
-class _CreateOfficerDialogState extends State<CreateOfficerDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  String? _serviceError;
-  var _isSubmitting = false;
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Officer'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              key: const Key('officerNameField'),
-              controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Officer name'),
-              validator: _requiredValidator,
-            ),
-            if (_serviceError != null) ...[
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  _serviceError!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          key: const Key('officerSubmitButton'),
-          onPressed: _isSubmitting ? null : _submit,
-          child: const Text('Save Officer'),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-    setState(() {
-      _isSubmitting = true;
-      _serviceError = null;
-    });
-    final result = await widget.service.saveOfficer(
-      SaveOfficerCommand(
-        fullName: _nameController.text,
-        position: OfficerPosition.member,
       ),
     );
     if (!mounted) {

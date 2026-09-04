@@ -72,12 +72,12 @@ void main() {
   });
 
   Widget createSubject() {
-    return MaterialApp(
-      home: LedgerScreen(service: service),
-    );
+    return MaterialApp(home: LedgerScreen(service: service));
   }
 
-  testWidgets('LedgerScreen renders all records and search bar', (tester) async {
+  testWidgets('LedgerScreen renders all records and search bar', (
+    tester,
+  ) async {
     await tester.pumpWidget(createSubject());
     await tester.pumpAndSettle();
 
@@ -103,7 +103,9 @@ void main() {
     expect(find.text('Unused Cash Advance Return'), findsNothing);
   });
 
-  testWidgets('LedgerScreen expands row on tap to reveal remarks and badges', (tester) async {
+  testWidgets('LedgerScreen expands row on tap to reveal remarks and badges', (
+    tester,
+  ) async {
     await tester.pumpWidget(createSubject());
     await tester.pumpAndSettle();
 
@@ -116,30 +118,33 @@ void main() {
     expect(find.text('System-generated, protected'), findsOneWidget);
   });
 
-  testWidgets('LedgerScreen opens filter sheet and filters by movement origin', (tester) async {
-    await tester.pumpWidget(createSubject());
-    await tester.pumpAndSettle();
+  testWidgets(
+    'LedgerScreen opens filter sheet and filters by movement origin',
+    (tester) async {
+      await tester.pumpWidget(createSubject());
+      await tester.pumpAndSettle();
 
-    // Open filter sheet
-    await tester.tap(find.byKey(const Key('ledgerFilterButton')));
-    await tester.pumpAndSettle();
+      // Open filter sheet
+      await tester.tap(find.byKey(const Key('ledgerFilterButton')));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Filter Ledger'), findsOneWidget);
+      expect(find.text('Filter Ledger'), findsOneWidget);
 
-    // Select Manual filter
-    await tester.tap(find.text('Manual'));
-    await tester.pumpAndSettle();
+      // Select Manual filter
+      await tester.tap(find.text('Manual'));
+      await tester.pumpAndSettle();
 
-    // Apply
-    await tester.tap(find.byKey(const Key('applyLedgerFilterButton')));
-    await tester.pumpAndSettle();
+      // Apply
+      await tester.tap(find.byKey(const Key('applyLedgerFilterButton')));
+      await tester.pumpAndSettle();
 
-    // Only manual rows should be visible
-    expect(find.text('Cash Advance for Leadership Seminar'), findsOneWidget);
-    expect(find.text('Unused Cash Advance Return'), findsOneWidget);
-    expect(find.text('Initial Student Collections Deposit'), findsNothing);
-    expect(find.text('2 of 3 rows'), findsOneWidget);
-  });
+      // Only manual rows should be visible
+      expect(find.text('Cash Advance for Leadership Seminar'), findsOneWidget);
+      expect(find.text('Unused Cash Advance Return'), findsOneWidget);
+      expect(find.text('Initial Student Collections Deposit'), findsNothing);
+      expect(find.text('2 of 3 rows'), findsOneWidget);
+    },
+  );
 }
 
 class _TestIdGenerator implements StableIdGenerator {

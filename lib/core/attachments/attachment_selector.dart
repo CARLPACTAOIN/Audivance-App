@@ -58,10 +58,7 @@ class _AttachmentSelectorState extends State<AttachmentSelector> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 12,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(
                 children: [
                   Icon(
@@ -73,9 +70,7 @@ class _AttachmentSelectorState extends State<AttachmentSelector> {
                         : const Color(0xFF38BDF8),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: _AttachmentSummary(attachment: attachment),
-                  ),
+                  Expanded(child: _AttachmentSummary(attachment: attachment)),
                   const SizedBox(width: 12),
                   OutlinedButton.icon(
                     key: widget.selectButtonKey,
@@ -88,9 +83,7 @@ class _AttachmentSelectorState extends State<AttachmentSelector> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.upload_file_outlined),
-                    label: Text(
-                      attachment == null ? 'Select File' : 'Replace',
-                    ),
+                    label: Text(attachment == null ? 'Select File' : 'Replace'),
                   ),
                   if (attachment != null) ...[
                     const SizedBox(width: 4),

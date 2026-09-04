@@ -93,7 +93,6 @@ class UsmOsaF46TemplateMetrics {
   static const logoColumnWidth = 92.0;
   static const headerHeight = 72.0;
   static const titleBandHeight = 18.0;
-  static const formCodeHeight = 14.0;
   static const logoSize = 54.0;
   static const metadataMinHeight = 58.0;
   static const itemHeaderHeight = 20.0;
@@ -526,6 +525,7 @@ Future<PdfReportFile> _liquidationPdfFile({
     pw.MultiPage(
       pageFormat: _f46Metrics.pageFormat,
       margin: _f46Metrics.pageMargin,
+      footer: (context) => _formCodeFooter(),
       build: (context) => [
         _officialHeader(logo),
         pw.SizedBox(height: 5),
@@ -653,15 +653,17 @@ pw.Widget _officialHeader(pw.MemoryImage? logo) {
           style: _officialTextStyle(fontSize: 12, bold: true),
         ),
       ),
-      pw.Container(
-        height: UsmOsaF46TemplateMetrics.formCodeHeight,
-        alignment: pw.Alignment.centerLeft,
-        child: pw.Text(
-          _usmOsaF46FormCode,
-          style: _officialTextStyle(fontSize: 8, bold: true),
-        ),
-      ),
     ],
+  );
+}
+
+pw.Widget _formCodeFooter() {
+  return pw.Align(
+    alignment: pw.Alignment.centerLeft,
+    child: pw.Text(
+      _usmOsaF46FormCode,
+      style: _officialTextStyle(fontSize: 8, bold: true),
+    ),
   );
 }
 
@@ -1106,10 +1108,15 @@ _SignatureNames _signatureNames({
   required List<Officer> officers,
 }) {
   final active = officers.where((officer) => !officer.isArchived).toList();
-  String firstOfficer({
+
+  String resolveSignatory({
+    required String explicitName,
     required Committee committee,
-    required int fallbackIndex,
+    required int legacyFallbackIndex,
   }) {
+    if (explicitName.trim().isNotEmpty) {
+      return explicitName.trim();
+    }
     final head = active.where(
       (officer) =>
           officer.committee == committee &&
@@ -1123,21 +1130,32 @@ _SignatureNames _signatureNames({
       return member.first.fullName;
     }
     final signatories = organization?.signatoryNames ?? const <String>[];
-    if (fallbackIndex < signatories.length) {
-      return signatories[fallbackIndex];
+    if (legacyFallbackIndex < signatories.length) {
+      return signatories[legacyFallbackIndex];
     }
     return '';
   }
 
+  final explicitHead = organization?.effectiveHeadSignatory ?? '';
   final signatories = organization?.signatoryNames ?? const <String>[];
+  final headName = explicitHead.isNotEmpty
+      ? explicitHead
+      : (signatories.length > 2
+          ? signatories[2]
+          : (signatories.isNotEmpty ? signatories.first : ''));
+
   return _SignatureNames(
-    treasurerName: firstOfficer(committee: Committee.finance, fallbackIndex: 0),
-    auditorName: firstOfficer(committee: Committee.audit, fallbackIndex: 1),
-    organizationHeadName: signatories.length > 2
-        ? signatories[2]
-        : signatories.isNotEmpty
-        ? signatories.first
-        : '',
+    treasurerName: resolveSignatory(
+      explicitName: organization?.effectiveTreasurerSignatory ?? '',
+      committee: Committee.finance,
+      legacyFallbackIndex: 0,
+    ),
+    auditorName: resolveSignatory(
+      explicitName: organization?.effectiveAuditorSignatory ?? '',
+      committee: Committee.audit,
+      legacyFallbackIndex: 1,
+    ),
+    organizationHeadName: headName,
   );
 }
 

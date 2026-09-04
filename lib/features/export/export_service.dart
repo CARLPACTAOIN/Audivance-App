@@ -4,6 +4,9 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:path/path.dart' as p;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 import '../../core/attachments/attachment_storage_service.dart';
 import '../../core/domain/attachment_ref.dart';
@@ -406,6 +409,16 @@ class _AttachmentRecord {
   final String? contextLabel;
 }
 
+class _ReceiptBundleRecord {
+  const _ReceiptBundleRecord({
+    required this.folderLabel,
+    required this.receipts,
+  });
+
+  final String folderLabel;
+  final List<LiquidationReceipt> receipts;
+}
+
 class _ArchiveFileData {
   const _ArchiveFileData({
     required this.path,
@@ -666,8 +679,10 @@ List<String> _packageStructureFor(_ExportData data) {
     'csv/auditor_reviews.csv',
     'csv/audit_logs.csv',
     ...pdfReportPathsFor(events: data.events, receipts: data.receipts),
-    for (final record in _buildAttachmentRecords(data))
+    for (final record in _buildDirectAttachmentRecords(data))
       _attachmentArchivePath(record),
+    for (final bundle in _buildReceiptBundleRecords(data))
+      _receiptBundleArchivePath(bundle),
   ];
 }
 
@@ -749,6 +764,56 @@ List<_AttachmentRecord> _buildAttachmentRecords(_ExportData data) {
     );
   }
   return records;
+}
+
+List<_AttachmentRecord> _buildDirectAttachmentRecords(_ExportData data) {
+  return _buildAttachmentRecords(data)
+      .where((record) => record.module != 'liquidation')
+      .toList(growable: false);
+}
+
+List<_ReceiptBundleRecord> _buildReceiptBundleRecords(_ExportData data) {
+  return _orderedReceiptsByEvent(data).entries
+      .map((entry) {
+        final event = data.events
+            .where((event) => event.id == entry.key)
+            .firstOrNull;
+        final eventName = event?.name.trim();
+        final folderLabel = eventName != null && eventName.isNotEmpty
+            ? '$eventName ${entry.key}'
+            : entry.key;
+        return _ReceiptBundleRecord(
+          folderLabel: folderLabel,
+          receipts: entry.value,
+        );
+      })
+      .toList(growable: false);
+}
+
+Map<StableId, List<LiquidationReceipt>> _orderedReceiptsByEvent(
+  _ExportData data,
+) {
+  final receiptsByEvent = <StableId, List<LiquidationReceipt>>{};
+  for (final receipt in data.receipts) {
+    receiptsByEvent.putIfAbsent(receipt.eventId, () => []).add(receipt);
+  }
+  final orderedEventIds = receiptsByEvent.keys.toList()..sort();
+  return {
+    for (final eventId in orderedEventIds)
+      eventId: receiptsByEvent[eventId]!..sort(_compareReceiptsForExport),
+  };
+}
+
+int _compareReceiptsForExport(LiquidationReceipt a, LiquidationReceipt b) {
+  final dateCompare = a.date.compareTo(b.date);
+  if (dateCompare != 0) {
+    return dateCompare;
+  }
+  final evidenceCompare = a.evidenceNumber.compareTo(b.evidenceNumber);
+  if (evidenceCompare != 0) {
+    return evidenceCompare;
+  }
+  return a.id.compareTo(b.id);
 }
 
 ExportAttachmentView _attachmentView(_AttachmentRecord record) {
@@ -915,8 +980,9 @@ Future<List<_ArchiveFileData>> _archiveAttachmentEntries(
   _ExportData data, {
   required AttachmentStorageService? attachmentStorage,
 }) async {
-  final records = _buildAttachmentRecords(data);
-  if (records.isEmpty) {
+  final directRecords = _buildDirectAttachmentRecords(data);
+  final receiptBundles = _buildReceiptBundleRecords(data);
+  if (directRecords.isEmpty && receiptBundles.isEmpty) {
     return const [];
   }
   if (attachmentStorage == null) {
@@ -925,11 +991,30 @@ Future<List<_ArchiveFileData>> _archiveAttachmentEntries(
     );
   }
   final entries = <_ArchiveFileData>[];
-  for (final record in records) {
+  for (final record in directRecords) {
+    final sourceBytes = await attachmentStorage.readBytes(record.attachment);
     entries.add(
       _ArchiveFileData(
         path: _attachmentArchivePath(record),
-        bytes: await attachmentStorage.readBytes(record.attachment),
+        bytes: sourceBytes,
+        sourceType: ExportArchiveEntrySource.attachment,
+      ),
+    );
+  }
+  for (final bundle in receiptBundles) {
+    final bytesByReceiptId = <StableId, Uint8List>{};
+    for (final receipt in bundle.receipts) {
+      bytesByReceiptId[receipt.id] = await attachmentStorage.readBytes(
+        receipt.attachment,
+      );
+    }
+    entries.add(
+      _ArchiveFileData(
+        path: _receiptBundleArchivePath(bundle),
+        bytes: await _receiptBundlePdfBytes(
+          bundle: bundle,
+          bytesByReceiptId: bytesByReceiptId,
+        ),
         sourceType: ExportArchiveEntrySource.attachment,
       ),
     );
@@ -938,8 +1023,8 @@ Future<List<_ArchiveFileData>> _archiveAttachmentEntries(
 }
 
 String _attachmentArchivePath(_AttachmentRecord record) {
-  final folder = record.contextLabel != null &&
-          record.contextLabel!.trim().isNotEmpty
+  final folder =
+      record.contextLabel != null && record.contextLabel!.trim().isNotEmpty
       ? sanitizeAttachmentPathSegment(record.contextLabel!)
       : sanitizeAttachmentPathSegment(record.recordId);
   final rawFileName = p.basename(record.attachment.localPath);
@@ -952,6 +1037,214 @@ String _attachmentArchivePath(_AttachmentRecord record) {
     folder,
     fileName,
   );
+}
+
+bool _isImageAttachmentFileName(String fileName) {
+  return switch (p.extension(fileName.trim()).toLowerCase()) {
+    '.jpg' || '.jpeg' || '.png' => true,
+    _ => false,
+  };
+}
+
+String _receiptBundleArchivePath(_ReceiptBundleRecord bundle) {
+  return p.posix.join(
+    'attachments',
+    'liquidation',
+    sanitizeAttachmentPathSegment(bundle.folderLabel),
+    'receipts.pdf',
+  );
+}
+
+Future<Uint8List> _receiptBundlePdfBytes({
+  required _ReceiptBundleRecord bundle,
+  required Map<StableId, Uint8List> bytesByReceiptId,
+}) async {
+  final document = pw.Document(compress: false);
+  for (var index = 0; index < bundle.receipts.length; index += 1) {
+    final receipt = bundle.receipts[index];
+    final order = index + 1;
+    final sourceBytes = bytesByReceiptId[receipt.id];
+    if (sourceBytes == null) {
+      continue;
+    }
+    if (_isImageAttachmentFileName(receipt.attachment.fileName)) {
+      _addReceiptImagePage(
+        document: document,
+        receipt: receipt,
+        order: order,
+        imageBytes: sourceBytes,
+      );
+    } else if (_isPdfAttachmentFileName(receipt.attachment.fileName) &&
+        _hasPdfSignature(sourceBytes)) {
+      final rendered = await _addRasterizedReceiptPdfPages(
+        document: document,
+        receipt: receipt,
+        order: order,
+        sourceBytes: sourceBytes,
+      );
+      if (!rendered) {
+        _addReceiptMetadataOnlyPage(
+          document: document,
+          receipt: receipt,
+          order: order,
+          message:
+              'PDF receipt could not be rendered into pages on this device.',
+        );
+      }
+    } else {
+      _addReceiptMetadataOnlyPage(
+        document: document,
+        receipt: receipt,
+        order: order,
+        message: 'Receipt file type cannot be rendered as a page in the combined PDF.',
+      );
+    }
+  }
+  final bytes = Uint8List.fromList(await document.save());
+  return _normalizeGeneratedPdfBytes(bytes);
+}
+
+void _addReceiptImagePage({
+  required pw.Document document,
+  required LiquidationReceipt receipt,
+  required int order,
+  required Uint8List imageBytes,
+  int? sourcePage,
+}) {
+  try {
+    final image = pw.MemoryImage(imageBytes);
+    document.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(28),
+        build: (context) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          children: [
+            _receiptPdfHeader(receipt, order, sourcePage: sourcePage),
+            pw.SizedBox(height: 10),
+            pw.Expanded(
+              child: pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain)),
+            ),
+          ],
+        ),
+      ),
+    );
+  } catch (_) {
+    _addReceiptMetadataOnlyPage(
+      document: document,
+      receipt: receipt,
+      order: order,
+      message: 'Receipt image could not be decoded into a PDF page.',
+    );
+  }
+}
+
+Future<bool> _addRasterizedReceiptPdfPages({
+  required pw.Document document,
+  required LiquidationReceipt receipt,
+  required int order,
+  required Uint8List sourceBytes,
+}) async {
+  var pageCount = 0;
+  try {
+    await for (final raster in Printing.raster(sourceBytes, dpi: 144)) {
+      pageCount += 1;
+      final imageBytes = await raster.toPng();
+      _addReceiptImagePage(
+        document: document,
+        receipt: receipt,
+        order: order,
+        imageBytes: imageBytes,
+        sourcePage: pageCount,
+      );
+    }
+  } catch (_) {
+    return false;
+  }
+  return pageCount > 0;
+}
+
+void _addReceiptMetadataOnlyPage({
+  required pw.Document document,
+  required LiquidationReceipt receipt,
+  required int order,
+  required String message,
+}) {
+  document.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.all(36),
+      build: (context) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          _receiptPdfHeader(receipt, order),
+          pw.SizedBox(height: 18),
+          pw.Text(message, style: const pw.TextStyle(fontSize: 11)),
+          pw.SizedBox(height: 10),
+          pw.Text(
+            'Original attachment metadata remains available in data/liquidation_receipts.json.',
+            style: const pw.TextStyle(fontSize: 9),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+pw.Widget _receiptPdfHeader(
+  LiquidationReceipt receipt,
+  int order, {
+  int? sourcePage,
+}) {
+  final date =
+      '${receipt.date.year.toString().padLeft(4, '0')}-'
+      '${receipt.date.month.toString().padLeft(2, '0')}-'
+      '${receipt.date.day.toString().padLeft(2, '0')}';
+  final pageSuffix = sourcePage == null ? '' : ' - source page $sourcePage';
+  return pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Text(
+        'Receipt ${order.toString().padLeft(3, '0')}$pageSuffix',
+        style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
+      ),
+      pw.SizedBox(height: 4),
+      pw.Text(
+        [
+          'Date: $date',
+          'Evidence: ${receipt.evidenceNumber}',
+          'Payee: ${receipt.payeeOrMerchant}',
+          'Type: ${receipt.receiptType.name}',
+          'Funding: ${receipt.fundingMode.name}',
+          'File: ${receipt.attachment.fileName}',
+        ].join(' | '),
+        style: const pw.TextStyle(fontSize: 8),
+      ),
+    ],
+  );
+}
+
+bool _isPdfAttachmentFileName(String fileName) {
+  return p.extension(fileName.trim()).toLowerCase() == '.pdf';
+}
+
+bool _hasPdfSignature(Uint8List bytes) {
+  if (bytes.length < 4) {
+    return false;
+  }
+  return bytes[0] == 0x25 &&
+      bytes[1] == 0x50 &&
+      bytes[2] == 0x44 &&
+      bytes[3] == 0x46;
+}
+
+Uint8List _normalizeGeneratedPdfBytes(Uint8List bytes) {
+  final text = latin1.decode(bytes);
+  final normalized = text.replaceFirst(
+    RegExp(r'/ID\s*\[\s*<[^>]+>\s*<[^>]+>\s*\]'),
+    '/ID [<0000000000000000000000000000000000000000000000000000000000000000><0000000000000000000000000000000000000000000000000000000000000000>]',
+  );
+  return Uint8List.fromList(latin1.encode(normalized));
 }
 
 ExportPreviewFile _jsonFile(String path, Object? value) {
@@ -1036,7 +1329,7 @@ String _readmeFor(ExportCenterSnapshot snapshot) {
     'Folders:',
     '- data/: full structured JSON records',
     '- csv/: spreadsheet-friendly review tables',
-    '- attachments/: app-private supporting documents grouped by module and record',
+    '- attachments/: supporting documents grouped by module and record; liquidation receipts are bundled into one PDF per event',
     '- reports/: generated COA-facing PDF summaries',
     '',
     'Use manifest.json checksums to verify package contents before review.',
@@ -1297,6 +1590,11 @@ Map<String, Object?> _organizationJson(OrganizationProfile organization) => {
   'semester': organization.semester,
   'schoolYear': organization.schoolYear,
   'signatoryNames': organization.signatoryNames,
+  'signatories': {
+    'treasurer': organization.effectiveTreasurerSignatory,
+    'auditor': organization.effectiveAuditorSignatory,
+    'head': organization.effectiveHeadSignatory,
+  },
 };
 
 Map<String, Object?> _officerJson(Officer officer) => {

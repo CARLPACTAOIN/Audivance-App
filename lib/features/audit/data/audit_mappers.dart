@@ -40,13 +40,18 @@ extension OrganizationProfileMapper on domain.OrganizationProfile {
       adviser: adviser,
       semester: semester,
       schoolYear: schoolYear,
-      signatoryNamesJson: jsonEncode(signatoryNames),
+      signatoryNamesJson: jsonEncode({
+        'treasurer': effectiveTreasurerSignatory,
+        'auditor': effectiveAuditorSignatory,
+        'head': effectiveHeadSignatory,
+      }),
     );
   }
 }
 
 extension OrganizationRecordMapper on OrganizationRecord {
   domain.OrganizationProfile toDomain() {
+    final signatories = _parseSignatories(signatoryNamesJson);
     return domain.OrganizationProfile(
       id: id,
       name: name,
@@ -54,7 +59,9 @@ extension OrganizationRecordMapper on OrganizationRecord {
       adviser: adviser,
       semester: semester,
       schoolYear: schoolYear,
-      signatoryNames: _decodeStringList(signatoryNamesJson),
+      treasurerSignatory: signatories.treasurer,
+      auditorSignatory: signatories.auditor,
+      headSignatory: signatories.head,
     );
   }
 }
@@ -462,9 +469,6 @@ extension BackupHistoryRecordMapper on BackupHistoryRecord {
   }
 }
 
-List<String> _decodeStringList(String value) {
-  return (jsonDecode(value) as List<dynamic>).cast<String>();
-}
 
 String? _encodeNullableObject(Map<String, Object?>? value) {
   return value == null ? null : jsonEncode(value);
@@ -507,4 +511,28 @@ AttachmentRef? _nullableAttachment({
     sizeBytes: sizeBytes,
     checksum: checksum,
   );
+}
+
+({String treasurer, String auditor, String head}) _parseSignatories(
+  String value,
+) {
+  try {
+    final decoded = jsonDecode(value);
+    if (decoded is List) {
+      final names = decoded.map((e) => e?.toString() ?? '').toList();
+      return (
+        treasurer: names.isNotEmpty ? names[0].trim() : '',
+        auditor: names.length > 1 ? names[1].trim() : '',
+        head: names.length > 2 ? names[2].trim() : '',
+      );
+    }
+    if (decoded is Map) {
+      return (
+        treasurer: (decoded['treasurer']?.toString() ?? '').trim(),
+        auditor: (decoded['auditor']?.toString() ?? '').trim(),
+        head: (decoded['head']?.toString() ?? '').trim(),
+      );
+    }
+  } catch (_) {}
+  return (treasurer: '', auditor: '', head: '');
 }

@@ -4,11 +4,17 @@ import '../../app/ui/app_ui.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 import 'organization_service.dart';
+import 'widgets/signature_block_preview.dart';
 
 class OrganizationScreen extends StatefulWidget {
-  const OrganizationScreen({super.key, required this.service});
+  const OrganizationScreen({
+    super.key,
+    required this.service,
+    this.openOfficerFormOnStart = false,
+  });
 
   final OrganizationService service;
+  final bool openOfficerFormOnStart;
 
   @override
   State<OrganizationScreen> createState() => _OrganizationScreenState();
@@ -16,11 +22,13 @@ class OrganizationScreen extends StatefulWidget {
 
 class _OrganizationScreenState extends State<OrganizationScreen> {
   late Future<OrganizationWorkspaceSnapshot> _snapshotFuture;
+  var _openedInitialOfficerForm = false;
 
   @override
   void initState() {
     super.initState();
     _resetFuture();
+    _openInitialOfficerFormIfNeeded();
   }
 
   @override
@@ -28,6 +36,10 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.service != widget.service) {
       _resetFuture();
+    }
+    if (!oldWidget.openOfficerFormOnStart && widget.openOfficerFormOnStart) {
+      _openedInitialOfficerForm = false;
+      _openInitialOfficerFormIfNeeded();
     }
   }
 
@@ -39,34 +51,52 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
     setState(_resetFuture);
   }
 
+  void _openInitialOfficerFormIfNeeded() {
+    if (!widget.openOfficerFormOnStart || _openedInitialOfficerForm) {
+      return;
+    }
+    _openedInitialOfficerForm = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _showOfficerDialog();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<OrganizationWorkspaceSnapshot>(
       future: _snapshotFuture,
       builder: (context, snapshot) {
+        final Widget child;
         if (snapshot.connectionState != ConnectionState.done) {
-          return const AppStateView.loading(
+          child = const AppStateView.loading(
+            key: ValueKey('loading'),
             title: 'Loading Profile',
             message: 'Reading organization and officer records.',
           );
-        }
-        if (snapshot.hasError) {
-          return AppStateView.error(
+        } else if (snapshot.hasError) {
+          child = AppStateView.error(
+            key: const ValueKey('error'),
             title: 'Profile data could not be loaded',
             message: snapshot.error.toString(),
             onAction: _refresh,
           );
+        } else {
+          child = _OrganizationContent(
+            key: const ValueKey('content'),
+            snapshot: snapshot.data!,
+            onEditOrganization: _showEditOrganizationDialog,
+            onAddOfficer: () => _showOfficerDialog(),
+            onEditOfficer: _showOfficerDialog,
+            onArchiveOfficer: (officer) =>
+                _confirmOfficerArchive(officer: officer, isArchived: true),
+            onRestoreOfficer: (officer) =>
+                _confirmOfficerArchive(officer: officer, isArchived: false),
+          );
         }
-        return _OrganizationContent(
-          snapshot: snapshot.data!,
-          onEditOrganization: _showEditOrganizationDialog,
-          onAddOfficer: () => _showOfficerDialog(),
-          onEditOfficer: _showOfficerDialog,
-          onArchiveOfficer: (officer) =>
-              _confirmOfficerArchive(officer: officer, isArchived: true),
-          onRestoreOfficer: (officer) =>
-              _confirmOfficerArchive(officer: officer, isArchived: false),
-        );
+        return AppCrossfade(child: child);
       },
     );
   }
@@ -122,6 +152,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
 
 class _OrganizationContent extends StatelessWidget {
   const _OrganizationContent({
+    super.key,
     required this.snapshot,
     required this.onEditOrganization,
     required this.onAddOfficer,
@@ -141,19 +172,24 @@ class _OrganizationContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return ResponsivePageScaffold(
       children: [
-        _ProfileHeader(
-          snapshot: snapshot,
-          onEditOrganization: onEditOrganization,
+        AppSlideFadeIn(
+          child: _ProfileHeader(
+            snapshot: snapshot,
+            onEditOrganization: onEditOrganization,
+          ),
         ),
         const SizedBox(height: 16),
-        _OfficerRosterPanel(
-          activeOfficers: snapshot.activeOfficers,
-          archivedOfficers: snapshot.archivedOfficers,
-          committeeSummaries: snapshot.committeeSummaries,
-          onAddOfficer: onAddOfficer,
-          onEditOfficer: onEditOfficer,
-          onArchiveOfficer: onArchiveOfficer,
-          onRestoreOfficer: onRestoreOfficer,
+        AppSlideFadeIn(
+          delay: AppMotion.staggerStep,
+          child: _OfficerRosterPanel(
+            activeOfficers: snapshot.activeOfficers,
+            archivedOfficers: snapshot.archivedOfficers,
+            committeeSummaries: snapshot.committeeSummaries,
+            onAddOfficer: onAddOfficer,
+            onEditOfficer: onEditOfficer,
+            onArchiveOfficer: onArchiveOfficer,
+            onRestoreOfficer: onRestoreOfficer,
+          ),
         ),
       ],
     );
@@ -173,111 +209,133 @@ class _ProfileHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final organization = snapshot.organization;
     final textTheme = Theme.of(context).textTheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth >= 600;
-                final textBlock = Column(
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 600;
+              final textBlock = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    snapshot.organizationName,
+                    key: const Key('profileOrganizationName'),
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.xs,
+                    children: [
+                      MetadataChip(
+                        icon: Icons.calendar_month_outlined,
+                        label: snapshot.termLabel,
+                      ),
+                      MetadataChip(
+                        icon: Icons.school_outlined,
+                        label: organization?.type ?? 'No type',
+                      ),
+                      StatusBadge(
+                        label: snapshot.hasActiveOfficers
+                            ? 'Officer-ready'
+                            : 'Needs officers',
+                        icon: snapshot.hasActiveOfficers
+                            ? Icons.check_circle_outline
+                            : Icons.warning_amber_outlined,
+                        tone: snapshot.hasActiveOfficers
+                            ? InlineStatusTone.success
+                            : InlineStatusTone.warning,
+                      ),
+                    ],
+                  ),
+                ],
+              );
+              final editButton = FilledButton.icon(
+                key: const Key('profileEditOrganizationButton'),
+                onPressed: onEditOrganization,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit Profile'),
+              );
+
+              if (!isWide) {
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      snapshot.organizationName,
-                      key: const Key('profileOrganizationName'),
-                      style: textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        MetadataChip(
-                          icon: Icons.calendar_month_outlined,
-                          label: snapshot.termLabel,
-                        ),
-                        MetadataChip(
-                          icon: Icons.school_outlined,
-                          label: organization?.type ?? 'No type',
-                        ),
-                        StatusBadge(
-                          label: snapshot.hasActiveOfficers
-                              ? 'Officer-ready'
-                              : 'Needs officers',
-                          icon: snapshot.hasActiveOfficers
-                              ? Icons.check_circle_outline
-                              : Icons.warning_amber_outlined,
-                          tone: snapshot.hasActiveOfficers
-                              ? InlineStatusTone.success
-                              : InlineStatusTone.warning,
-                        ),
-                      ],
-                    ),
+                    textBlock,
+                    const SizedBox(height: AppSpacing.md),
+                    editButton,
                   ],
                 );
-                final editButton = FilledButton.icon(
-                  key: const Key('profileEditOrganizationButton'),
-                  onPressed: onEditOrganization,
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Edit Profile'),
-                );
+              }
 
-                if (!isWide) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      textBlock,
-                      const SizedBox(height: 14),
-                      editButton,
-                    ],
-                  );
-                }
-
-                return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: textBlock),
+                  const SizedBox(width: AppSpacing.lg),
+                  editButton,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (organization == null)
+            const Text(
+              'Complete the organization profile for COA export.',
+              style: TextStyle(color: AppColors.textSecondary),
+            )
+          else ...[
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Wrap(
+                  spacing: AppSpacing.xl,
+                  runSpacing: AppSpacing.md,
                   children: [
-                    Expanded(child: textBlock),
-                    const SizedBox(width: 16),
-                    editButton,
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: constraints.maxWidth,
+                      ),
+                      child: _InfoBlock(
+                        label: 'Adviser',
+                        value: organization.adviser.isNotEmpty
+                            ? organization.adviser
+                            : 'Not set',
+                      ),
+                    ),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: constraints.maxWidth,
+                      ),
+                      child: _InfoBlock(
+                        label: 'Signatories',
+                        value: organization.signatoryNames.isNotEmpty
+                            ? organization.signatoryNames.join(', ')
+                            : 'Not set',
+                      ),
+                    ),
                   ],
                 );
               },
             ),
-            const SizedBox(height: 14),
-            if (organization == null)
-              const Text('Complete the organization profile for COA export.')
-            else
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return Wrap(
-                    spacing: 24,
-                    runSpacing: 12,
-                    children: [
-                      ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                        child: _InfoBlock(label: 'Adviser', value: organization.adviser),
-                      ),
-                      ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: constraints.maxWidth),
-                        child: _InfoBlock(
-                          label: 'Signatories',
-                          value: organization.signatoryNames.join(', '),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
+            const SizedBox(height: AppSpacing.lg),
+            SignatureBlockPreview(
+              treasurerName: organization.effectiveTreasurerSignatory,
+              auditorName: organization.effectiveAuditorSignatory,
+              headName: organization.effectiveHeadSignatory,
+              adviserName: organization.adviser,
+              compact: true,
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
 }
-
 
 class _OfficerRosterPanel extends StatelessWidget {
   const _OfficerRosterPanel({
@@ -300,107 +358,103 @@ class _OfficerRosterPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Roster header with Add Officer button
-            Wrap(
-              spacing: 12,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              alignment: WrapAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Officer Roster', style: textTheme.titleLarge),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        StatusBadge(
-                          label: '${activeOfficers.length} active',
-                          icon: Icons.person_outline,
-                          tone: InlineStatusTone.info,
-                        ),
-                        StatusBadge(
-                          label: '${archivedOfficers.length} archived',
-                          icon: Icons.inventory_2_outlined,
-                          tone: InlineStatusTone.warning,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                FilledButton.icon(
-                  key: const Key('profileAddOfficerButton'),
-                  onPressed: onAddOfficer,
-                  icon: const Icon(Icons.person_add_alt_1),
-                  label: const Text('Add Officer'),
-                ),
-              ],
-            ),
-            // Committee summary inline — compact chips instead of separate card section
-            if (committeeSummaries.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              const Divider(height: 1),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return Wrap(
-                    spacing: 10,
-                    runSpacing: 8,
-                    children: [
-                      for (final summary in committeeSummaries)
-                        ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: constraints.maxWidth,
-                          ),
-                          child: _CommitteeChip(summary: summary),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-            const SizedBox(height: 14),
-            const Divider(height: 1),
-            const SizedBox(height: 4),
-            if (activeOfficers.isEmpty)
-              const AppStateView.empty(
-                title: 'No Active Officers',
-                message: 'Add at least one active officer so liquidations and COA export can identify accountable people.',
-              )
-            else
-              for (final officer in activeOfficers)
-                _OfficerRow(
-                  officer: officer,
-                  onEdit: () => onEditOfficer(officer),
-                  onArchive: () => onArchiveOfficer(officer),
-                ),
-            if (archivedOfficers.isNotEmpty) ...[
-              const Divider(height: 28),
-              ExpansionTile(
-                key: const Key('profileArchivedOfficersTile'),
-                tilePadding: EdgeInsets.zero,
-                title: const Text('Archived Officers'),
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Roster header with Add Officer button
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final officer in archivedOfficers)
-                    _OfficerRow(
-                      officer: officer,
-                      onEdit: () => onEditOfficer(officer),
-                      onArchive: () => onRestoreOfficer(officer),
-                    ),
+                  const AppSectionHeader(title: 'Officer Roster'),
+                  const SizedBox(height: AppSpacing.xs),
+                  Wrap(
+                    spacing: AppSpacing.sm,
+                    runSpacing: 4,
+                    children: [
+                      StatusBadge(
+                        label: '${activeOfficers.length} active',
+                        icon: Icons.person_outline,
+                        tone: InlineStatusTone.info,
+                      ),
+                      StatusBadge(
+                        label: '${archivedOfficers.length} archived',
+                        icon: Icons.inventory_2_outlined,
+                        tone: InlineStatusTone.warning,
+                      ),
+                    ],
+                  ),
                 ],
               ),
+              FilledButton.icon(
+                key: const Key('profileAddOfficerButton'),
+                onPressed: onAddOfficer,
+                icon: const Icon(Icons.person_add_alt_1),
+                label: const Text('Add Officer'),
+              ),
             ],
+          ),
+          // Committee summary inline
+          if (committeeSummaries.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.md),
+            const Divider(height: 1, color: AppColors.divider),
+            const SizedBox(height: AppSpacing.md),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                return Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: [
+                    for (final summary in committeeSummaries)
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth,
+                        ),
+                        child: _CommitteeChip(summary: summary),
+                      ),
+                  ],
+                );
+              },
+            ),
           ],
-        ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1, color: AppColors.divider),
+          const SizedBox(height: AppSpacing.xs),
+          if (activeOfficers.isEmpty)
+            const AppStateView.empty(
+              title: 'No Active Officers',
+              message: 'Add at least one active officer so liquidations and COA export can identify accountable people.',
+            )
+          else
+            for (final officer in activeOfficers)
+              _OfficerRow(
+                officer: officer,
+                onEdit: () => onEditOfficer(officer),
+                onArchive: () => onArchiveOfficer(officer),
+              ),
+          if (archivedOfficers.isNotEmpty) ...[
+            const Divider(height: 28, color: AppColors.divider),
+            ExpansionTile(
+              key: const Key('profileArchivedOfficersTile'),
+              tilePadding: EdgeInsets.zero,
+              title: const Text('Archived Officers'),
+              children: [
+                for (final officer in archivedOfficers)
+                  _OfficerRow(
+                    officer: officer,
+                    onEdit: () => onEditOfficer(officer),
+                    onArchive: () => onRestoreOfficer(officer),
+                  ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -414,11 +468,14 @@ class _CommitteeChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: 6,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF334155)),
+        color: AppColors.surfaceSubtle,
+        borderRadius: AppRadius.borderSm,
+        border: Border.all(color: AppColors.borderSubtle),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,8 +484,8 @@ class _CommitteeChip extends StatelessWidget {
           Text(
             summary.committeeLabel,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFFF8FAFC),
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 2),
@@ -438,9 +495,8 @@ class _CommitteeChip extends StatelessWidget {
                 : '${summary.memberCount} member${summary.memberCount == 1 ? '' : 's'} · No head assigned',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: const Color(0xFF94A3B8),
-            ),
+            style: Theme.of(context).textTheme.bodySmall
+                ?.copyWith(color: AppColors.textSecondary),
           ),
         ],
       ),
@@ -485,9 +541,8 @@ class _OfficerRow extends StatelessWidget {
                     child: Text(
                       officer.fullName,
                       key: Key('profileOfficerName${officer.id}'),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ),
                   IconButton(
@@ -495,7 +550,10 @@ class _OfficerRow extends StatelessWidget {
                     tooltip: 'Edit officer',
                     onPressed: onEdit,
                     icon: const Icon(Icons.edit_outlined, size: 20),
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
                     padding: EdgeInsets.zero,
                   ),
                   IconButton(
@@ -504,13 +562,20 @@ class _OfficerRow extends StatelessWidget {
                           ? 'profileOfficerRestore${officer.id}'
                           : 'profileOfficerArchive${officer.id}',
                     ),
-                    tooltip: officer.isArchived ? 'Restore officer' : 'Archive officer',
+                    tooltip: officer.isArchived
+                        ? 'Restore officer'
+                        : 'Archive officer',
                     onPressed: onArchive,
                     icon: Icon(
-                      officer.isArchived ? Icons.restore_outlined : Icons.archive_outlined,
+                      officer.isArchived
+                          ? Icons.restore_outlined
+                          : Icons.archive_outlined,
                       size: 20,
                     ),
-                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    constraints: const BoxConstraints(
+                      minWidth: 36,
+                      minHeight: 36,
+                    ),
                     padding: EdgeInsets.zero,
                   ),
                 ],
@@ -584,7 +649,9 @@ class _OrganizationDialogState extends State<_OrganizationDialog> {
   late final TextEditingController _adviserController;
   late final TextEditingController _semesterController;
   late final TextEditingController _schoolYearController;
-  late final TextEditingController _signatoriesController;
+  late final TextEditingController _treasurerController;
+  late final TextEditingController _auditorController;
+  late final TextEditingController _headController;
   String? _serviceError;
   var _isSubmitting = false;
 
@@ -603,8 +670,14 @@ class _OrganizationDialogState extends State<_OrganizationDialog> {
     _schoolYearController = TextEditingController(
       text: organization?.schoolYear ?? '',
     );
-    _signatoriesController = TextEditingController(
-      text: organization?.signatoryNames.join(', ') ?? '',
+    _treasurerController = TextEditingController(
+      text: organization?.effectiveTreasurerSignatory ?? '',
+    );
+    _auditorController = TextEditingController(
+      text: organization?.effectiveAuditorSignatory ?? '',
+    );
+    _headController = TextEditingController(
+      text: organization?.effectiveHeadSignatory ?? '',
     );
   }
 
@@ -615,8 +688,74 @@ class _OrganizationDialogState extends State<_OrganizationDialog> {
     _adviserController.dispose();
     _semesterController.dispose();
     _schoolYearController.dispose();
-    _signatoriesController.dispose();
+    _treasurerController.dispose();
+    _auditorController.dispose();
+    _headController.dispose();
     super.dispose();
+  }
+
+  Future<void> _autoFillFromOfficers() async {
+    final snapshot = await widget.service.loadSnapshot();
+    final officers = snapshot.activeOfficers;
+    if (officers.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No active officers found in roster to auto-fill.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    final financeHeads = officers.where((o) =>
+        o.committee == Committee.finance &&
+        o.position == OfficerPosition.head);
+    final financeMembers =
+        officers.where((o) => o.committee == Committee.finance);
+    final treasurer = financeHeads.isNotEmpty
+        ? financeHeads.first.fullName
+        : (financeMembers.isNotEmpty ? financeMembers.first.fullName : '');
+
+    final auditHeads = officers.where((o) =>
+        o.committee == Committee.audit &&
+        o.position == OfficerPosition.head);
+    final auditMembers =
+        officers.where((o) => o.committee == Committee.audit);
+    final auditor = auditHeads.isNotEmpty
+        ? auditHeads.first.fullName
+        : (auditMembers.isNotEmpty ? auditMembers.first.fullName : '');
+
+    final otherOfficers = officers.where(
+        (o) => o.fullName != treasurer && o.fullName != auditor);
+    final head = otherOfficers.isNotEmpty ? otherOfficers.first.fullName : '';
+
+    var filledCount = 0;
+    if (treasurer.isNotEmpty) {
+      _treasurerController.text = treasurer;
+      filledCount++;
+    }
+    if (auditor.isNotEmpty) {
+      _auditorController.text = auditor;
+      filledCount++;
+    }
+    if (head.isNotEmpty && _headController.text.trim().isEmpty) {
+      _headController.text = head;
+      filledCount++;
+    }
+
+    if (mounted) {
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            filledCount > 0
+                ? 'Auto-filled $filledCount signatory field(s) from officer roster.'
+                : 'No matching committee heads found to auto-fill.',
+          ),
+        ),
+      );
+    }
   }
 
   @override
@@ -652,6 +791,7 @@ class _OrganizationDialogState extends State<_OrganizationDialog> {
           key: _formKey,
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _LabeledTextField(
                 key: const Key('profileOrganizationNameField'),
@@ -678,12 +818,63 @@ class _OrganizationDialogState extends State<_OrganizationDialog> {
                 controller: _schoolYearController,
                 label: 'School year',
               ),
+              const SizedBox(height: AppSpacing.md),
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.xs,
+                children: [
+                  Text(
+                    'Official Signatories',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: _autoFillFromOfficers,
+                    icon: const Icon(Icons.auto_awesome, size: 16),
+                    label: const Text('Auto-fill from Roster'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.xs),
               _LabeledTextField(
-                key: const Key('profileSignatoriesField'),
-                controller: _signatoriesController,
-                label: 'Signatory names',
-                helperText: 'Separate names with commas or new lines.',
-                maxLines: 3,
+                key: const Key('profileTreasurerField'),
+                controller: _treasurerController,
+                label: 'Organization Treasurer',
+                helperText: 'Signatory for "Prepared by"',
+              ),
+              _LabeledTextField(
+                key: const Key('profileAuditorField'),
+                controller: _auditorController,
+                label: 'Organization Auditor',
+                helperText: 'Signatory for "Audited by"',
+              ),
+              _LabeledTextField(
+                key: const Key('profileHeadField'),
+                controller: _headController,
+                label: 'Organization Head / President',
+                helperText: 'Signatory for "Submitted by"',
+              ),
+              const SizedBox(height: AppSpacing.md),
+              AnimatedBuilder(
+                animation: Listenable.merge([
+                  _treasurerController,
+                  _auditorController,
+                  _headController,
+                  _adviserController,
+                ]),
+                builder: (context, _) {
+                  return SignatureBlockPreview(
+                    treasurerName: _treasurerController.text,
+                    auditorName: _auditorController.text,
+                    headName: _headController.text,
+                    adviserName: _adviserController.text,
+                    compact: true,
+                  );
+                },
               ),
             ],
           ),
@@ -708,7 +899,9 @@ class _OrganizationDialogState extends State<_OrganizationDialog> {
         adviser: _adviserController.text,
         semester: _semesterController.text,
         schoolYear: _schoolYearController.text,
-        signatoryNamesText: _signatoriesController.text,
+        treasurerSignatory: _treasurerController.text.trim(),
+        auditorSignatory: _auditorController.text.trim(),
+        headSignatory: _headController.text.trim(),
       ),
     );
     if (!mounted) {
@@ -832,7 +1025,10 @@ class _OfficerDialogState extends State<_OfficerDialog> {
                 items: const [
                   DropdownMenuItem<Committee?>(
                     value: null,
-                    child: Text('No committee', overflow: TextOverflow.ellipsis),
+                    child: Text(
+                      'No committee',
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   DropdownMenuItem<Committee?>(
                     value: Committee.finance,
@@ -992,13 +1188,11 @@ class _LabeledTextField extends StatelessWidget {
     required this.controller,
     required this.label,
     this.helperText,
-    this.maxLines = 1,
   });
 
   final TextEditingController controller;
   final String label;
   final String? helperText;
-  final int maxLines;
 
   @override
   Widget build(BuildContext context) {
@@ -1006,7 +1200,6 @@ class _LabeledTextField extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 14),
       child: TextFormField(
         controller: controller,
-        maxLines: maxLines,
         decoration: InputDecoration(labelText: label, helperText: helperText),
         validator: (value) {
           if (value == null || value.trim().isEmpty) {

@@ -10,6 +10,7 @@ import '../features/backup/backup_service.dart';
 import '../features/organization/organization_screen.dart';
 import '../features/organization/organization_service.dart';
 import 'brand_logo.dart';
+import 'ui/app_ui.dart';
 
 /// Admin menu presented from the top app bar action.
 /// Consolidates Organization Profile, Officer Roster, and Backup & Restore
@@ -47,10 +48,10 @@ class AdminMenuSheet extends StatelessWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF161C26),
+      backgroundColor: AppColors.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        side: BorderSide(color: Color(0xFF263345)),
+        side: BorderSide(color: AppColors.borderSubtle),
       ),
       builder: (context) => AdminMenuSheet(
         repository: repository,
@@ -73,22 +74,27 @@ class AdminMenuSheet extends StatelessWidget {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.xl,
+          AppSpacing.lg,
+          AppSpacing.xl,
+          AppSpacing.xxl,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Center(
               child: Container(
-                width: 40,
+                width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF334155),
+                  color: AppColors.borderStrong,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpacing.lg),
             Row(
               children: [
                 const BrandLogo(
@@ -96,15 +102,14 @@ class AdminMenuSheet extends StatelessWidget {
                   size: 28,
                   decorative: true,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
                     'Administration & Settings',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
                 IconButton(
@@ -114,15 +119,16 @@ class AdminMenuSheet extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            Card(
+            const SizedBox(height: AppSpacing.lg),
+            AppCard(
+              padding: EdgeInsets.zero,
               child: Column(
                 children: [
                   ListTile(
                     key: const Key('adminMenuProfileTile'),
                     leading: const Icon(
                       Icons.business_outlined,
-                      color: Color(0xFF38BDF8),
+                      color: AppColors.info,
                     ),
                     title: const Text(
                       'Organization & Officers',
@@ -130,18 +136,23 @@ class AdminMenuSheet extends StatelessWidget {
                     ),
                     subtitle: const Text(
                       'Manage profile, advisers, signatories, and roster',
-                      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
-                    trailing: const Icon(Icons.chevron_right, size: 20),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: AppColors.textMuted,
+                    ),
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) => Scaffold(
-                            appBar: AppBar(
-                              title: const Text('Profile'),
-                            ),
+                            appBar: AppBar(title: const Text('Profile')),
                             body: SafeArea(
                               child: OrganizationScreen(service: orgService),
                             ),
@@ -150,12 +161,12 @@ class AdminMenuSheet extends StatelessWidget {
                       );
                     },
                   ),
-                  const Divider(height: 1, color: Color(0xFF1E293B)),
+                  const Divider(height: 1, color: AppColors.divider),
                   ListTile(
                     key: const Key('adminMenuBackupTile'),
                     leading: const Icon(
                       Icons.backup_outlined,
-                      color: Color(0xFFF59E0B),
+                      color: AppColors.warning,
                     ),
                     title: const Text(
                       'Backup & Restore',
@@ -163,9 +174,16 @@ class AdminMenuSheet extends StatelessWidget {
                     ),
                     subtitle: const Text(
                       'Create archive backups or restore local database',
-                      style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 12,
+                      ),
                     ),
-                    trailing: const Icon(Icons.chevron_right, size: 20),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      size: 20,
+                      color: AppColors.textMuted,
+                    ),
                     onTap: () {
                       Navigator.pop(context);
                       showDialog<void>(
@@ -192,19 +210,26 @@ class AdminMenuSheet extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 children: [
-                  Icon(Icons.shield_outlined, size: 14, color: Color(0xFF64748B)),
+                  Icon(
+                    Icons.shield_outlined,
+                    size: 14,
+                    color: AppColors.textMuted,
+                  ),
                   SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Audivance · Offline Local-first Audit System',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
+                      style: TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                 ],

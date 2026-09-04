@@ -8,7 +8,6 @@ import '../../core/domain/money.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 import '../liquidation/liquidation_service.dart';
-import '../organization/organization_service.dart';
 import '../treasury/treasury_formatters.dart';
 import 'event_dialogs.dart';
 import 'event_service.dart';
@@ -18,20 +17,20 @@ class EventDetailsScreen extends StatefulWidget {
     super.key,
     required this.eventId,
     required this.service,
-    required this.organizationService,
     required this.liquidationService,
     required this.attachmentPicker,
     required this.attachmentStorage,
     this.asOf,
+    this.onOpenOfficerManagement,
   });
 
   final StableId eventId;
   final EventService service;
-  final OrganizationService organizationService;
   final LiquidationService liquidationService;
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
   final DateTime? asOf;
+  final VoidCallback? onOpenOfficerManagement;
 
   @override
   State<EventDetailsScreen> createState() => _EventDetailsScreenState();
@@ -51,9 +50,9 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.eventId != widget.eventId ||
         oldWidget.service != widget.service ||
-        oldWidget.organizationService != widget.organizationService ||
         oldWidget.liquidationService != widget.liquidationService ||
-        oldWidget.asOf != widget.asOf) {
+        oldWidget.asOf != widget.asOf ||
+        oldWidget.onOpenOfficerManagement != widget.onOpenOfficerManagement) {
       _detailsFuture = _loadDetails();
     }
   }
@@ -134,29 +133,34 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
       body: FutureBuilder<_EventDetailsData>(
         future: _detailsFuture,
         builder: (context, snapshot) {
+          final Widget child;
           if (snapshot.connectionState != ConnectionState.done) {
-            return const AppStateView.loading(
+            child = const AppStateView.loading(
+              key: ValueKey('loading'),
               title: 'Loading Event Financials',
               message: 'Reading budget, liquidation, and claims data.',
             );
-          }
-          if (snapshot.hasError) {
-            return AppStateView.error(
+          } else if (snapshot.hasError) {
+            child = AppStateView.error(
+              key: const ValueKey('error'),
               title: 'Event details could not be loaded',
               message: snapshot.error.toString(),
               onAction: _refresh,
             );
+          } else {
+            final data = snapshot.data!;
+            child = _EventDetailsContent(
+              key: const ValueKey('content'),
+              data: data,
+              onAdjustBudget: () => _showAdjustBudget(data),
+              onReviewBudget: () => _showBudgetReview(data),
+              onSubmitLiquidation: () => _showSubmitLiquidation(data),
+              onMarkLiquidated: () => _markLiquidated(data),
+              onPayReimbursement: _showPayReimbursement,
+              onCreateOfficer: _openOfficerManagement,
+            );
           }
-          final data = snapshot.data!;
-          return _EventDetailsContent(
-            data: data,
-            onAdjustBudget: () => _showAdjustBudget(data),
-            onReviewBudget: () => _showBudgetReview(data),
-            onSubmitLiquidation: () => _showSubmitLiquidation(data),
-            onMarkLiquidated: () => _markLiquidated(data),
-            onPayReimbursement: _showPayReimbursement,
-            onCreateOfficer: _showCreateOfficer,
-          );
+          return AppCrossfade(child: child);
         },
       ),
     );
@@ -242,16 +246,13 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     _refresh();
   }
 
-  Future<void> _showCreateOfficer() async {
-    final result = await showDialog<ValidationResult>(
-      context: context,
-      builder: (context) =>
-          CreateOfficerDialog(service: widget.organizationService),
-    );
-    if (!mounted || result == null || result.isInvalid) {
+  void _openOfficerManagement() {
+    final onOpenOfficerManagement = widget.onOpenOfficerManagement;
+    if (onOpenOfficerManagement == null) {
       return;
     }
-    _refresh();
+    Navigator.pop(context);
+    onOpenOfficerManagement();
   }
 }
 
@@ -277,6 +278,7 @@ class _EventDetailsData {
 
 class _EventDetailsContent extends StatelessWidget {
   const _EventDetailsContent({
+    super.key,
     required this.data,
     required this.onAdjustBudget,
     required this.onReviewBudget,
@@ -310,32 +312,44 @@ class _EventDetailsContent extends StatelessWidget {
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  _EventHeaderCard(event: data.event),
+                  AppSlideFadeIn(child: _EventHeaderCard(event: data.event)),
                   const SizedBox(height: 14),
-                  _FinancialSummaryCard(
-                    event: data.event,
-                    budgetActual: data.budgetActual,
+                  AppSlideFadeIn(
+                    delay: AppMotion.staggerStep,
+                    child: _FinancialSummaryCard(
+                      event: data.event,
+                      budgetActual: data.budgetActual,
+                    ),
                   ),
                   const SizedBox(height: 14),
-                  _EventActionsBar(
-                    event: data.event,
-                    liquidationEvent: data.liquidationEvent,
-                    hasOfficers: data.officerOptions.isNotEmpty,
-                    onAdjustBudget: onAdjustBudget,
-                    onReviewBudget: onReviewBudget,
-                    onSubmitLiquidation: onSubmitLiquidation,
-                    onMarkLiquidated: onMarkLiquidated,
+                  AppSlideFadeIn(
+                    delay: AppMotion.staggerStep * 2,
+                    child: _EventActionsBar(
+                      event: data.event,
+                      liquidationEvent: data.liquidationEvent,
+                      hasOfficers: data.officerOptions.isNotEmpty,
+                      onAdjustBudget: onAdjustBudget,
+                      onReviewBudget: onReviewBudget,
+                      onSubmitLiquidation: onSubmitLiquidation,
+                      onMarkLiquidated: onMarkLiquidated,
+                    ),
                   ),
                   const SizedBox(height: 14),
-                  _LiquidationSection(
-                    receipts: data.receipts,
-                    officerCount: data.officerOptions.length,
-                    onCreateOfficer: onCreateOfficer,
+                  AppSlideFadeIn(
+                    delay: AppMotion.staggerStep * 3,
+                    child: _LiquidationSection(
+                      receipts: data.receipts,
+                      officerCount: data.officerOptions.length,
+                      onCreateOfficer: onCreateOfficer,
+                    ),
                   ),
                   const SizedBox(height: 14),
-                  _ReimbursementsSection(
-                    claims: data.claims,
-                    onPayReimbursement: onPayReimbursement,
+                  AppSlideFadeIn(
+                    delay: AppMotion.staggerStep * 4,
+                    child: _ReimbursementsSection(
+                      claims: data.claims,
+                      onPayReimbursement: onPayReimbursement,
+                    ),
                   ),
                 ]),
               ),
@@ -362,66 +376,64 @@ class _EventHeaderCard extends StatelessWidget {
       AuditEventStatus.liquidated => InlineStatusTone.success,
     };
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      event.name,
-                      style: textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    event.name,
+                    style: textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${event.type} · ${event.semester} (${event.schoolYear})',
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: const Color(0xFF94A3B8),
-                      ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${event.type} · ${event.semester} (${event.schoolYear})',
+                    style: textTheme.bodyMedium?.copyWith(
+                      color: AppColors.textSecondary,
                     ),
-                  ],
-                ),
-                StatusBadge(
-                  label: event.statusLabel,
-                  tone: tone,
-                  icon: event.status == AuditEventStatus.liquidated
-                      ? Icons.check_circle_outline
-                      : Icons.schedule,
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            const Divider(height: 1, color: Color(0xFF1E293B)),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 16,
-              runSpacing: 6,
-              children: [
-                _MetaItem(
-                  icon: Icons.calendar_month_outlined,
-                  label: 'Date',
-                  value: event.dateRangeLabel,
-                ),
-                _MetaItem(
-                  icon: Icons.description_outlined,
-                  label: 'Resolution',
-                  value: event.resolutionNumber,
-                ),
-              ],
-            ),
-          ],
-        ),
+                  ),
+                ],
+              ),
+              StatusBadge(
+                label: event.statusLabel,
+                tone: tone,
+                icon: event.status == AuditEventStatus.liquidated
+                    ? Icons.check_circle_outline
+                    : Icons.schedule,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.md),
+          const Divider(height: 1, color: AppColors.divider),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.lg,
+            runSpacing: AppSpacing.xs,
+            children: [
+              _MetaItem(
+                icon: Icons.calendar_month_outlined,
+                label: 'Date',
+                value: event.dateRangeLabel,
+              ),
+              _MetaItem(
+                icon: Icons.description_outlined,
+                label: 'Resolution',
+                value: event.resolutionNumber,
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -443,18 +455,18 @@ class _MetaItem extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 15, color: const Color(0xFF64748B)),
+        Icon(icon, size: 15, color: AppColors.textMuted),
         const SizedBox(width: 5),
         Text(
           '$label: ',
           style: Theme.of(context).textTheme.bodySmall
-              ?.copyWith(color: const Color(0xFF94A3B8)),
+              ?.copyWith(color: AppColors.textSecondary),
         ),
         Text(
           value,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             fontWeight: FontWeight.w600,
-            color: const Color(0xFFF8FAFC),
+            color: AppColors.textPrimary,
           ),
         ),
       ],
@@ -476,27 +488,15 @@ class _FinancialSummaryCard extends StatelessWidget {
     final actual = budgetActual?.actual ?? Money.zero;
     final remaining = event.approvedBudgetBalance;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.account_balance_wallet_outlined,
-                  size: 20,
-                  color: Color(0xFF10B981),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Financial Summary',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const Spacer(),
-                if (budgetActual != null)
-                  StatusBadge(
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(
+            icon: Icons.account_balance_wallet_outlined,
+            title: 'Financial Summary',
+            trailing: budgetActual != null
+                ? StatusBadge(
                     label: budgetActual!.healthLabel,
                     tone: switch (budgetActual!.health) {
                       BudgetHealth.healthy => InlineStatusTone.success,
@@ -505,38 +505,36 @@ class _FinancialSummaryCard extends StatelessWidget {
                       BudgetHealth.critical => InlineStatusTone.error,
                       BudgetHealth.noBudget => InlineStatusTone.info,
                     },
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            CompactStatRow(
-              items: [
-                CompactStat(value: event.budgetLabel, label: 'Approved Budget'),
-                CompactStat(
-                  value: formatPhpMoney(actual),
-                  label: 'Liquidated / Actual',
-                ),
-                CompactStat(
-                  value: formatPhpMoney(remaining),
-                  label: 'Remaining Balance',
-                ),
-                if (budgetActual != null)
-                  CompactStat(
-                    value: budgetActual!.utilizationLabel,
-                    label: 'Utilization',
-                  ),
-              ],
-            ),
-            if (budgetActual != null && budgetActual!.isOverBudget) ...[
-              const SizedBox(height: 10),
-              const InlineStatusPanel(
-                tone: InlineStatusTone.error,
-                message:
-                    'Spending has exceeded the approved budget allocation.',
+                  )
+                : null,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          CompactStatRow(
+            items: [
+              CompactStat(value: event.budgetLabel, label: 'Approved Budget'),
+              CompactStat(
+                value: formatPhpMoney(actual),
+                label: 'Liquidated / Actual',
               ),
+              CompactStat(
+                value: formatPhpMoney(remaining),
+                label: 'Remaining Balance',
+              ),
+              if (budgetActual != null)
+                CompactStat(
+                  value: budgetActual!.utilizationLabel,
+                  label: 'Utilization',
+                ),
             ],
+          ),
+          if (budgetActual != null && budgetActual!.isOverBudget) ...[
+            const SizedBox(height: AppSpacing.md),
+            const InlineStatusPanel(
+              tone: InlineStatusTone.error,
+              message: 'Spending has exceeded the approved budget allocation.',
+            ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -568,49 +566,46 @@ class _EventActionsBar extends StatelessWidget {
         liquidationEvent!.canSubmitLiquidation &&
         hasOfficers;
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Actions', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                FilledButton.icon(
-                  key: Key('eventLiquidationButton${event.id}'),
-                  onPressed: canLiquidate ? onSubmitLiquidation : null,
-                  icon: const Icon(Icons.add_task, size: 18),
-                  label: const Text('Liquidate / Add Receipt'),
-                ),
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const AppSectionHeader(title: 'Actions'),
+          const SizedBox(height: AppSpacing.md),
+          Wrap(
+            spacing: AppSpacing.md,
+            runSpacing: AppSpacing.sm,
+            children: [
+              FilledButton.icon(
+                key: Key('eventLiquidationButton${event.id}'),
+                onPressed: canLiquidate ? onSubmitLiquidation : null,
+                icon: const Icon(Icons.add_task, size: 18),
+                label: const Text('Liquidate / Add Receipt'),
+              ),
+              OutlinedButton.icon(
+                key: Key('eventBudgetReviewButton${event.id}'),
+                onPressed: onReviewBudget,
+                icon: const Icon(Icons.analytics_outlined, size: 18),
+                label: const Text('Budget Review'),
+              ),
+              if (event.canAdjustBudget)
                 OutlinedButton.icon(
-                  key: Key('eventBudgetReviewButton${event.id}'),
-                  onPressed: onReviewBudget,
-                  icon: const Icon(Icons.analytics_outlined, size: 18),
-                  label: const Text('Budget Review'),
+                  key: Key('eventAdjustBudgetButton${event.id}'),
+                  onPressed: onAdjustBudget,
+                  icon: const Icon(Icons.tune, size: 18),
+                  label: const Text('Adjust Budget'),
                 ),
-                if (event.canAdjustBudget)
-                  OutlinedButton.icon(
-                    key: Key('eventAdjustBudgetButton${event.id}'),
-                    onPressed: onAdjustBudget,
-                    icon: const Icon(Icons.tune, size: 18),
-                    label: const Text('Adjust Budget'),
-                  ),
-                FilledButton.tonalIcon(
-                  key: Key('eventMarkLiquidatedButton${event.id}'),
-                  onPressed: event.status == AuditEventStatus.liquidated
-                      ? null
-                      : onMarkLiquidated,
-                  icon: const Icon(Icons.verified_outlined, size: 18),
-                  label: const Text('Mark Liquidated'),
-                ),
-              ],
-            ),
-          ],
-        ),
+              OutlinedButton.icon(
+                key: Key('eventMarkLiquidatedButton${event.id}'),
+                onPressed: event.status == AuditEventStatus.liquidated
+                    ? null
+                    : onMarkLiquidated,
+                icon: const Icon(Icons.verified_outlined, size: 18),
+                label: const Text('Mark Liquidated'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -629,127 +624,74 @@ class _LiquidationSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.receipt_long_outlined,
-                  size: 20,
-                  color: Color(0xFF10B981),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Liquidation Receipts',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const Spacer(),
-                StatusBadge(
-                  label:
-                      '${receipts.length} receipt${receipts.length == 1 ? '' : 's'}',
-                  tone: InlineStatusTone.info,
-                ),
-              ],
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(
+            icon: Icons.receipt_long_outlined,
+            title: 'Liquidation Receipts',
+            trailing: StatusBadge(
+              label:
+                  '${receipts.length} receipt${receipts.length == 1 ? '' : 's'}',
+              tone: InlineStatusTone.info,
             ),
-            if (officerCount == 0) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
-                  border: Border.all(
-                    color: const Color(0xFFF59E0B).withValues(alpha: 0.32),
+          ),
+          if (officerCount == 0) ...[
+            const SizedBox(height: AppSpacing.md),
+            InlineStatusPanel(
+              tone: InlineStatusTone.warning,
+              title: 'Accountable Officer Required',
+              message:
+                  'Add an officer to unlock receipt submission for this event.',
+              action: FilledButton.icon(
+                key: const Key('eventAddOfficerPromptButton'),
+                onPressed: onCreateOfficer,
+                icon: const Icon(Icons.person_add_alt_1, size: 16),
+                label: const Text('Add Officer'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.xs,
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  minimumSize: const Size(0, 36),
                 ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.md),
+          if (receipts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+              child: Center(
+                child: Column(
                   children: [
                     const Icon(
-                      Icons.warning_amber_outlined,
-                      color: Color(0xFFF59E0B),
-                      size: 22,
+                      Icons.receipt_outlined,
+                      size: 36,
+                      color: AppColors.textMuted,
                     ),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Accountable Officer Required',
-                            style: TextStyle(
-                              color: Color(0xFFF59E0B),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Add an officer to unlock receipt submission for this event.',
-                            style: TextStyle(
-                              color: Color(0xFFCBD5E1),
-                              fontSize: 11.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    FilledButton.icon(
-                      key: const Key('eventAddOfficerPromptButton'),
-                      onPressed: onCreateOfficer,
-                      icon: const Icon(Icons.person_add_alt_1, size: 16),
-                      label: const Text('Add Officer'),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        minimumSize: const Size(0, 36),
-                      ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'No receipts submitted yet for this event.',
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.textSecondary),
                     ),
                   ],
                 ),
               ),
-            ],
-            const SizedBox(height: 12),
-            if (receipts.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Center(
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.receipt_outlined,
-                        size: 36,
-                        color: Color(0xFF64748B),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No receipts submitted yet for this event.',
-                        style: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(color: const Color(0xFF94A3B8)),
-                      ),
-                    ],
+            )
+          else
+            Column(
+              children: [
+                for (var i = 0; i < receipts.length; i++)
+                  _ReceiptRow(
+                    receipt: receipts[i],
+                    showDivider: i < receipts.length - 1,
                   ),
-                ),
-              )
-            else
-              Column(
-                children: [
-                  for (var i = 0; i < receipts.length; i++)
-                    _ReceiptRow(
-                      receipt: receipts[i],
-                      showDivider: i < receipts.length - 1,
-                    ),
-                ],
-              ),
-          ],
-        ),
+              ],
+            ),
+        ],
       ),
     );
   }
@@ -783,10 +725,7 @@ class _ReceiptRow extends StatelessWidget {
         'Ref #${receipt.evidenceNumber} · ${receipt.dateLabel} · ${receipt.accountableOfficerName}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Color(0xFF94A3B8),
-          fontSize: 11.5,
-        ),
+        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5),
       ),
       trailing: Text(
         receipt.totalLabel,
@@ -834,67 +773,54 @@ class _ReimbursementsSection extends StatelessWidget {
         .where((c) => c.status == ReimbursementStatus.pending)
         .fold(Money.zero, (total, c) => total + c.amount);
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.payments_outlined,
-                  size: 20,
-                  color: Color(0xFFF59E0B),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Reimbursements',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const Spacer(),
-                if (pendingTotal.isPositive)
-                  StatusBadge(
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(
+            icon: Icons.payments_outlined,
+            title: 'Reimbursements',
+            trailing: pendingTotal.isPositive
+                ? StatusBadge(
                     label: 'Pending: ${formatPhpMoney(pendingTotal)}',
                     tone: InlineStatusTone.warning,
+                  )
+                : null,
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (claims.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
+              child: Center(
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.check_circle_outline,
+                      size: 36,
+                      color: AppColors.textMuted,
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      'No reimbursement requests for this event.',
+                      style: Theme.of(context).textTheme.bodyMedium
+                          ?.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Column(
+              children: [
+                for (var i = 0; i < claims.length; i++)
+                  _ReimbursementClaimRow(
+                    claim: claims[i],
+                    showDivider: i < claims.length - 1,
+                    onPay: () => onPayReimbursement(claims[i]),
                   ),
               ],
             ),
-            const SizedBox(height: 12),
-            if (claims.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Center(
-                  child: Column(
-                    children: [
-                      const Icon(
-                        Icons.check_circle_outline,
-                        size: 36,
-                        color: Color(0xFF64748B),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No reimbursement requests for this event.',
-                        style: Theme.of(context).textTheme.bodyMedium
-                            ?.copyWith(color: const Color(0xFF94A3B8)),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Column(
-                children: [
-                  for (var i = 0; i < claims.length; i++)
-                    _ReimbursementClaimRow(
-                      claim: claims[i],
-                      showDivider: i < claims.length - 1,
-                      onPay: () => onPayReimbursement(claims[i]),
-                    ),
-                ],
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -917,7 +843,7 @@ class _ReimbursementClaimRow extends StatelessWidget {
     return ExpandableListRow(
       leading: Icon(
         isPending ? Icons.schedule : Icons.check_circle_outline,
-        color: isPending ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+        color: isPending ? AppColors.warning : AppColors.success,
         size: 18,
       ),
       title: Text(
@@ -925,19 +851,16 @@ class _ReimbursementClaimRow extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
           fontSize: 13,
-          color: Color(0xFFF8FAFC),
+          color: AppColors.textPrimary,
         ),
       ),
       subtitle: Text(
         '${claim.statusLabel} · After: ${claim.projectedRemainingLabel}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Color(0xFF94A3B8),
-          fontSize: 11.5,
-        ),
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -945,18 +868,21 @@ class _ReimbursementClaimRow extends StatelessWidget {
           Text(
             claim.amountLabel,
             style: const TextStyle(
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               fontSize: 13,
-              color: Color(0xFFF59E0B),
+              color: AppColors.warning,
             ),
           ),
           if (claim.canPay) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpacing.sm),
             FilledButton(
               key: Key('reimbursementPayButton${claim.id}'),
               onPressed: onPay,
               style: FilledButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: 4,
+                ),
                 minimumSize: const Size(0, 32),
               ),
               child: const Text('Pay', style: TextStyle(fontSize: 12)),

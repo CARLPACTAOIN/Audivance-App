@@ -92,86 +92,87 @@ void main() {
     expect(tappedIndex, 0);
   });
 
-  testWidgets('updates visual glow and active state when selectedIndex changes', (
-    tester,
-  ) async {
-    final selectedNotifier = ValueNotifier<int>(0);
+  testWidgets(
+    'updates visual glow and active state when selectedIndex changes',
+    (tester) async {
+      final selectedNotifier = ValueNotifier<int>(0);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          bottomNavigationBar: ValueListenableBuilder<int>(
-            valueListenable: selectedNotifier,
-            builder: (context, index, _) {
-              return FloatingPillNavigationBar(
-                selectedIndex: index,
-                onDestinationSelected: (newIndex) =>
-                    selectedNotifier.value = newIndex,
-              );
-            },
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: ValueListenableBuilder<int>(
+              valueListenable: selectedNotifier,
+              builder: (context, index, _) {
+                return FloatingPillNavigationBar(
+                  selectedIndex: index,
+                  onDestinationSelected: (newIndex) =>
+                      selectedNotifier.value = newIndex,
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    // Initial state: Dashboard glowing, Treasury inactive
-    var dashboardIcon = tester.widget<Icon>(
-      find.descendant(
-        of: find.byKey(const Key('navItemDashboard')),
-        matching: find.byType(Icon),
-      ),
-    );
-    var treasuryIcon = tester.widget<Icon>(
-      find.descendant(
-        of: find.byKey(const Key('navItemTreasury')),
-        matching: find.byType(Icon),
-      ),
-    );
-    expect(dashboardIcon.shadows, isNotNull);
-    expect(treasuryIcon.shadows, isNull);
+      // Initial state: Dashboard glowing, Treasury inactive
+      var dashboardIcon = tester.widget<Icon>(
+        find.descendant(
+          of: find.byKey(const Key('navItemDashboard')),
+          matching: find.byType(Icon),
+        ),
+      );
+      var treasuryIcon = tester.widget<Icon>(
+        find.descendant(
+          of: find.byKey(const Key('navItemTreasury')),
+          matching: find.byType(Icon),
+        ),
+      );
+      expect(dashboardIcon.shadows, isNotNull);
+      expect(treasuryIcon.shadows, isNull);
 
-    // Switch to Treasury
-    selectedNotifier.value = 1;
-    await tester.pumpAndSettle();
+      // Switch to Treasury
+      selectedNotifier.value = 1;
+      await tester.pumpAndSettle();
 
-    dashboardIcon = tester.widget<Icon>(
-      find.descendant(
-        of: find.byKey(const Key('navItemDashboard')),
-        matching: find.byType(Icon),
-      ),
-    );
-    treasuryIcon = tester.widget<Icon>(
-      find.descendant(
-        of: find.byKey(const Key('navItemTreasury')),
-        matching: find.byType(Icon),
-      ),
-    );
-    expect(dashboardIcon.shadows, isNull);
-    expect(treasuryIcon.shadows, isNotNull);
-    expect(treasuryIcon.icon, Icons.account_balance_rounded);
-  });
+      dashboardIcon = tester.widget<Icon>(
+        find.descendant(
+          of: find.byKey(const Key('navItemDashboard')),
+          matching: find.byType(Icon),
+        ),
+      );
+      treasuryIcon = tester.widget<Icon>(
+        find.descendant(
+          of: find.byKey(const Key('navItemTreasury')),
+          matching: find.byType(Icon),
+        ),
+      );
+      expect(dashboardIcon.shadows, isNull);
+      expect(treasuryIcon.shadows, isNotNull);
+      expect(treasuryIcon.icon, Icons.account_balance_rounded);
+    },
+  );
 
-  testWidgets('constrained to max width and applies floating pill chassis padding', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          bottomNavigationBar: FloatingPillNavigationBar(
-            selectedIndex: 0,
-            onDestinationSelected: (_) {},
+  testWidgets(
+    'constrained to max width and applies floating pill chassis padding',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            bottomNavigationBar: FloatingPillNavigationBar(
+              selectedIndex: 0,
+              onDestinationSelected: (_) {},
+            ),
           ),
         ),
-      ),
-    );
+      );
 
-    final constrainedBoxFinder = find.byWidgetPredicate(
-      (widget) =>
-          widget is ConstrainedBox &&
-          widget.constraints.maxWidth == 520.0,
-    );
-    expect(constrainedBoxFinder, findsOneWidget);
-  });
+      final constrainedBoxFinder = find.byWidgetPredicate(
+        (widget) =>
+            widget is ConstrainedBox && widget.constraints.maxWidth == 520.0,
+      );
+      expect(constrainedBoxFinder, findsOneWidget);
+    },
+  );
 }
 
 Icon treasIcon(Icon icon) => icon;

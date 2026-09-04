@@ -48,8 +48,7 @@ class OrganizationService {
   Future<ValidationResult> updateOrganization(
     UpdateOrganizationCommand command,
   ) async {
-    final signatoryNames = parseSignatoryNames(command.signatoryNamesText);
-    final validation = _validateOrganization(command, signatoryNames);
+    final validation = _validateOrganization(command);
     if (validation.isInvalid) {
       return validation;
     }
@@ -63,7 +62,9 @@ class OrganizationService {
       adviser: command.adviser.trim(),
       semester: command.semester.trim(),
       schoolYear: command.schoolYear.trim(),
-      signatoryNames: signatoryNames,
+      treasurerSignatory: command.effectiveTreasurerSignatory,
+      auditorSignatory: command.effectiveAuditorSignatory,
+      headSignatory: command.effectiveHeadSignatory,
     );
 
     await repository.saveOrganization(organization);
@@ -171,15 +172,49 @@ class UpdateOrganizationCommand {
     required this.adviser,
     required this.semester,
     required this.schoolYear,
-    required this.signatoryNamesText,
-  });
+    this.treasurerSignatory = '',
+    this.auditorSignatory = '',
+    this.headSignatory = '',
+    String? signatoryNamesText,
+  }) : _legacySignatoryNamesText = signatoryNamesText;
 
   final String name;
   final String type;
   final String adviser;
   final String semester;
   final String schoolYear;
-  final String signatoryNamesText;
+  final String treasurerSignatory;
+  final String auditorSignatory;
+  final String headSignatory;
+  final String? _legacySignatoryNamesText;
+
+  String get effectiveTreasurerSignatory {
+    if (treasurerSignatory.trim().isNotEmpty) return treasurerSignatory.trim();
+    final legacy = _legacyList;
+    return legacy.isNotEmpty ? legacy[0] : '';
+  }
+
+  String get effectiveAuditorSignatory {
+    if (auditorSignatory.trim().isNotEmpty) return auditorSignatory.trim();
+    final legacy = _legacyList;
+    return legacy.length > 1 ? legacy[1] : '';
+  }
+
+  String get effectiveHeadSignatory {
+    if (headSignatory.trim().isNotEmpty) return headSignatory.trim();
+    final legacy = _legacyList;
+    return legacy.length > 2 ? legacy[2] : '';
+  }
+
+  List<String> get _legacyList {
+    if (_legacySignatoryNamesText == null ||
+        _legacySignatoryNamesText.trim().isEmpty) {
+      return const [];
+    }
+    return parseSignatoryNames(_legacySignatoryNamesText);
+  }
+
+  String get signatoryNamesText => _legacySignatoryNamesText ?? '';
 }
 
 class SaveOfficerCommand {
@@ -293,7 +328,6 @@ List<String> parseSignatoryNames(String value) {
 
 ValidationResult _validateOrganization(
   UpdateOrganizationCommand command,
-  List<String> signatoryNames,
 ) {
   final messages = <String>[];
   if (command.name.trim().isEmpty) {
@@ -311,7 +345,9 @@ ValidationResult _validateOrganization(
   if (command.schoolYear.trim().isEmpty) {
     messages.add('School year is required.');
   }
-  if (signatoryNames.isEmpty) {
+  if (command.effectiveTreasurerSignatory.isEmpty &&
+      command.effectiveAuditorSignatory.isEmpty &&
+      command.effectiveHeadSignatory.isEmpty) {
     messages.add('At least one signatory is required.');
   }
   return ValidationResult.invalid(messages);
@@ -383,6 +419,9 @@ Map<String, Object?> _organizationSnapshot(OrganizationProfile organization) {
     'adviser': organization.adviser,
     'semester': organization.semester,
     'schoolYear': organization.schoolYear,
+    'treasurerSignatory': organization.effectiveTreasurerSignatory,
+    'auditorSignatory': organization.effectiveAuditorSignatory,
+    'headSignatory': organization.effectiveHeadSignatory,
     'signatoryNames': organization.signatoryNames,
   };
 }

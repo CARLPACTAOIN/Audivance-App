@@ -17,6 +17,7 @@ import '../features/export/export_package_writer.dart';
 import '../features/export/export_screen.dart';
 import '../features/export/export_service.dart';
 import '../features/liquidation/liquidation_service.dart';
+import '../features/organization/organization_screen.dart';
 import '../features/organization/organization_service.dart';
 import '../features/treasury/treasury_screen.dart';
 import '../features/treasury/treasury_service.dart';
@@ -58,6 +59,8 @@ class WorkspaceShell extends StatefulWidget {
 
 class _WorkspaceShellState extends State<WorkspaceShell> {
   var _selectedIndex = 0;
+  final _activatedIndices = <int>{0};
+  final _refreshCounts = [0, 0, 0, 0];
 
   @override
   Widget build(BuildContext context) {
@@ -78,11 +81,6 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Search records',
-            onPressed: () => _showActionPending(context, 'Search records'),
-            icon: const Icon(Icons.search),
-          ),
-          IconButton(
             key: const Key('workspaceSettingsButton'),
             tooltip: 'Open settings',
             onPressed: _openAdminMenu,
@@ -92,7 +90,80 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
       ),
       body: SafeArea(
         bottom: false,
-        child: _selectedPage(),
+        child: IndexedStack(
+          index: _selectedIndex,
+          children: [
+            DashboardScreen(
+              service: DashboardService(
+                widget.repository,
+                attachmentStorage: widget.attachmentStorage,
+              ),
+              asOf: widget.asOf,
+              refreshTrigger: _refreshCounts[0],
+              onOpenLedger: () => _selectIndex(1),
+              onOpenExportCenter: () => _selectIndex(3),
+            ),
+            _activatedIndices.contains(1)
+                ? TreasuryScreen(
+                    service: TreasuryService(
+                      repository: widget.repository,
+                      idGenerator: widget.idGenerator,
+                    ),
+                    attachmentPicker: widget.attachmentPicker,
+                    attachmentStorage: widget.attachmentStorage,
+                    refreshTrigger: _refreshCounts[1],
+                  )
+                : const SizedBox.shrink(),
+            _activatedIndices.contains(2)
+                ? EventScreen(
+                    service: EventService(
+                      repository: widget.repository,
+                      idGenerator: widget.idGenerator,
+                    ),
+                    liquidationService: LiquidationService(
+                      repository: widget.repository,
+                      idGenerator: widget.idGenerator,
+                    ),
+                    attachmentPicker: widget.attachmentPicker,
+                    attachmentStorage: widget.attachmentStorage,
+                    asOf: widget.asOf,
+                    refreshTrigger: _refreshCounts[2],
+                    onOpenOfficerManagement: _openOfficerManagement,
+                  )
+                : const SizedBox.shrink(),
+            _activatedIndices.contains(3)
+                ? ExportScreen(
+                    service: ExportService(
+                      repository: widget.repository,
+                      attachmentStorage: widget.attachmentStorage,
+                    ),
+                    historyService: ExportHistoryService(
+                      repository: widget.repository,
+                      idGenerator: widget.idGenerator,
+                      backupHistoryService: BackupHistoryService(
+                        repository: widget.repository,
+                        idGenerator: widget.idGenerator,
+                      ),
+                    ),
+                    backupHistoryService: BackupHistoryService(
+                      repository: widget.repository,
+                      idGenerator: widget.idGenerator,
+                    ),
+                    backupService:
+                        widget.backupService ??
+                        BackupService(storagePaths: widget.storagePaths),
+                    backupWriter:
+                        widget.backupPackageWriter ??
+                        const FilePickerBackupPackageWriter(),
+                    writer:
+                        widget.exportPackageWriter ??
+                        const FilePickerExportPackageWriter(),
+                    asOf: widget.asOf,
+                    refreshTrigger: _refreshCounts[3],
+                  )
+                : const SizedBox.shrink(),
+          ],
+        ),
       ),
       bottomNavigationBar: FloatingPillNavigationBar(
         selectedIndex: _selectedIndex,
@@ -101,73 +172,8 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
     );
   }
 
-  Widget _selectedPage() {
-    return switch (_selectedIndex) {
-      0 => DashboardScreen(
-        service: DashboardService(
-          widget.repository,
-          attachmentStorage: widget.attachmentStorage,
-        ),
-        asOf: widget.asOf,
-        onOpenLedger: () => _selectIndex(1),
-        onOpenExportCenter: () => _selectIndex(3),
-      ),
-      1 => TreasuryScreen(
-        service: TreasuryService(
-          repository: widget.repository,
-          idGenerator: widget.idGenerator,
-        ),
-        attachmentPicker: widget.attachmentPicker,
-        attachmentStorage: widget.attachmentStorage,
-      ),
-      2 => EventScreen(
-        service: EventService(
-          repository: widget.repository,
-          idGenerator: widget.idGenerator,
-        ),
-        organizationService: OrganizationService(
-          repository: widget.repository,
-          idGenerator: widget.idGenerator,
-        ),
-        liquidationService: LiquidationService(
-          repository: widget.repository,
-          idGenerator: widget.idGenerator,
-        ),
-        attachmentPicker: widget.attachmentPicker,
-        attachmentStorage: widget.attachmentStorage,
-        asOf: widget.asOf,
-      ),
-      _ => ExportScreen(
-        service: ExportService(
-          repository: widget.repository,
-          attachmentStorage: widget.attachmentStorage,
-        ),
-        historyService: ExportHistoryService(
-          repository: widget.repository,
-          idGenerator: widget.idGenerator,
-          backupHistoryService: BackupHistoryService(
-            repository: widget.repository,
-            idGenerator: widget.idGenerator,
-          ),
-        ),
-        backupHistoryService: BackupHistoryService(
-          repository: widget.repository,
-          idGenerator: widget.idGenerator,
-        ),
-        backupService:
-            widget.backupService ??
-            BackupService(storagePaths: widget.storagePaths),
-        backupWriter:
-            widget.backupPackageWriter ?? const FilePickerBackupPackageWriter(),
-        writer:
-            widget.exportPackageWriter ?? const FilePickerExportPackageWriter(),
-        asOf: widget.asOf,
-      ),
-    };
-  }
-
-  Future<void> _openAdminMenu() {
-    return AdminMenuSheet.show(
+  Future<void> _openAdminMenu() async {
+    await AdminMenuSheet.show(
       context,
       repository: widget.repository,
       idGenerator: widget.idGenerator,
@@ -177,19 +183,48 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
       onRestoreBackup: widget.onRestoreBackup,
       storagePaths: widget.storagePaths,
     );
+    if (mounted) {
+      _refreshCurrentTab();
+    }
+  }
+
+  Future<void> _openOfficerManagement() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(title: const Text('Profile')),
+          body: SafeArea(
+            child: OrganizationScreen(
+              service: OrganizationService(
+                repository: widget.repository,
+                idGenerator: widget.idGenerator,
+              ),
+              openOfficerFormOnStart: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    if (mounted) {
+      _refreshCurrentTab();
+    }
   }
 
   void _selectIndex(int index) {
+    if (_selectedIndex == index) {
+      return;
+    }
     setState(() {
       _selectedIndex = index;
+      _activatedIndices.add(index);
+      _refreshCounts[index]++;
     });
   }
-}
 
-void _showActionPending(BuildContext context, String area) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(
-      SnackBar(content: Text('$area workflow is next in the build sequence.')),
-    );
+  void _refreshCurrentTab() {
+    setState(() {
+      _refreshCounts[_selectedIndex]++;
+    });
+  }
 }

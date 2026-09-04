@@ -12,6 +12,7 @@ class DashboardScreen extends StatefulWidget {
     this.asOf,
     this.onOpenExportCenter,
     this.onOpenLedger,
+    this.refreshTrigger = 0,
   });
 
   final DashboardSnapshot? snapshot;
@@ -19,6 +20,7 @@ class DashboardScreen extends StatefulWidget {
   final DateTime? asOf;
   final VoidCallback? onOpenExportCenter;
   final VoidCallback? onOpenLedger;
+  final int refreshTrigger;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -26,6 +28,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   Future<DashboardSnapshot>? _snapshotFuture;
+  DashboardSnapshot? _cachedSnapshot;
 
   @override
   void initState() {
@@ -36,15 +39,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void didUpdateWidget(DashboardScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.service != widget.service || oldWidget.asOf != widget.asOf) {
+    if (oldWidget.service != widget.service ||
+        oldWidget.asOf != widget.asOf ||
+        oldWidget.refreshTrigger != widget.refreshTrigger) {
       _resetFuture();
     }
   }
 
   void _resetFuture() {
-    _snapshotFuture = widget.service?.loadSnapshot(
+    final future = widget.service?.loadSnapshot(
       asOf: widget.asOf ?? DateTime.now(),
     );
+    if (future != null) {
+      _snapshotFuture = future.then((snapshot) {
+        if (mounted) {
+          setState(() {
+            _cachedSnapshot = snapshot;
+          });
+        }
+        return snapshot;
+      });
+    } else {
+      _snapshotFuture = Future.value(demoDashboardSnapshot);
+    }
   }
 
   void _retry() {
@@ -70,27 +87,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
 
+    if (_cachedSnapshot != null) {
+      return _DashboardContent(
+        key: const ValueKey('content'),
+        snapshot: _cachedSnapshot!,
+        onOpenExportCenter: widget.onOpenExportCenter,
+        onOpenLedger: widget.onOpenLedger,
+      );
+    }
+
     return FutureBuilder<DashboardSnapshot>(
       future: _snapshotFuture,
       builder: (context, snapshot) {
+        final Widget child;
         if (snapshot.connectionState != ConnectionState.done) {
-          return const AppStateView.loading(
+          child = const AppStateView.loading(
+            key: ValueKey('loading'),
             title: 'Loading dashboard',
             message: 'Reading local audit records for this workspace.',
           );
-        }
-        if (snapshot.hasError) {
-          return AppStateView.error(
+        } else if (snapshot.hasError) {
+          child = AppStateView.error(
+            key: const ValueKey('error'),
             title: 'Dashboard data could not be loaded',
             message: snapshot.error.toString(),
             onAction: _retry,
           );
+        } else {
+          final data = snapshot.data ?? demoDashboardSnapshot;
+          _cachedSnapshot = data;
+          child = _DashboardContent(
+            key: const ValueKey('content'),
+            snapshot: data,
+            onOpenExportCenter: widget.onOpenExportCenter,
+            onOpenLedger: widget.onOpenLedger,
+          );
         }
-        return _DashboardContent(
-          snapshot: snapshot.data ?? demoDashboardSnapshot,
-          onOpenExportCenter: widget.onOpenExportCenter,
-          onOpenLedger: widget.onOpenLedger,
-        );
+        return AppCrossfade(child: child);
       },
     );
   }
@@ -98,6 +131,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
 class _DashboardContent extends StatelessWidget {
   const _DashboardContent({
+    super.key,
     required this.snapshot,
     required this.onOpenExportCenter,
     required this.onOpenLedger,
@@ -109,62 +143,64 @@ class _DashboardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isWide = constraints.maxWidth >= 900;
-        return CustomScrollView(
-          slivers: [
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                isWide ? 32 : 16,
-                16,
-                isWide ? 32 : 16,
-                100,
-              ),
-              sliver: SliverList(
-                delegate: SliverChildListDelegate([
-                  _DashboardHeader(snapshot: snapshot),
-                  const SizedBox(height: 14),
-                  _MetricGrid(metrics: snapshot.metrics),
-                  const SizedBox(height: 14),
-                  if (isWide)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: _FundMovementPanel(
-                            movements: snapshot.movements,
-                            onOpenLedger: onOpenLedger,
+    return AppSlideFadeIn(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 900;
+          return CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  isWide ? AppSpacing.xxl : AppSpacing.lg,
+                  AppSpacing.lg,
+                  isWide ? AppSpacing.xxl : AppSpacing.lg,
+                  110,
+                ),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
+                    _DashboardHeader(snapshot: snapshot),
+                    const SizedBox(height: AppSpacing.lg),
+                    _MetricGrid(metrics: snapshot.metrics),
+                    const SizedBox(height: AppSpacing.lg),
+                    if (isWide)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: _FundMovementPanel(
+                              movements: snapshot.movements,
+                              onOpenLedger: onOpenLedger,
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          flex: 2,
-                          child: _ReadinessPanel(
-                            snapshot: snapshot,
-                            onOpenExportCenter: onOpenExportCenter,
+                          const SizedBox(width: AppSpacing.lg),
+                          Expanded(
+                            flex: 2,
+                            child: _ReadinessPanel(
+                              snapshot: snapshot,
+                              onOpenExportCenter: onOpenExportCenter,
+                            ),
                           ),
-                        ),
-                      ],
-                    )
-                  else ...[
-                    _ReadinessPanel(
-                      snapshot: snapshot,
-                      onOpenExportCenter: onOpenExportCenter,
-                    ),
-                    const SizedBox(height: 14),
-                    _FundMovementPanel(
-                      movements: snapshot.movements,
-                      onOpenLedger: onOpenLedger,
-                    ),
-                  ],
-                ]),
+                        ],
+                      )
+                    else ...[
+                      _ReadinessPanel(
+                        snapshot: snapshot,
+                        onOpenExportCenter: onOpenExportCenter,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      _FundMovementPanel(
+                        movements: snapshot.movements,
+                        onOpenLedger: onOpenLedger,
+                      ),
+                    ],
+                  ]),
+                ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -180,21 +216,25 @@ class _DashboardHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(snapshot.organizationName, style: textTheme.headlineMedium),
-        const SizedBox(height: 8),
+        Text(
+          snapshot.organizationName,
+          style: textTheme.headlineMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.xs,
           children: [
-            _StatusChip(
+            MetadataChip(
               icon: Icons.calendar_month_outlined,
               label: snapshot.term,
-              tone: DashboardSignalTone.neutral,
             ),
-            _StatusChip(
+            MetadataChip(
               icon: Icons.backup_outlined,
               label: snapshot.lastBackup,
-              tone: DashboardSignalTone.warning,
             ),
           ],
         ),
@@ -217,14 +257,14 @@ class _MetricGrid extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(child: _MetricCard(metric: metrics[i])),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpacing.md),
               if (i + 1 < metrics.length)
                 Expanded(child: _MetricCard(metric: metrics[i + 1]))
               else
                 const Spacer(),
             ],
           ),
-          if (i + 2 < metrics.length) const SizedBox(height: 10),
+          if (i + 2 < metrics.length) const SizedBox(height: AppSpacing.md),
         ],
       ],
     );
@@ -239,49 +279,51 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final toneColor = _toneColor(metric.tone);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: toneColor.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(metric.icon, color: toneColor, size: 18),
+    final toneColor = _signalToneColor(metric.tone);
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md + 2,
+        vertical: AppSpacing.md,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppSpacing.sm),
+            decoration: BoxDecoration(
+              color: toneColor.withValues(alpha: 0.10),
+              borderRadius: AppRadius.borderSm,
             ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    metric.value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFFF8FAFC),
-                    ),
+            child: Icon(metric.icon, color: toneColor, size: 18),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  metric.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
                   ),
-                  Text(
-                    metric.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF94A3B8),
-                    ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  metric.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -302,65 +344,72 @@ class _ReadinessPanel extends StatelessWidget {
     final firstTask = snapshot.tasks.isNotEmpty ? snapshot.tasks.first : null;
     final score = snapshot.exportReadiness;
     final scoreColor = score >= 80
-        ? const Color(0xFF10B981)
+        ? AppColors.success
         : score >= 50
-        ? const Color(0xFFF59E0B)
-        : const Color(0xFFEF4444);
-    return _Panel(
-      title: 'Export Readiness',
-      action: FilledButton.icon(
-        onPressed: onOpenExportCenter,
-        icon: const Icon(Icons.archive_outlined, size: 16),
-        label: const Text('Export Center'),
-        style: FilledButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          minimumSize: const Size(0, 36),
-        ),
-      ),
+        ? AppColors.warning
+        : AppColors.error;
+
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AppSectionHeader(
+            title: 'Export Readiness',
+            trailing: FilledButton.icon(
+              onPressed: onOpenExportCenter,
+              icon: const Icon(Icons.archive_outlined, size: 16),
+              label: const Text('Export Center'),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                minimumSize: const Size(0, 36),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
           Wrap(
-            spacing: 10,
+            spacing: AppSpacing.sm,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
                 '$score%',
                 style: textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                   color: scoreColor,
                 ),
               ),
               Text(
                 'workspace readiness',
                 style: textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF94A3B8),
+                  color: AppColors.textSecondary,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpacing.sm),
           LinearProgressIndicator(
             value: score / 100,
             minHeight: 6,
             borderRadius: BorderRadius.circular(4),
-            backgroundColor: const Color(0xFF1E293B),
+            backgroundColor: AppColors.divider,
             color: scoreColor,
           ),
           if (firstTask != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             _TaskRow(task: firstTask),
             if (snapshot.tasks.length > 1) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               GestureDetector(
                 onTap: onOpenExportCenter,
                 child: Text(
                   '${snapshot.tasks.length - 1} more issue${snapshot.tasks.length > 2 ? 's' : ''} — view in Export Center',
                   style: textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFFD97706),
+                    color: AppColors.brandLight,
                     fontWeight: FontWeight.w600,
                     decoration: TextDecoration.underline,
-                    decorationColor: const Color(0xFFD97706),
+                    decorationColor: AppColors.brandLight,
                   ),
                 ),
               ),
@@ -379,7 +428,7 @@ class _TaskRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final toneColor = _toneColor(task.tone);
+    final toneColor = _signalToneColor(task.tone);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -389,27 +438,32 @@ class _TaskRow extends StatelessWidget {
           margin: const EdgeInsets.only(top: 6),
           decoration: BoxDecoration(color: toneColor, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: AppSpacing.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 task.title,
-                style: Theme.of(context).textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w700),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
               const SizedBox(height: 2),
               Text(
                 task.detail,
-                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                style: const TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 3),
               Text(
                 task.status,
                 style: TextStyle(
                   color: toneColor,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: FontWeight.w600,
                   fontSize: 11.5,
                 ),
               ),
@@ -432,19 +486,26 @@ class _FundMovementPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _Panel(
-      title: 'Recent Fund Movements',
-      action: OutlinedButton.icon(
-        onPressed: onOpenLedger,
-        icon: const Icon(Icons.list_alt_outlined, size: 16),
-        label: const Text('View Ledger'),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          minimumSize: const Size(0, 36),
-        ),
-      ),
+    return AppCard(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          AppSectionHeader(
+            title: 'Recent Fund Movements',
+            trailing: OutlinedButton.icon(
+              onPressed: onOpenLedger,
+              icon: const Icon(Icons.list_alt_outlined, size: 16),
+              label: const Text('View Ledger'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.xs,
+                ),
+                minimumSize: const Size(0, 36),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
           if (movements.isEmpty)
             const _EmptyPanelMessage(
               icon: Icons.timeline_outlined,
@@ -472,16 +533,16 @@ class _EmptyPanelMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF64748B)),
-          const SizedBox(width: 12),
+          Icon(icon, color: AppColors.textMuted, size: 20),
+          const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
               text,
               style: Theme.of(context).textTheme.bodyMedium
-                  ?.copyWith(color: const Color(0xFF475569)),
+                  ?.copyWith(color: AppColors.textSecondary),
             ),
           ),
         ],
@@ -504,9 +565,7 @@ class _MovementRow extends StatelessWidget {
         movement.isSystemGenerated
             ? Icons.lock_outline
             : Icons.edit_note_outlined,
-        color: movement.isSystemGenerated
-            ? const Color(0xFF38BDF8)
-            : const Color(0xFFF59E0B),
+        color: movement.isSystemGenerated ? AppColors.info : AppColors.warning,
         size: 18,
       ),
       title: Text(
@@ -514,23 +573,23 @@ class _MovementRow extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(
-          fontWeight: FontWeight.w700,
-          fontSize: 13,
-          color: Color(0xFFF8FAFC),
+          fontWeight: FontWeight.w600,
+          fontSize: 13.5,
+          color: AppColors.textPrimary,
         ),
       ),
       subtitle: Text(
         '${movement.reference} · ${movement.date}',
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5),
+        style: const TextStyle(color: AppColors.textSecondary, fontSize: 11.5),
       ),
       trailing: Text(
         movement.amount,
         style: const TextStyle(
           fontWeight: FontWeight.w700,
-          fontSize: 13,
-          color: Color(0xFFF8FAFC),
+          fontSize: 13.5,
+          color: AppColors.textPrimary,
         ),
       ),
       expandedContent: Padding(
@@ -552,87 +611,11 @@ class _MovementRow extends StatelessWidget {
   }
 }
 
-class _Panel extends StatelessWidget {
-  const _Panel({required this.title, required this.child, this.action});
-
-  final String title;
-  final Widget child;
-  final Widget? action;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-                ?action,
-              ],
-            ),
-            const SizedBox(height: 12),
-            child,
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({
-    required this.icon,
-    required this.label,
-    required this.tone,
-  });
-
-  final IconData icon;
-  final String label;
-  final DashboardSignalTone tone;
-
-  @override
-  Widget build(BuildContext context) {
-    final toneColor = _toneColor(tone);
-    return Container(
-      constraints: const BoxConstraints(minHeight: 36),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: toneColor.withValues(alpha: 0.08),
-        border: Border.all(color: toneColor.withValues(alpha: 0.24)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: toneColor),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(
-              label,
-              style: TextStyle(color: toneColor, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-Color _toneColor(DashboardSignalTone tone) {
+Color _signalToneColor(DashboardSignalTone tone) {
   return switch (tone) {
-    DashboardSignalTone.success => const Color(0xFF10B981),
-    DashboardSignalTone.warning => const Color(0xFFF59E0B),
-    DashboardSignalTone.danger => const Color(0xFFEF4444),
-    DashboardSignalTone.neutral => const Color(0xFF38BDF8),
+    DashboardSignalTone.success => AppColors.success,
+    DashboardSignalTone.warning => AppColors.warning,
+    DashboardSignalTone.danger => AppColors.error,
+    DashboardSignalTone.neutral => AppColors.info,
   };
 }

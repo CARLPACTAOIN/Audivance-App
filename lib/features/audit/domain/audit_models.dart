@@ -67,8 +67,11 @@ class OrganizationProfile {
     required this.adviser,
     required this.semester,
     required this.schoolYear,
-    required this.signatoryNames,
-  });
+    this.treasurerSignatory = '',
+    this.auditorSignatory = '',
+    this.headSignatory = '',
+    List<String>? signatoryNames,
+  }) : _legacySignatoryNames = signatoryNames;
 
   final StableId id;
   final String name;
@@ -76,7 +79,51 @@ class OrganizationProfile {
   final String adviser;
   final String semester;
   final String schoolYear;
-  final List<String> signatoryNames;
+  final String treasurerSignatory;
+  final String auditorSignatory;
+  final String headSignatory;
+  final List<String>? _legacySignatoryNames;
+
+  String get effectiveTreasurerSignatory {
+    if (treasurerSignatory.isNotEmpty) return treasurerSignatory;
+    if (_legacySignatoryNames != null && _legacySignatoryNames.isNotEmpty) {
+      return _legacySignatoryNames[0];
+    }
+    return '';
+  }
+
+  String get effectiveAuditorSignatory {
+    if (auditorSignatory.isNotEmpty) return auditorSignatory;
+    if (_legacySignatoryNames != null && _legacySignatoryNames.length > 1) {
+      return _legacySignatoryNames[1];
+    }
+    return '';
+  }
+
+  String get effectiveHeadSignatory {
+    if (headSignatory.isNotEmpty) return headSignatory;
+    if (_legacySignatoryNames != null && _legacySignatoryNames.length > 2) {
+      return _legacySignatoryNames[2];
+    }
+    return '';
+  }
+
+  List<String> get signatoryNames {
+    final t = effectiveTreasurerSignatory;
+    final a = effectiveAuditorSignatory;
+    final h = effectiveHeadSignatory;
+    final names = <String>[];
+    if (t.isNotEmpty) names.add(t);
+    if (a.isNotEmpty) names.add(a);
+    if (h.isNotEmpty) names.add(h);
+    if (names.isNotEmpty) return names;
+    return _legacySignatoryNames ?? const <String>[];
+  }
+
+  bool get hasAnySignatory =>
+      effectiveTreasurerSignatory.trim().isNotEmpty ||
+      effectiveAuditorSignatory.trim().isNotEmpty ||
+      effectiveHeadSignatory.trim().isNotEmpty;
 }
 
 class Officer {

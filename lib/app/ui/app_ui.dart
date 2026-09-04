@@ -2,17 +2,21 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'app_tokens.dart';
+
 export 'app_date_picker_form_field.dart';
+export 'app_tokens.dart';
 export 'topographic_background.dart';
 
 enum InlineStatusTone { info, success, warning, error }
 
+/// Standard page scaffold with responsive horizontal padding and safe bottom clearance.
 class ResponsivePageScaffold extends StatelessWidget {
   const ResponsivePageScaffold({
     super.key,
     required this.children,
     this.maxWidth = 1180,
-    this.bottomPadding = 32,
+    this.bottomPadding = 110,
     this.topPadding = 20,
   });
 
@@ -25,7 +29,9 @@ class ResponsivePageScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final horizontalPadding = constraints.maxWidth >= 900 ? 32.0 : 16.0;
+        final horizontalPadding = constraints.maxWidth >= 900
+            ? AppSpacing.xxl
+            : AppSpacing.lg;
         return CustomScrollView(
           slivers: [
             SliverPadding(
@@ -54,6 +60,7 @@ class ResponsivePageScaffold extends StatelessWidget {
   }
 }
 
+/// Standard full-screen or section placeholder for loading, empty, and error states.
 class AppStateView extends StatelessWidget {
   const AppStateView({
     super.key,
@@ -104,7 +111,7 @@ class AppStateView extends StatelessWidget {
     final theme = Theme.of(context);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(AppSpacing.xl),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: Column(
@@ -112,30 +119,30 @@ class AppStateView extends StatelessWidget {
             children: [
               if (isLoading)
                 const SizedBox.square(
-                  dimension: 34,
+                  dimension: 32,
                   child: CircularProgressIndicator(strokeWidth: 2.5),
                 )
               else
                 Icon(icon, size: 36, color: theme.colorScheme.primary),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpacing.lg),
               Text(
                 title,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.titleLarge,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpacing.sm),
               Text(
                 message,
                 textAlign: TextAlign.center,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: const Color(0xFF475569),
+                  color: AppColors.textSecondary,
                 ),
               ),
               if (actionLabel != null && onAction != null) ...[
-                const SizedBox(height: 18),
+                const SizedBox(height: AppSpacing.lg),
                 FilledButton.icon(
                   onPressed: onAction,
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(Icons.refresh, size: 18),
                   label: Text(actionLabel!),
                 ),
               ],
@@ -147,27 +154,30 @@ class AppStateView extends StatelessWidget {
   }
 }
 
+/// An inline callout message with semantic background tint and icon.
 class InlineStatusPanel extends StatelessWidget {
   const InlineStatusPanel({
     super.key,
     required this.message,
     this.title,
     this.tone = InlineStatusTone.info,
+    this.action,
   });
 
   final String? title;
   final String message;
   final InlineStatusTone tone;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     final color = switch (tone) {
-      InlineStatusTone.info => const Color(0xFF38BDF8),
-      InlineStatusTone.success => const Color(0xFF10B981),
-      InlineStatusTone.warning => const Color(0xFFF59E0B),
-      InlineStatusTone.error => const Color(0xFFEF4444),
+      InlineStatusTone.info => AppColors.info,
+      InlineStatusTone.success => AppColors.success,
+      InlineStatusTone.warning => AppColors.warning,
+      InlineStatusTone.error => AppColors.error,
     };
-    final background = color.withValues(alpha: 0.12);
+    final background = color.withValues(alpha: 0.08);
     final icon = switch (tone) {
       InlineStatusTone.info => Icons.info_outline,
       InlineStatusTone.success => Icons.check_circle_outline,
@@ -177,16 +187,16 @@ class InlineStatusPanel extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: background,
-        border: Border.all(color: color.withValues(alpha: 0.32)),
-        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+        borderRadius: AppRadius.borderMd,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpacing.md),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: color, size: 20),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpacing.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,16 +206,16 @@ class InlineStatusPanel extends StatelessWidget {
                       title!,
                       style: TextStyle(
                         color: color,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13.5,
                       ),
                     ),
                     const SizedBox(height: 3),
                   ],
                   Text(
                     message,
-                    style: TextStyle(
-                      color: const Color(0xFFE2E8F0),
+                    style: const TextStyle(
+                      color: AppColors.textPrimary,
                       fontSize: 13,
                       height: 1.4,
                     ),
@@ -213,6 +223,10 @@ class InlineStatusPanel extends StatelessWidget {
                 ],
               ),
             ),
+            if (action != null) ...[
+              const SizedBox(width: AppSpacing.sm),
+              action!,
+            ],
           ],
         ),
       ),
@@ -220,6 +234,7 @@ class InlineStatusPanel extends StatelessWidget {
   }
 }
 
+/// Standard modal dialog shell with constrained width and scrollable body.
 class AppDialogFrame extends StatelessWidget {
   const AppDialogFrame({
     super.key,
@@ -240,15 +255,32 @@ class AppDialogFrame extends StatelessWidget {
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
     final width = math.min(maxWidth, size.width - 32);
-    final maxHeight = math.max(240.0, size.height - 220);
+    final maxHeight = math.max(240.0, size.height - 200);
     return AlertDialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-      backgroundColor: const Color(0xFF161C26),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: Color(0xFF263345)),
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.lg,
+        vertical: AppSpacing.xl,
       ),
-      title: Text(title),
+      backgroundColor: AppColors.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppRadius.borderLg,
+        side: const BorderSide(color: AppColors.borderSubtle),
+      ),
+      titlePadding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.xl,
+        AppSpacing.md,
+      ),
+      title: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textPrimary,
+        ),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl),
       content: SizedBox(
         width: width,
         child: ConstrainedBox(
@@ -259,18 +291,29 @@ class AppDialogFrame extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (status != null) ...[status!, const SizedBox(height: 12)],
+                if (status != null) ...[
+                  status!,
+                  const SizedBox(height: AppSpacing.md),
+                ],
                 ...children,
+                const SizedBox(height: AppSpacing.md),
               ],
             ),
           ),
         ),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(
+        AppSpacing.xl,
+        AppSpacing.sm,
+        AppSpacing.xl,
+        AppSpacing.lg,
       ),
       actions: actions,
     );
   }
 }
 
+/// A calm, neutral pill chip for non-status metadata (term, timestamp, category).
 class MetadataChip extends StatelessWidget {
   const MetadataChip({
     super.key,
@@ -285,17 +328,41 @@ class MetadataChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final chip = Chip(
-      avatar: Icon(icon, size: 18, color: const Color(0xFF94A3B8)),
-      label: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 260),
-        child: Text(label, overflow: TextOverflow.ellipsis),
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm + 2,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSubtle,
+        border: Border.all(color: AppColors.borderSubtle),
+        borderRadius: AppRadius.borderSm,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: AppColors.textMuted),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 240),
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
     return tooltip == null ? chip : Tooltip(message: tooltip!, child: chip);
   }
 }
 
+/// A restrained semantic badge for true state indicators (ongoing, due, liquidated, error).
 class StatusBadge extends StatelessWidget {
   const StatusBadge({
     super.key,
@@ -311,25 +378,28 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (tone) {
-      InlineStatusTone.info => const Color(0xFF38BDF8),
-      InlineStatusTone.success => const Color(0xFF10B981),
-      InlineStatusTone.warning => const Color(0xFFF59E0B),
-      InlineStatusTone.error => const Color(0xFFEF4444),
+      InlineStatusTone.info => AppColors.info,
+      InlineStatusTone.success => AppColors.success,
+      InlineStatusTone.warning => AppColors.warning,
+      InlineStatusTone.error => AppColors.error,
     };
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        border: Border.all(color: color.withValues(alpha: 0.32)),
-        borderRadius: BorderRadius.circular(8),
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+        borderRadius: AppRadius.borderSm,
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.sm + 1,
+          vertical: AppSpacing.xs,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 15, color: color),
-              const SizedBox(width: 6),
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 5),
             ],
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 240),
@@ -338,14 +408,118 @@ class StatusBadge extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: color,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
                 ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Reusable section title with optional subtitle, icon, and trailing action.
+class AppSectionHeader extends StatelessWidget {
+  const AppSectionHeader({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.icon,
+    this.trailing,
+  });
+
+  final String title;
+  final String? subtitle;
+  final IconData? icon;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 18, color: AppColors.brandLight),
+          const SizedBox(width: AppSpacing.sm),
+        ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 2),
+                Text(
+                  subtitle!,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: AppSpacing.md),
+          trailing!,
+        ],
+      ],
+    );
+  }
+}
+
+/// Reusable standardized card surface with clean borders and unified padding.
+class AppCard extends StatelessWidget {
+  const AppCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(AppSpacing.lg),
+    this.onTap,
+  });
+
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = padding == EdgeInsets.zero
+        ? child
+        : Padding(padding: padding, child: child);
+
+    if (onTap != null) {
+      return AppScaleOnTap(
+        onTap: onTap,
+        child: Material(
+          color: AppColors.surface,
+          clipBehavior: Clip.antiAlias,
+          shape: const RoundedRectangleBorder(
+            borderRadius: AppRadius.borderLg,
+            side: BorderSide(color: AppColors.borderSubtle),
+          ),
+          child: InkWell(onTap: onTap, child: content),
+        ),
+      );
+    }
+
+    return Material(
+      color: AppColors.surface,
+      clipBehavior: Clip.antiAlias,
+      shape: const RoundedRectangleBorder(
+        borderRadius: AppRadius.borderLg,
+        side: BorderSide(color: AppColors.borderSubtle),
+      ),
+      child: content,
     );
   }
 }
@@ -372,16 +546,17 @@ class CompactStatRow extends StatelessWidget {
               Text(
                 stat.value,
                 style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFFF8FAFC),
-                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                  fontSize: 15,
                 ),
               ),
             if (stat.label.isNotEmpty)
               Text(
                 stat.label,
                 style: textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFF94A3B8),
+                  color: AppColors.textSecondary,
+                  fontSize: 11.5,
                 ),
               ),
           ],
@@ -390,18 +565,18 @@ class CompactStatRow extends StatelessWidget {
       if (i < items.length - 1) {
         children.add(
           const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
             child: Text(
               '·',
-              style: TextStyle(color: Color(0xFF475569), fontSize: 16),
+              style: TextStyle(color: AppColors.textDisabled, fontSize: 14),
             ),
           ),
         );
       }
     }
     return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+      spacing: AppSpacing.xs,
+      runSpacing: AppSpacing.xs,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: children,
     );
@@ -416,7 +591,6 @@ class CompactStat {
 }
 
 /// A collapsible section panel for progressive disclosure.
-/// Used in Export Center to hide detail sections behind expand/collapse.
 class CollapsiblePanel extends StatelessWidget {
   const CollapsiblePanel({
     super.key,
@@ -435,41 +609,44 @@ class CollapsiblePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Card(
+      clipBehavior: Clip.antiAlias,
       child: Theme(
-        // Override expansion tile divider colour so it matches dark card
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           initiallyExpanded: initiallyExpanded,
           tilePadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 2),
           childrenPadding: const EdgeInsets.fromLTRB(18, 0, 18, 16),
+          iconColor: AppColors.textSecondary,
+          collapsedIconColor: AppColors.textMuted,
           title: Row(
             children: [
               Expanded(
                 child: Text(
                   title,
                   style: textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: const Color(0xFFF8FAFC),
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ),
               if (badge != null) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.sm),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
+                    horizontal: AppSpacing.sm,
                     vertical: 3,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF263345),
-                    borderRadius: BorderRadius.circular(20),
+                    color: AppColors.surfaceSubtle,
+                    borderRadius: AppRadius.borderSm,
+                    border: Border.all(color: AppColors.borderSubtle),
                   ),
                   child: Text(
                     badge!,
                     style: const TextStyle(
-                      color: Color(0xFF94A3B8),
+                      color: AppColors.textSecondary,
                       fontSize: 11.5,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
@@ -484,7 +661,6 @@ class CollapsiblePanel extends StatelessWidget {
 }
 
 /// A compact, readable list row with optional tap-to-expand details.
-/// Standardizes list row density across Ledger, Receipts, Fund Movements, and Claims.
 class ExpandableListRow extends StatefulWidget {
   const ExpandableListRow({
     super.key,
@@ -494,7 +670,7 @@ class ExpandableListRow extends StatefulWidget {
     this.trailing,
     this.expandedContent,
     this.showDivider = true,
-    this.padding = const EdgeInsets.symmetric(vertical: 8),
+    this.padding = const EdgeInsets.symmetric(vertical: AppSpacing.sm),
     this.initiallyExpanded = false,
     this.onTap,
   });
@@ -537,7 +713,7 @@ class _ExpandableListRowState extends State<ExpandableListRow> {
     final hasExpandable = widget.expandedContent != null;
     final rowContent = InkWell(
       onTap: hasExpandable || widget.onTap != null ? _toggle : null,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: AppRadius.borderMd,
       child: Padding(
         padding: widget.padding,
         child: Column(
@@ -549,7 +725,7 @@ class _ExpandableListRowState extends State<ExpandableListRow> {
               children: [
                 if (widget.leading != null) ...[
                   widget.leading!,
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpacing.md),
                 ],
                 Expanded(
                   child: Column(
@@ -565,23 +741,38 @@ class _ExpandableListRowState extends State<ExpandableListRow> {
                   ),
                 ),
                 if (widget.trailing != null) ...[
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpacing.sm),
                   widget.trailing!,
                 ],
                 if (hasExpandable) ...[
-                  const SizedBox(width: 4),
-                  Icon(
-                    _isExpanded ? Icons.expand_less : Icons.expand_more,
-                    size: 18,
-                    color: const Color(0xFF64748B),
+                  const SizedBox(width: AppSpacing.xs),
+                  AnimatedRotation(
+                    turns: _isExpanded ? 0.5 : 0.0,
+                    duration: AppMotion.durationStandard,
+                    curve: AppMotion.curveStandard,
+                    child: const Icon(
+                      Icons.expand_more,
+                      size: 18,
+                      color: AppColors.textMuted,
+                    ),
                   ),
                 ],
               ],
             ),
-            if (hasExpandable && _isExpanded)
-              Padding(
-                padding: const EdgeInsets.only(top: 8, left: 2),
-                child: widget.expandedContent!,
+            if (hasExpandable)
+              AnimatedSize(
+                duration: AppMotion.durationStandard,
+                curve: AppMotion.curveStandard,
+                alignment: Alignment.topCenter,
+                child: _isExpanded
+                    ? Padding(
+                        padding: const EdgeInsets.only(
+                          top: AppSpacing.sm,
+                          left: 2,
+                        ),
+                        child: widget.expandedContent!,
+                      )
+                    : const SizedBox.shrink(),
               ),
           ],
         ),
@@ -596,9 +787,193 @@ class _ExpandableListRowState extends State<ExpandableListRow> {
       mainAxisSize: MainAxisSize.min,
       children: [
         rowContent,
-        const Divider(height: 1, color: Color(0xFF1E293B)),
+        const Divider(height: 1, color: AppColors.divider),
       ],
     );
   }
 }
 
+/// A subtle entrance transition combining fade and vertical translation.
+/// Respects [MediaQueryData.disableAnimations] for accessibility.
+class AppSlideFadeIn extends StatefulWidget {
+  const AppSlideFadeIn({
+    super.key,
+    required this.child,
+    this.delay = Duration.zero,
+    this.duration = AppMotion.durationEntrance,
+    this.offset = AppMotion.offsetEntrance,
+    this.curve = AppMotion.curveStandard,
+  });
+
+  final Widget child;
+  final Duration delay;
+  final Duration duration;
+  final Offset offset;
+  final Curve curve;
+
+  @override
+  State<AppSlideFadeIn> createState() => _AppSlideFadeInState();
+}
+
+class _AppSlideFadeInState extends State<AppSlideFadeIn>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<Offset> _slideAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: widget.duration);
+    final curved = CurvedAnimation(parent: _controller, curve: widget.curve);
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(curved);
+    _slideAnimation = Tween<Offset>(
+      begin: widget.offset,
+      end: Offset.zero,
+    ).animate(curved);
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      return widget.child;
+    }
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        if (_controller.isCompleted) {
+          return child!;
+        }
+        return Opacity(
+          opacity: _fadeAnimation.value.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: _slideAnimation.value,
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// A standardized smooth crossfade between widgets (e.g. loading -> content).
+class AppCrossfade extends StatelessWidget {
+  const AppCrossfade({
+    super.key,
+    required this.child,
+    this.duration = AppMotion.durationStandard,
+    this.alignment = Alignment.topCenter,
+  });
+
+  final Widget child;
+  final Duration duration;
+  final Alignment alignment;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      return child;
+    }
+    return AnimatedSwitcher(
+      duration: duration,
+      switchInCurve: AppMotion.curveStandard,
+      switchOutCurve: AppMotion.curveStandard,
+      layoutBuilder: (currentChild, previousChildren) {
+        return Stack(
+          alignment: alignment,
+          children: [...previousChildren, ?currentChild],
+        );
+      },
+      transitionBuilder: (child, animation) {
+        return FadeTransition(opacity: animation, child: child);
+      },
+      child: child,
+    );
+  }
+}
+
+/// Subtle press micro-interaction (`1.0 -> 0.98 -> 1.0`) on tap down/up/cancel.
+/// Does not block pointer gestures or interfere with Material ripples.
+class AppScaleOnTap extends StatefulWidget {
+  const AppScaleOnTap({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.scaleDown = 0.98,
+    this.enabled = true,
+  });
+
+  final Widget child;
+  final VoidCallback? onTap;
+  final double scaleDown;
+  final bool enabled;
+
+  @override
+  State<AppScaleOnTap> createState() => _AppScaleOnTapState();
+}
+
+class _AppScaleOnTapState extends State<AppScaleOnTap>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: AppMotion.durationFast,
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: widget.scaleDown).animate(
+      CurvedAnimation(parent: _controller, curve: AppMotion.curveStandard),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails _) {
+    if (widget.enabled && widget.onTap != null) {
+      _controller.forward();
+    }
+  }
+
+  void _onTapUp(TapUpDetails _) {
+    if (widget.enabled && widget.onTap != null) {
+      _controller.reverse();
+    }
+  }
+
+  void _onTapCancel() {
+    if (widget.enabled && widget.onTap != null) {
+      _controller.reverse();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.enabled ||
+        (MediaQuery.maybeDisableAnimationsOf(context) ?? false)) {
+      return widget.child;
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: ScaleTransition(scale: _scaleAnimation, child: widget.child),
+    );
+  }
+}

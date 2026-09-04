@@ -6,6 +6,7 @@ import '../../core/domain/stable_id_generator.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 
+
 typedef SetupWorkspaceSubmit = Future<ValidationResult> Function(
   SetupWorkspaceDraft draft,
 );
@@ -54,7 +55,6 @@ class _SetupScreenState extends State<SetupScreen> {
   final _adviserController = TextEditingController();
   final _semesterController = TextEditingController(text: '1st Semester');
   final _schoolYearController = TextEditingController(text: '2026-2027');
-  final _signatoryNamesController = TextEditingController();
 
   var _isSubmitting = false;
   String? _submitError;
@@ -73,7 +73,6 @@ class _SetupScreenState extends State<SetupScreen> {
     _adviserController.dispose();
     _semesterController.dispose();
     _schoolYearController.dispose();
-    _signatoryNamesController.dispose();
     super.dispose();
   }
 
@@ -84,8 +83,8 @@ class _SetupScreenState extends State<SetupScreen> {
     });
     _pageController.animateToPage(
       step,
-      duration: const Duration(milliseconds: 280),
-      curve: Curves.easeInOutCubic,
+      duration: AppMotion.durationStandard,
+      curve: AppMotion.curveInOut,
     );
   }
 
@@ -127,7 +126,6 @@ class _SetupScreenState extends State<SetupScreen> {
       adviser: _adviserController.text.trim(),
       semester: _semesterController.text.trim(),
       schoolYear: _schoolYearController.text.trim(),
-      signatoryNames: _parseSignatoryNames(_signatoryNamesController.text),
     );
 
     final result = await widget.onSubmitWorkspace(
@@ -206,7 +204,6 @@ class _SetupScreenState extends State<SetupScreen> {
                 adviserController: _adviserController,
                 semesterController: _semesterController,
                 schoolYearController: _schoolYearController,
-                signatoryNamesController: _signatoryNamesController,
                 isSubmitting: _isSubmitting,
                 submitError: _submitError,
                 onBack: () => _goToStep(1),
@@ -423,42 +420,36 @@ class _Step1AccountScreen extends StatelessWidget {
                 const SizedBox(height: 24),
 
                 // Form Container
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF161C26),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF263345)),
-                  ),
+                AppCard(
+                  padding: const EdgeInsets.all(AppSpacing.xl),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(AppSpacing.sm),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF59E0B)
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
+                              color: AppColors.brand.withValues(alpha: 0.12),
+                              borderRadius: AppRadius.borderSm,
                             ),
                             child: const Icon(
                               Icons.lock_person_outlined,
-                              color: Color(0xFFF59E0B),
+                              color: AppColors.brandLight,
                               size: 20,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: AppSpacing.md),
                           Text(
                             'Account & Security Details',
                             style: textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFFF8FAFC),
+                              color: AppColors.textPrimary,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: AppSpacing.lg),
                       _LabeledTextField(
                         key: const Key('setupDisplayNameField'),
                         controller: displayNameController,
@@ -466,7 +457,7 @@ class _Step1AccountScreen extends StatelessWidget {
                         prefixIcon: Icons.person_outline,
                         textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AppSpacing.md),
                       _LabeledTextField(
                         key: const Key('setupEmailOrStudentIdField'),
                         controller: emailOrStudentIdController,
@@ -474,7 +465,7 @@ class _Step1AccountScreen extends StatelessWidget {
                         prefixIcon: Icons.badge_outlined,
                         textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AppSpacing.md),
                       _LabeledTextField(
                         key: const Key('setupPinField'),
                         controller: pinController,
@@ -486,7 +477,7 @@ class _Step1AccountScreen extends StatelessWidget {
                         validator: pinValidator,
                         textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AppSpacing.md),
                       _LabeledTextField(
                         key: const Key('setupPinConfirmationField'),
                         controller: pinConfirmationController,
@@ -545,7 +536,7 @@ class _Step1AccountScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// SCREEN 2: STEP 2 OF 2 — ORGANIZATION PROFILE & SIGNATORIES
+// SCREEN 2: STEP 2 OF 2 — ORGANIZATION PROFILE
 // ---------------------------------------------------------------------------
 class _Step2OrganizationScreen extends StatelessWidget {
   const _Step2OrganizationScreen({
@@ -555,7 +546,6 @@ class _Step2OrganizationScreen extends StatelessWidget {
     required this.adviserController,
     required this.semesterController,
     required this.schoolYearController,
-    required this.signatoryNamesController,
     required this.isSubmitting,
     required this.submitError,
     required this.onBack,
@@ -568,7 +558,6 @@ class _Step2OrganizationScreen extends StatelessWidget {
   final TextEditingController adviserController;
   final TextEditingController semesterController;
   final TextEditingController schoolYearController;
-  final TextEditingController signatoryNamesController;
   final bool isSubmitting;
   final String? submitError;
   final VoidCallback onBack;
@@ -592,7 +581,8 @@ class _Step2OrganizationScreen extends StatelessWidget {
                   currentStep: 2,
                   totalSteps: 2,
                   title: 'Organization Profile',
-                  subtitle: 'Enter institutional details, adviser, and official signatories.',
+                  subtitle:
+                      'Enter institutional details, adviser, and academic period.',
                 ),
                 const SizedBox(height: 20),
 
@@ -605,43 +595,37 @@ class _Step2OrganizationScreen extends StatelessWidget {
                   const SizedBox(height: 16),
                 ],
 
-                // Form Container
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF161C26),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFF263345)),
-                  ),
+                // Form Container 1: Organization Information
+                AppCard(
+                  padding: const EdgeInsets.all(AppSpacing.xl),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(AppSpacing.sm),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF10B981)
-                                  .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
+                              color: AppColors.success.withValues(alpha: 0.12),
+                              borderRadius: AppRadius.borderSm,
                             ),
                             child: const Icon(
                               Icons.corporate_fare_outlined,
-                              color: Color(0xFF10B981),
+                              color: AppColors.success,
                               size: 20,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: AppSpacing.md),
                           Text(
                             'Organization Information',
                             style: textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w700,
-                              color: const Color(0xFFF8FAFC),
+                              color: AppColors.textPrimary,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: AppSpacing.lg),
                       _LabeledTextField(
                         key: const Key('setupOrganizationNameField'),
                         controller: organizationNameController,
@@ -649,7 +633,7 @@ class _Step2OrganizationScreen extends StatelessWidget {
                         prefixIcon: Icons.domain_outlined,
                         textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AppSpacing.md),
                       _LabeledTextField(
                         key: const Key('setupOrganizationTypeField'),
                         controller: organizationTypeController,
@@ -657,7 +641,7 @@ class _Step2OrganizationScreen extends StatelessWidget {
                         prefixIcon: Icons.category_outlined,
                         textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AppSpacing.md),
                       _LabeledTextField(
                         key: const Key('setupAdviserField'),
                         controller: adviserController,
@@ -665,7 +649,7 @@ class _Step2OrganizationScreen extends StatelessWidget {
                         prefixIcon: Icons.school_outlined,
                         textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AppSpacing.md),
                       _LabeledTextField(
                         key: const Key('setupSemesterField'),
                         controller: semesterController,
@@ -673,7 +657,7 @@ class _Step2OrganizationScreen extends StatelessWidget {
                         prefixIcon: Icons.calendar_month_outlined,
                         textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: AppSpacing.md),
                       _LabeledTextField(
                         key: const Key('setupSchoolYearField'),
                         controller: schoolYearController,
@@ -681,19 +665,11 @@ class _Step2OrganizationScreen extends StatelessWidget {
                         prefixIcon: Icons.date_range_outlined,
                         textInputAction: TextInputAction.next,
                       ),
-                      const SizedBox(height: 14),
-                      _LabeledTextField(
-                        key: const Key('setupSignatoryNamesField'),
-                        controller: signatoryNamesController,
-                        label: 'Signatory names',
-                        prefixIcon: Icons.draw_outlined,
-                        helperText: 'Separate multiple names with commas.',
-                        textInputAction: TextInputAction.done,
-                      ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+
+                const SizedBox(height: AppSpacing.xl),
 
                 // Navigation Actions
                 Row(
@@ -716,10 +692,10 @@ class _Step2OrganizationScreen extends StatelessWidget {
                         onPressed: isSubmitting ? null : onSubmit,
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 15),
-                          backgroundColor: const Color(0xFFD97706),
+                          backgroundColor: AppColors.brand,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: AppRadius.borderMd,
                           ),
                         ),
                         icon: isSubmitting
@@ -744,7 +720,7 @@ class _Step2OrganizationScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 24),
                 Center(
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -752,7 +728,7 @@ class _Step2OrganizationScreen extends StatelessWidget {
                       const Icon(
                         Icons.lock_outline,
                         size: 13,
-                        color: Color(0xFF64748B),
+                        color: AppColors.textMuted,
                       ),
                       const SizedBox(width: 6),
                       Flexible(
@@ -760,7 +736,8 @@ class _Step2OrganizationScreen extends StatelessWidget {
                           'All data is encrypted and stays strictly on this device.',
                           textAlign: TextAlign.center,
                           style: textTheme.bodySmall?.copyWith(
-                            color: const Color(0xFF64748B),
+                            color: AppColors.textMuted,
+                            fontSize: 12,
                           ),
                         ),
                       ),
@@ -803,18 +780,21 @@ class _StepHeader extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: 4,
+              ),
               decoration: BoxDecoration(
-                color: const Color(0xFF382307),
+                color: AppColors.brandContainer,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: const Color(0xFFD97706).withValues(alpha: 0.4),
+                  color: AppColors.brand.withValues(alpha: 0.4),
                 ),
               ),
               child: Text(
                 'Step $currentStep of $totalSteps',
                 style: const TextStyle(
-                  color: Color(0xFFF59E0B),
+                  color: AppColors.brandLight,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -823,7 +803,7 @@ class _StepHeader extends StatelessWidget {
             Text(
               '${(progress * 100).toInt()}% completed',
               style: const TextStyle(
-                color: Color(0xFF94A3B8),
+                color: AppColors.textSecondary,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -835,24 +815,24 @@ class _StepHeader extends StatelessWidget {
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: progress,
-            backgroundColor: const Color(0xFF1E293B),
-            valueColor: const AlwaysStoppedAnimation(Color(0xFFD97706)),
+            backgroundColor: AppColors.divider,
+            valueColor: const AlwaysStoppedAnimation(AppColors.brand),
             minHeight: 5,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: AppSpacing.lg),
         Text(
           title,
           style: textTheme.headlineMedium?.copyWith(
             fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFFF8FAFC),
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
           ),
         ),
         const SizedBox(height: 4),
         Text(
           subtitle,
-          style: textTheme.bodyMedium?.copyWith(color: const Color(0xFF94A3B8)),
+          style: textTheme.bodyMedium?.copyWith(color: AppColors.textSecondary),
         ),
       ],
     );
@@ -938,8 +918,9 @@ class _LabeledTextFieldState extends State<_LabeledTextField> {
     return FormField<String>(
       initialValue: widget.controller.text,
       validator: (_) {
-        final error =
-            (widget.validator ?? _requiredValidator)(widget.controller.text);
+        final error = (widget.validator ?? _requiredValidator)(
+          widget.controller.text,
+        );
         if (_displayedError != error) {
           _displayedError = error;
         }
@@ -977,12 +958,4 @@ String? _requiredValidator(String? value) {
     return 'This field is required.';
   }
   return null;
-}
-
-List<String> _parseSignatoryNames(String value) {
-  return value
-      .split(',')
-      .map((name) => name.trim())
-      .where((name) => name.isNotEmpty)
-      .toList(growable: false);
 }

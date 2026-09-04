@@ -44,79 +44,79 @@ class _CredentialUpgradeScreenState extends State<CredentialUpgradeScreen> {
             padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 500),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const BrandLogo(
-                          key: Key('credentialUpgradeBrandLogo'),
-                          size: 84,
+              child: AppCard(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const BrandLogo(
+                        key: Key('credentialUpgradeBrandLogo'),
+                        size: 80,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      Text(
+                        'Secure workspace',
+                        textAlign: TextAlign.center,
+                        style: textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Secure workspace',
-                          textAlign: TextAlign.center,
-                          style: textTheme.headlineMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      const Text(
+                        'Create a local PIN for this existing workspace.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+                      if (_errorText != null) ...[
+                        InlineStatusPanel(
+                          title: 'Workspace could not be secured',
+                          message: _errorText!,
+                          tone: InlineStatusTone.error,
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Create a local PIN for this existing workspace.',
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 24),
-                        if (_errorText != null) ...[
-                          InlineStatusPanel(
-                            title: 'Workspace could not be secured',
-                            message: _errorText!,
-                            tone: InlineStatusTone.error,
-                          ),
-                          const SizedBox(height: 14),
-                        ],
-                        TextFormField(
-                          key: const Key('credentialUpgradePinField'),
-                          controller: _pinController,
-                          obscureText: true,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'New PIN',
-                            helperText: 'Use at least 6 digits.',
-                          ),
-                          validator: _pinValidator,
-                        ),
-                        const SizedBox(height: 14),
-                        TextFormField(
-                          key: const Key(
-                            'credentialUpgradePinConfirmationField',
-                          ),
-                          controller: _pinConfirmationController,
-                          obscureText: true,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Confirm PIN',
-                          ),
-                          validator: _pinConfirmationValidator,
-                        ),
-                        const SizedBox(height: 20),
-                        FilledButton.icon(
-                          key: const Key('credentialUpgradeSubmitButton'),
-                          onPressed: _isSubmitting ? null : _submit,
-                          icon: _isSubmitting
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : const Icon(Icons.security_outlined),
-                          label: const Text('Secure Workspace'),
-                        ),
+                        const SizedBox(height: AppSpacing.md),
                       ],
-                    ),
+                      TextFormField(
+                        key: const Key('credentialUpgradePinField'),
+                        controller: _pinController,
+                        obscureText: true,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'New PIN',
+                          helperText: 'Use at least 6 digits.',
+                        ),
+                        validator: _pinValidator,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      TextFormField(
+                        key: const Key('credentialUpgradePinConfirmationField'),
+                        controller: _pinConfirmationController,
+                        obscureText: true,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Confirm PIN',
+                        ),
+                        validator: _pinConfirmationValidator,
+                      ),
+                      const SizedBox(height: AppSpacing.xl),
+                      FilledButton.icon(
+                        key: const Key('credentialUpgradeSubmitButton'),
+                        onPressed: _isSubmitting ? null : _submit,
+                        icon: _isSubmitting
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.security_outlined),
+                        label: const Text('Secure Workspace'),
+                      ),
+                    ],
                   ),
                 ),
               ),

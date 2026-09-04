@@ -3,6 +3,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'ui/app_tokens.dart';
+
 /// An item descriptor for [FloatingPillNavigationBar].
 class FloatingPillDestination {
   const FloatingPillDestination({
@@ -18,8 +20,8 @@ class FloatingPillDestination {
   final Key key;
 }
 
-/// An ultra-modern floating pill navigation bar featuring glowing vector icons,
-/// frosted glassmorphic styling, crisp typography, and high-end fintech aesthetics.
+/// A modern, refined floating pill navigation bar featuring frosted glassmorphic
+/// chassis, clean typography, and quiet, high-end fintech aesthetics.
 class FloatingPillNavigationBar extends StatelessWidget {
   const FloatingPillNavigationBar({
     super.key,
@@ -64,10 +66,10 @@ class FloatingPillNavigationBar extends StatelessWidget {
     final mediaQuery = MediaQuery.of(context);
     final bottomInset = mediaQuery.padding.bottom;
     final isDesktop = mediaQuery.size.width >= 600;
-    final horizontalPadding = isDesktop ? 24.0 : 16.0;
+    final horizontalPadding = isDesktop ? AppSpacing.xl : AppSpacing.lg;
     final bottomPadding = bottomInset > 0 ? bottomInset + 4.0 : 14.0;
     const topPadding = 6.0;
-    const pillHeight = 66.0;
+    const pillHeight = 64.0;
     final totalHeight = pillHeight + topPadding + bottomPadding;
 
     return SizedBox(
@@ -87,51 +89,31 @@ class FloatingPillNavigationBar extends StatelessWidget {
               child: Container(
                 height: pillHeight,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(36.0),
+                  borderRadius: BorderRadius.circular(32.0),
                   boxShadow: [
-                    // Deep ambient contact shadow
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.50),
-                      blurRadius: 28.0,
-                      offset: const Offset(0, 10),
+                      color: Colors.black.withValues(alpha: 0.35),
+                      blurRadius: 20.0,
+                      offset: const Offset(0, 8),
                       spreadRadius: 0,
-                    ),
-                    // Soft amber bloom radiating from the chassis
-                    BoxShadow(
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.10),
-                      blurRadius: 22.0,
-                      offset: const Offset(0, 2),
-                      spreadRadius: -2,
                     ),
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(36.0),
+                  borderRadius: BorderRadius.circular(32.0),
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
                     child: Container(
-                      height: 66.0,
+                      height: pillHeight,
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8.0,
-                        vertical: 6.0,
+                        horizontal: AppSpacing.sm,
+                        vertical: 5.0,
                       ),
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(36.0),
-                        gradient: const LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Color(
-                              0xCC151C2A,
-                            ), // Frosted dark slate (80% opacity)
-                            Color(
-                              0xD90B0F17,
-                            ), // Frosted deep obsidian (85% opacity)
-                          ],
-                        ),
+                        color: const Color(0xEB131922),
+                        borderRadius: BorderRadius.circular(32.0),
                         border: Border.all(
-                          color: const Color(0xFF334155)
-                              .withValues(alpha: 0.70),
+                          color: AppColors.borderSubtle,
                           width: 1.0,
                         ),
                       ),
@@ -202,126 +184,54 @@ class _PillNavigationItemState extends State<_PillNavigationItem> {
           behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutCubic,
-            margin: const EdgeInsets.symmetric(horizontal: 3.0),
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOut,
+            margin: const EdgeInsets.symmetric(horizontal: 2.0),
             padding: const EdgeInsets.symmetric(vertical: 4.0),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26.0),
-              gradient: isSelected
-                  ? const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0x33F59E0B), // 20% amber-500 tint
-                        Color(0x12D97706), // 7% amber-600 tint
-                      ],
-                    )
-                  : null,
-              border: isSelected
-                  ? Border.all(
-                      color: const Color(0xFFF59E0B).withValues(alpha: 0.40),
-                      width: 1.0,
-                    )
-                  : Border.all(
-                      color: isHovered
-                          ? const Color(0x2294A3B8)
-                          : Colors.transparent,
-                      width: 1.0,
-                    ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: const Color(0xFFF59E0B).withValues(alpha: 0.18),
-                        blurRadius: 14.0,
-                        spreadRadius: -1.0,
-                      ),
-                    ]
-                  : null,
+              borderRadius: BorderRadius.circular(24.0),
+              color: isSelected
+                  ? AppColors.brandContainer.withValues(alpha: 0.55)
+                  : isHovered
+                  ? AppColors.surfaceSubtle
+                  : Colors.transparent,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Glowing Icon
-                AnimatedScale(
-                  scale: isSelected ? 1.06 : 1.0,
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeOutBack,
-                  child: Icon(
-                    isSelected
-                        ? widget.destination.activeIcon
-                        : widget.destination.inactiveIcon,
-                    size: 21.0,
-                    color: isSelected
-                        ? const Color(0xFFFBBF24) // Vivid warm gold
-                        : isHovered
-                        ? const Color(0xFFCBD5E1)
-                        : const Color(0xFF8899AC),
-                    shadows: isSelected
-                        ? [
-                            // Vivid inner core glow
-                            Shadow(
-                              color: const Color(0xFFFDE68A)
-                                  .withValues(alpha: 0.45),
-                              blurRadius: 4.0,
-                            ),
-                            // Vibrant mid-field luminous bloom
-                            Shadow(
-                              color: const Color(0xFFF59E0B)
-                                  .withValues(alpha: 0.90),
-                              blurRadius: 14.0,
-                            ),
-                            // Deep ambient aura
-                            Shadow(
-                              color: const Color(0xFFD97706)
-                                  .withValues(alpha: 0.55),
-                              blurRadius: 24.0,
-                            ),
-                          ]
-                        : null,
-                  ),
+                Icon(
+                  isSelected
+                      ? widget.destination.activeIcon
+                      : widget.destination.inactiveIcon,
+                  size: 20.0,
+                  color: isSelected
+                      ? const Color(0xFFFBBF24)
+                      : isHovered
+                      ? AppColors.textPrimary
+                      : AppColors.textSecondary,
+                  shadows: isSelected
+                      ? const [
+                          Shadow(color: Color(0x80D97706), blurRadius: 8.0),
+                          Shadow(color: Color(0x4DFBBF24), blurRadius: 16.0),
+                        ]
+                      : null,
                 ),
                 const SizedBox(height: 3.0),
-                // Razor-sharp Typography
                 Text(
                   widget.destination.label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: isSelected ? 11.2 : 11.0,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                    letterSpacing: isSelected ? 0.2 : 0.1,
+                    fontSize: 11.0,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                    letterSpacing: 0.1,
                     color: isSelected
-                        ? const Color(0xFFF8FAFC)
+                        ? AppColors.textPrimary
                         : isHovered
-                        ? const Color(0xFFCBD5E1)
-                        : const Color(0xFF8899AC),
+                        ? AppColors.textPrimary
+                        : AppColors.textMuted,
                     height: 1.15,
-                  ),
-                ),
-                const SizedBox(height: 2.0),
-                // Micro Glowing Indicator
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutCubic,
-                  width: isSelected ? 14.0 : 0.0,
-                  height: 2.0,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2.0),
-                    color: isSelected
-                        ? const Color(0xFFFBBF24)
-                        : Colors.transparent,
-                    boxShadow: isSelected
-                        ? [
-                            BoxShadow(
-                              color: const Color(0xFFF59E0B)
-                                  .withValues(alpha: 0.9),
-                              blurRadius: 6.0,
-                              spreadRadius: 0.5,
-                            ),
-                          ]
-                        : null,
                   ),
                 ),
               ],

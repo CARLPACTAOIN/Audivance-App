@@ -4,11 +4,11 @@
     "type": "split",
     "children": [
       {
-        "id": "92e44ff06f7af5f2",
+        "id": "8720370305204fc4",
         "type": "tabs",
         "children": [
           {
-            "id": "59b74aad81a59690",
+            "id": "019aa78aa6661568",
             "type": "leaf",
             "state": {
               "type": "graph",
@@ -16,19 +16,8 @@
               "icon": "lucide-git-fork",
               "title": "Graph view"
             }
-          },
-          {
-            "id": "94aa6ef1a7ac11fe",
-            "type": "leaf",
-            "state": {
-              "type": "empty",
-              "state": {},
-              "icon": "lucide-file",
-              "title": "New tab"
-            }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -41,21 +30,6 @@
         "id": "80ff150f0d849ae4",
         "type": "tabs",
         "children": [
-          {
-            "id": "57b360451101eb49",
-            "type": "leaf",
-            "state": {
-              "type": "file-explorer",
-              "state": {
-                "sortOrder": "alphabetical",
-                "autoReveal": true,
-                "showSearch": false,
-                "searchQuery": ""
-              },
-              "icon": "lucide-folder-closed",
-              "title": "Files"
-            }
-          },
           {
             "id": "c7a48b557a76949d",
             "type": "leaf",
@@ -174,7 +148,8 @@
               "title": "Outline"
             }
           }
-        ]
+        ],
+        "currentTab": 2
       }
     ],
     "direction": "horizontal",
@@ -192,22 +167,22 @@
       "bases:Create new base": false
     }
   },
-  "active": "94aa6ef1a7ac11fe",
+  "active": "c7a48b557a76949d",
   "lastOpenFiles": [
-    "Untitled.md",
-    "Untitled.base",
+    "Untitled 1.canvas",
+    "Domains/Backup and Restore.md",
     "Concepts/Audit Database.md",
-    "Untitled",
     "Untitled.canvas",
+    "Untitled.base",
+    "Untitled.md",
+    "Untitled",
     "Concepts/Officer.md",
     "README.md",
     "00 - System Overview.md",
     "2026-08-24.md",
-    "Domains/Backup and Restore.md",
     "Untitled 4.canvas",
     "Untitled 3.canvas",
     "Untitled 2.canvas",
-    "Untitled 1.canvas",
     "Domains/Budget Review.md",
     "Workflows/Add Treasury Funds.md",
     "Concepts/Attachment Reference.md"

@@ -24,6 +24,7 @@ class ExportScreen extends StatefulWidget {
     this.backupService,
     this.backupWriter,
     this.asOf,
+    this.refreshTrigger = 0,
   });
 
   final ExportService service;
@@ -35,6 +36,7 @@ class ExportScreen extends StatefulWidget {
   final BackupService? backupService;
   final BackupPackageWriter? backupWriter;
   final DateTime? asOf;
+  final int refreshTrigger;
 
   @override
   State<ExportScreen> createState() => _ExportScreenState();
@@ -42,6 +44,7 @@ class ExportScreen extends StatefulWidget {
 
 class _ExportScreenState extends State<ExportScreen> {
   late Future<_ExportScreenData> _screenDataFuture;
+  _ExportScreenData? _cachedData;
   ExportPackagePreview? _preview;
   ExportArchivePackage? _archive;
   ExportWriteResult? _writeResult;
@@ -57,7 +60,7 @@ class _ExportScreenState extends State<ExportScreen> {
   @override
   void initState() {
     super.initState();
-    _screenDataFuture = _loadScreenData();
+    _load();
   }
 
   @override
@@ -72,7 +75,22 @@ class _ExportScreenState extends State<ExportScreen> {
         oldWidget.backupHistoryService != widget.backupHistoryService ||
         oldWidget.backupService != widget.backupService ||
         oldWidget.backupWriter != widget.backupWriter) {
-      _screenDataFuture = _loadScreenData();
+      _load(resetResults: true);
+    } else if (oldWidget.refreshTrigger != widget.refreshTrigger) {
+      _load(resetResults: false);
+    }
+  }
+
+  void _load({bool resetResults = false}) {
+    _screenDataFuture = _loadScreenData().then((data) {
+      if (mounted) {
+        setState(() {
+          _cachedData = data;
+        });
+      }
+      return data;
+    });
+    if (resetResults) {
       _preview = null;
       _archive = null;
       _writeResult = null;
@@ -103,6 +121,30 @@ class _ExportScreenState extends State<ExportScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_cachedData != null) {
+      return _ExportContent(
+        snapshot: _cachedData!.snapshot,
+        exportHistory: _cachedData!.exportHistory,
+        backupHistory: _cachedData!.backupHistory,
+        preview: _preview,
+        archive: _archive,
+        writeResult: _writeResult,
+        pdfWriteResult: _pdfWriteResult,
+        pdfActionResult: _pdfActionResult,
+        previewError: _previewError,
+        archiveError: _archiveError,
+        pdfActionError: _pdfActionError,
+        isGeneratingPreview: _isGeneratingPreview,
+        isGeneratingArchive: _isGeneratingArchive,
+        activePdfActionKey: _activePdfActionKey,
+        onGeneratePreview: _generatePreview,
+        onGenerateArchive: _generateArchive,
+        onSavePdf: (path) => _runPdfAction(path, _PdfAction.save),
+        onSharePdf: (path) => _runPdfAction(path, _PdfAction.share),
+        onPrintPdf: (path) => _runPdfAction(path, _PdfAction.print),
+      );
+    }
+
     return FutureBuilder<_ExportScreenData>(
       future: _screenDataFuture,
       builder: (context, snapshot) {
@@ -118,16 +160,15 @@ class _ExportScreenState extends State<ExportScreen> {
             message: snapshot.error.toString(),
             onAction: () {
               setState(() {
-                _screenDataFuture = _loadScreenData();
-                _preview = null;
-                _previewError = null;
-                _archive = null;
-                _archiveError = null;
+                _load(resetResults: true);
               });
             },
           );
         }
         final data = snapshot.data;
+        if (data != null) {
+          _cachedData = data;
+        }
         return _ExportContent(
           snapshot:
               data?.snapshot ??
@@ -366,9 +407,7 @@ class _ExportScreenState extends State<ExportScreen> {
     if (!mounted) {
       return;
     }
-    setState(() {
-      _screenDataFuture = _loadScreenData();
-    });
+    _load();
   }
 
   Future<void> _runPdfAction(String path, _PdfAction action) async {
@@ -518,7 +557,7 @@ class _ExportContent extends StatelessWidget {
                 isWide ? 32 : 16,
                 20,
                 isWide ? 32 : 16,
-                100,
+                110,
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
@@ -530,10 +569,10 @@ class _ExportContent extends StatelessWidget {
                     onGeneratePreview: onGeneratePreview,
                     onGenerateArchive: onGenerateArchive,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.xxl),
                   if (archiveError != null) ...[
                     _ArchiveErrorPanel(message: archiveError!),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: AppSpacing.xxl),
                   ],
                   if (previewError != null) ...[
                     InlineStatusPanel(
@@ -541,50 +580,53 @@ class _ExportContent extends StatelessWidget {
                       message: previewError!,
                       tone: InlineStatusTone.error,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: AppSpacing.xxl),
                   ],
                   if (archive != null && writeResult != null) ...[
                     _ArchiveResultPanel(
                       archive: archive!,
                       writeResult: writeResult!,
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: AppSpacing.xxl),
                   ],
                   _ExportHistoryPanel(
                     exportHistory: exportHistory,
                     backupHistory: backupHistory,
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.xxl),
                   _ReadinessSummary(snapshot: snapshot),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpacing.xxl),
 
                   // ── Section 2: Package Contents ─────────────────────────
                   if (snapshot.issues.isNotEmpty) ...[
                     CollapsiblePanel(
                       title: 'Readiness Issues',
-                      badge: '${snapshot.issues.length} issue${snapshot.issues.length == 1 ? '' : 's'}',
+                      badge:
+                          '${snapshot.issues.length} issue${snapshot.issues.length == 1 ? '' : 's'}',
                       child: _IssuePanel(issues: snapshot.issues),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpacing.lg),
                   ],
                   CollapsiblePanel(
                     title: 'Record Counts',
                     badge: '$totalRecords records',
                     child: _RecordCountPanel(counts: snapshot.recordCounts),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.lg),
                   CollapsiblePanel(
                     title: 'Attachment Inventory',
-                    badge: '${snapshot.attachments.length} file${snapshot.attachments.length == 1 ? '' : 's'}',
+                    badge:
+                        '${snapshot.attachments.length} file${snapshot.attachments.length == 1 ? '' : 's'}',
                     child: _AttachmentPanel(attachments: snapshot.attachments),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.lg),
                   CollapsiblePanel(
                     title: 'Package Structure',
-                    badge: '${snapshot.packageFiles.length} path${snapshot.packageFiles.length == 1 ? '' : 's'}',
+                    badge:
+                        '${snapshot.packageFiles.length} path${snapshot.packageFiles.length == 1 ? '' : 's'}',
                     child: _PackageStructurePanel(paths: snapshot.packageFiles),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.lg),
 
                   // ── Section 3: Reports ──────────────────────────────────
                   CollapsiblePanel(
@@ -1146,9 +1188,7 @@ class _LiquidationReportsPanel extends StatelessWidget {
               ],
               for (final path in paths)
                 Padding(
-                  padding: EdgeInsets.only(
-                    bottom: path == paths.last ? 0 : 10,
-                  ),
+                  padding: EdgeInsets.only(bottom: path == paths.last ? 0 : 10),
                   child: _LiquidationReportActionRow(
                     path: path,
                     isBusy: hasActiveAction,
@@ -1243,10 +1283,7 @@ class _PreviewPanel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          preview.fileName,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
+        Text(preview.fileName, style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 12),
         for (final file in preview.files)
           ListTile(
@@ -1254,9 +1291,7 @@ class _PreviewPanel extends StatelessWidget {
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.article_outlined),
             title: Text(file.path),
-            subtitle: Text(
-              '${file.byteLength} bytes - CRC32 ${file.checksum}',
-            ),
+            subtitle: Text('${file.byteLength} bytes - CRC32 ${file.checksum}'),
           ),
       ],
     );
@@ -1419,17 +1454,15 @@ class _Panel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            child,
-          ],
-        ),
+    return AppCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionHeader(title: title),
+          const SizedBox(height: 16),
+          child,
+        ],
       ),
     );
   }
