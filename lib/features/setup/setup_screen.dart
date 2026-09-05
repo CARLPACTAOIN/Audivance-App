@@ -6,7 +6,6 @@ import '../../core/domain/stable_id_generator.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 
-
 typedef SetupWorkspaceSubmit = Future<ValidationResult> Function(
   SetupWorkspaceDraft draft,
 );
@@ -581,8 +580,7 @@ class _Step2OrganizationScreen extends StatelessWidget {
                   currentStep: 2,
                   totalSteps: 2,
                   title: 'Organization Profile',
-                  subtitle:
-                      'Enter institutional details, adviser, and academic period.',
+                  subtitle: 'Enter institutional details, adviser, and academic period.',
                 ),
                 const SizedBox(height: 20),
 

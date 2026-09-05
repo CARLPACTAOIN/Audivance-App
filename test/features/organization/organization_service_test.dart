@@ -102,6 +102,71 @@ void main() {
     expect(logs.single.targetRecordId, 'org-1');
   });
 
+  test(
+    'saveOfficer creates new officer and produces officer.create audit log',
+    () async {
+      final result = await service.saveOfficer(
+        const SaveOfficerCommand(
+          fullName: 'Ari Santos',
+          position: OfficerPosition.member,
+          committee: Committee.finance,
+        ),
+      );
+
+      expect(result.isValid, isTrue);
+      expect(result.officerId, 'officer-1');
+
+      final officers = await repository.listOfficers();
+      final logs = await repository.listAuditLogs();
+
+      expect(officers.single.id, 'officer-1');
+      expect(officers.single.fullName, 'Ari Santos');
+      expect(officers.single.position, OfficerPosition.member);
+      expect(officers.single.committee, Committee.finance);
+
+      final createLog = logs.firstWhere(
+        (log) => log.action == 'officer.create',
+      );
+      expect(createLog.targetRecordId, 'officer-1');
+      expect(createLog.reference, 'Ari Santos');
+      expect(createLog.beforeSnapshot, isNull);
+      expect(createLog.afterSnapshot, isNotNull);
+      expect(createLog.afterSnapshot!['fullName'], 'Ari Santos');
+    },
+  );
+
+  test('saveOfficer updates existing officer and produces officer.update audit log', () async {
+    await service.saveOfficer(
+      const SaveOfficerCommand(
+        fullName: 'Ari Santos',
+        position: OfficerPosition.member,
+      ),
+    );
+
+    final result = await service.saveOfficer(
+      const SaveOfficerCommand(
+        id: 'officer-1',
+        fullName: 'Ari Santos Jr.',
+        position: OfficerPosition.head,
+        committee: Committee.audit,
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+
+    final officers = await repository.listOfficers();
+    final logs = await repository.listAuditLogs();
+
+    expect(officers.single.fullName, 'Ari Santos Jr.');
+    expect(officers.single.position, OfficerPosition.head);
+    expect(officers.single.committee, Committee.audit);
+
+    final updateLog = logs.firstWhere((log) => log.action == 'officer.update');
+    expect(updateLog.targetRecordId, 'officer-1');
+    expect(updateLog.beforeSnapshot!['fullName'], 'Ari Santos');
+    expect(updateLog.afterSnapshot!['fullName'], 'Ari Santos Jr.');
+  });
+
   test('rejects blank officer name', () async {
     final result = await service.saveOfficer(
       const SaveOfficerCommand(fullName: ' ', position: OfficerPosition.member),

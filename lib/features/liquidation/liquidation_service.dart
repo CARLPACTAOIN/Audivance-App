@@ -170,21 +170,6 @@ class LiquidationService {
         .toList(growable: false);
   }
 
-  Future<ValidationResult> createOfficer(CreateOfficerCommand command) async {
-    final name = command.fullName.trim();
-    if (name.isEmpty) {
-      return ValidationResult.failure('Officer name is required.');
-    }
-    return repository.saveOfficers([
-      Officer(
-        id: idGenerator.nextId('officer'),
-        fullName: name,
-        position: command.position,
-        committee: command.committee,
-      ),
-    ]);
-  }
-
   Future<ValidationResult> submitLiquidation(
     SubmitLiquidationCommand command,
   ) async {
@@ -553,18 +538,6 @@ class PayReimbursementCommand {
   final StableId claimId;
   final DateTime paymentDate;
   final String? remarks;
-}
-
-class CreateOfficerCommand {
-  const CreateOfficerCommand({
-    required this.fullName,
-    this.position = OfficerPosition.member,
-    this.committee,
-  });
-
-  final String fullName;
-  final OfficerPosition position;
-  final Committee? committee;
 }
 
 class LiquidationWorkspaceSnapshot {

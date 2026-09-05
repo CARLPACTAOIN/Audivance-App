@@ -30,10 +30,7 @@ class SignatureBlockPreview extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surfaceSubtle,
         borderRadius: AppRadius.borderMd,
-        border: Border.all(
-          color: AppColors.borderSubtle,
-          width: 1,
-        ),
+        border: Border.all(color: AppColors.borderSubtle, width: 1),
       ),
       padding: EdgeInsets.all(compact ? AppSpacing.sm : AppSpacing.md),
       child: Column(
@@ -84,7 +81,8 @@ class SignatureBlockPreview extends StatelessWidget {
               final crossAxisCount = constraints.maxWidth < 280
                   ? 1
                   : (constraints.maxWidth < 560 ? 2 : 4);
-              final width = (constraints.maxWidth -
+              final width =
+                  (constraints.maxWidth -
                       (crossAxisCount - 1) * AppSpacing.sm) /
                   crossAxisCount;
 
@@ -123,11 +121,7 @@ class SignatureBlockPreview extends StatelessWidget {
                 spacing: AppSpacing.sm,
                 runSpacing: AppSpacing.sm,
                 children: [
-                  for (final cell in cells)
-                    SizedBox(
-                      width: width,
-                      child: cell,
-                    ),
+                  for (final cell in cells) SizedBox(width: width, child: cell),
                 ],
               );
             },

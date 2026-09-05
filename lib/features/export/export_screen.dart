@@ -56,6 +56,59 @@ class _ExportScreenState extends State<ExportScreen> {
   var _isGeneratingPreview = false;
   var _isGeneratingArchive = false;
   String? _activePdfActionKey;
+  final GlobalKey _previewSectionKey = GlobalKey();
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToPreview() {
+    if (!_scrollController.hasClients) {
+      return;
+    }
+    final targetContext = _previewSectionKey.currentContext;
+    if (targetContext != null) {
+      Scrollable.ensureVisible(
+        targetContext,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOutCubic,
+        alignment: 0.1,
+      );
+      return;
+    }
+
+    _scrollController
+        .animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOutCubic,
+        )
+        .then((_) {
+          if (!mounted) {
+            return;
+          }
+          final updatedContext = _previewSectionKey.currentContext;
+          if (updatedContext != null && updatedContext.mounted) {
+            Scrollable.ensureVisible(
+              updatedContext,
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+              alignment: 0.1,
+            );
+          } else if (_scrollController.hasClients &&
+              _scrollController.offset <
+                  _scrollController.position.maxScrollExtent) {
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+  }
 
   @override
   void initState() {
@@ -139,6 +192,9 @@ class _ExportScreenState extends State<ExportScreen> {
         activePdfActionKey: _activePdfActionKey,
         onGeneratePreview: _generatePreview,
         onGenerateArchive: _generateArchive,
+        onInspectPreview: _scrollToPreview,
+        previewSectionKey: _previewSectionKey,
+        scrollController: _scrollController,
         onSavePdf: (path) => _runPdfAction(path, _PdfAction.save),
         onSharePdf: (path) => _runPdfAction(path, _PdfAction.share),
         onPrintPdf: (path) => _runPdfAction(path, _PdfAction.print),
@@ -196,6 +252,9 @@ class _ExportScreenState extends State<ExportScreen> {
           activePdfActionKey: _activePdfActionKey,
           onGeneratePreview: _generatePreview,
           onGenerateArchive: _generateArchive,
+          onInspectPreview: _scrollToPreview,
+          previewSectionKey: _previewSectionKey,
+          scrollController: _scrollController,
           onSavePdf: (path) => _runPdfAction(path, _PdfAction.save),
           onSharePdf: (path) => _runPdfAction(path, _PdfAction.share),
           onPrintPdf: (path) => _runPdfAction(path, _PdfAction.print),
@@ -516,6 +575,9 @@ class _ExportContent extends StatelessWidget {
     required this.activePdfActionKey,
     required this.onGeneratePreview,
     required this.onGenerateArchive,
+    required this.onInspectPreview,
+    required this.previewSectionKey,
+    required this.scrollController,
     required this.onSavePdf,
     required this.onSharePdf,
     required this.onPrintPdf,
@@ -537,6 +599,9 @@ class _ExportContent extends StatelessWidget {
   final String? activePdfActionKey;
   final VoidCallback onGeneratePreview;
   final VoidCallback onGenerateArchive;
+  final VoidCallback onInspectPreview;
+  final GlobalKey previewSectionKey;
+  final ScrollController scrollController;
   final ValueChanged<String> onSavePdf;
   final ValueChanged<String> onSharePdf;
   final ValueChanged<String> onPrintPdf;
@@ -551,6 +616,7 @@ class _ExportContent extends StatelessWidget {
           (sum, c) => sum + c.count,
         );
         return CustomScrollView(
+          controller: scrollController,
           slivers: [
             SliverPadding(
               padding: EdgeInsets.fromLTRB(
@@ -586,6 +652,13 @@ class _ExportContent extends StatelessWidget {
                     _ArchiveResultPanel(
                       archive: archive!,
                       writeResult: writeResult!,
+                    ),
+                    const SizedBox(height: AppSpacing.xxl),
+                  ],
+                  if (preview != null) ...[
+                    _PreviewSummaryCard(
+                      preview: preview!,
+                      onInspect: onInspectPreview,
                     ),
                     const SizedBox(height: AppSpacing.xxl),
                   ],
@@ -630,7 +703,7 @@ class _ExportContent extends StatelessWidget {
 
                   // ── Section 3: Reports ──────────────────────────────────
                   CollapsiblePanel(
-                    title: 'USM-OSA-F46 Liquidation Reports',
+                    title: 'Liquidation Reports',
                     badge: () {
                       final count = snapshot.packageFiles
                           .where(isUsmOsaF46LiquidationReportPath)
@@ -641,6 +714,7 @@ class _ExportContent extends StatelessWidget {
                       paths: snapshot.packageFiles
                           .where(isUsmOsaF46LiquidationReportPath)
                           .toList(growable: false),
+                      reportTitles: snapshot.liquidationReportTitles,
                       pdfWriteResult: pdfWriteResult,
                       actionResult: pdfActionResult,
                       actionError: pdfActionError,
@@ -652,10 +726,13 @@ class _ExportContent extends StatelessWidget {
                   ),
                   if (preview != null) ...[
                     const SizedBox(height: 12),
-                    CollapsiblePanel(
-                      title: 'Generated Preview',
-                      badge: '$totalRecords records',
-                      child: _PreviewPanel(preview: preview!),
+                    KeyedSubtree(
+                      key: previewSectionKey,
+                      child: CollapsiblePanel(
+                        title: 'Generated Preview',
+                        badge: '$totalRecords records',
+                        child: _PreviewPanel(preview: preview!),
+                      ),
                     ),
                   ],
                 ]),
@@ -821,16 +898,57 @@ class _ExportHistoryPanel extends StatelessWidget {
               text: 'No COA ZIP export attempts have been recorded yet.',
             )
           else
-            Column(
-              children: [
-                for (final entry in recentExports)
-                  Padding(
-                    padding: EdgeInsets.only(
-                      bottom: entry == recentExports.last ? 0 : 8,
+            Theme(
+              data: Theme.of(context)
+                  .copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                key: const Key('exportHistoryExpandableTile'),
+                initiallyExpanded: false,
+                tilePadding: const EdgeInsets.symmetric(
+                  horizontal: 4,
+                  vertical: 0,
+                ),
+                childrenPadding: const EdgeInsets.only(top: 8),
+                iconColor: AppColors.textSecondary,
+                collapsedIconColor: AppColors.textMuted,
+                title: Row(
+                  children: [
+                    Text(
+                      'Export Records',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
                     ),
-                    child: _ExportHistoryRow(entry: entry),
-                  ),
-              ],
+                    const SizedBox(width: AppSpacing.sm),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceSubtle,
+                        borderRadius: AppRadius.borderSm,
+                        border: Border.all(color: AppColors.borderSubtle),
+                      ),
+                      child: Text(
+                        '${exportHistory.length} record${exportHistory.length == 1 ? '' : 's'}',
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+                children: [
+                  for (final entry in recentExports)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        bottom: entry == recentExports.last ? 0 : 8,
+                      ),
+                      child: _ExportHistoryRow(entry: entry),
+                    ),
+                ],
+              ),
             ),
         ],
       ),
@@ -1135,6 +1253,7 @@ class _PackageStructurePanel extends StatelessWidget {
 class _LiquidationReportsPanel extends StatelessWidget {
   const _LiquidationReportsPanel({
     required this.paths,
+    this.reportTitles = const <String, String>{},
     required this.pdfWriteResult,
     required this.actionResult,
     required this.actionError,
@@ -1145,6 +1264,7 @@ class _LiquidationReportsPanel extends StatelessWidget {
   });
 
   final List<String> paths;
+  final Map<String, String> reportTitles;
   final ExportWriteResult? pdfWriteResult;
   final String? actionResult;
   final String? actionError;
@@ -1191,6 +1311,7 @@ class _LiquidationReportsPanel extends StatelessWidget {
                   padding: EdgeInsets.only(bottom: path == paths.last ? 0 : 10),
                   child: _LiquidationReportActionRow(
                     path: path,
+                    eventTitle: eventTitleFromReportPath(path, reportTitles),
                     isBusy: hasActiveAction,
                     activeActionKey: activeActionKey,
                     onSave: () => onSave(path),
@@ -1206,6 +1327,7 @@ class _LiquidationReportsPanel extends StatelessWidget {
 class _LiquidationReportActionRow extends StatelessWidget {
   const _LiquidationReportActionRow({
     required this.path,
+    required this.eventTitle,
     required this.isBusy,
     required this.activeActionKey,
     required this.onSave,
@@ -1214,6 +1336,7 @@ class _LiquidationReportActionRow extends StatelessWidget {
   });
 
   final String path;
+  final String eventTitle;
   final bool isBusy;
   final String? activeActionKey;
   final VoidCallback onSave;
@@ -1226,18 +1349,31 @@ class _LiquidationReportActionRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          usmOsaF46ReportLabel,
+          eventTitle,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyMedium
-              ?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: AppColors.textPrimary,
+          ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
+        Text(
+          usmOsaF46ReportLabel,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        const SizedBox(height: 2),
         Text(
           path,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodySmall,
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: AppColors.textMuted),
         ),
         const SizedBox(height: 8),
         Wrap(
@@ -1294,6 +1430,88 @@ class _PreviewPanel extends StatelessWidget {
             subtitle: Text('${file.byteLength} bytes - CRC32 ${file.checksum}'),
           ),
       ],
+    );
+  }
+}
+
+class _PreviewSummaryCard extends StatelessWidget {
+  const _PreviewSummaryCard({required this.preview, required this.onInspect});
+
+  final ExportPackagePreview preview;
+  final VoidCallback onInspect;
+
+  @override
+  Widget build(BuildContext context) {
+    final totalBytes = preview.files.fold<int>(
+      0,
+      (sum, file) => sum + file.byteLength,
+    );
+    final textTheme = Theme.of(context).textTheme;
+
+    return AppCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.inventory_2_outlined,
+                color: AppColors.brand,
+                size: 20,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  'Package Preview Ready',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              StatusBadge(
+                label: '${preview.files.length} files',
+                tone: InlineStatusTone.success,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Target Archive: ${preview.fileName}',
+            style: textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 8,
+            children: [
+              _MetadataChip(
+                icon: Icons.list_alt_outlined,
+                label: '${preview.files.length} files',
+              ),
+              _MetadataChip(
+                icon: Icons.storage_outlined,
+                label: _formatBytes(totalBytes),
+              ),
+              const _MetadataChip(
+                icon: Icons.verified_outlined,
+                label: 'manifest.json included',
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            key: const Key('exportPreviewInspectButton'),
+            onPressed: onInspect,
+            icon: const Icon(Icons.arrow_downward_rounded, size: 18),
+            label: const Text('Inspect Full Breakdown'),
+          ),
+        ],
+      ),
     );
   }
 }

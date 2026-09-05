@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('renders all 4 destinations with razor-sharp labels and icons', (
+  testWidgets('renders all 5 destinations with clear labels and icons', (
     tester,
   ) async {
     var selectedIndex = 0;
@@ -19,16 +19,18 @@ void main() {
       ),
     );
 
-    // Verify all 4 labels are present and rendered
+    // Verify all 5 labels are present and rendered
     expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('Treasury'), findsOneWidget);
     expect(find.text('Events'), findsOneWidget);
+    expect(find.text('Org'), findsOneWidget);
     expect(find.text('Export'), findsOneWidget);
 
-    // Verify all 4 destination item keys are present
+    // Verify all 5 destination item keys are present
     expect(find.byKey(const Key('navItemDashboard')), findsOneWidget);
     expect(find.byKey(const Key('navItemTreasury')), findsOneWidget);
     expect(find.byKey(const Key('navItemEvents')), findsOneWidget);
+    expect(find.byKey(const Key('navItemOrganization')), findsOneWidget);
     expect(find.byKey(const Key('navItemExport')), findsOneWidget);
 
     // Initial state: Dashboard is selected
@@ -81,10 +83,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(tappedIndex, 2);
 
+    // Tap Organization
+    await tester.tap(find.text('Org'));
+    await tester.pumpAndSettle();
+    expect(tappedIndex, 3);
+
     // Tap Export
     await tester.tap(find.text('Export'));
     await tester.pumpAndSettle();
-    expect(tappedIndex, 3);
+    expect(tappedIndex, 4);
 
     // Tap Dashboard
     await tester.tap(find.text('Dashboard'));
@@ -171,6 +178,55 @@ void main() {
             widget is ConstrainedBox && widget.constraints.maxWidth == 520.0,
       );
       expect(constrainedBoxFinder, findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'five navigation destinations with no overflow at narrow widths',
+    (tester) async {
+      const narrowWidths = [320.0, 360.0, 375.0, 412.0];
+
+      for (final width in narrowWidths) {
+        tester.view.physicalSize = Size(width, 700);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        var selected = 0;
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              bottomNavigationBar: FloatingPillNavigationBar(
+                selectedIndex: selected,
+                onDestinationSelected: (index) => selected = index,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // No RenderFlex overflow or layout exceptions
+        expect(tester.takeException(), isNull);
+
+        // Verify all 5 destination labels and keys exist and fit
+        expect(find.text('Dashboard'), findsOneWidget);
+        expect(find.text('Treasury'), findsOneWidget);
+        expect(find.text('Events'), findsOneWidget);
+        expect(find.text('Org'), findsOneWidget);
+        expect(find.text('Export'), findsOneWidget);
+
+        expect(find.byKey(const Key('navItemDashboard')), findsOneWidget);
+        expect(find.byKey(const Key('navItemTreasury')), findsOneWidget);
+        expect(find.byKey(const Key('navItemEvents')), findsOneWidget);
+        expect(find.byKey(const Key('navItemOrganization')), findsOneWidget);
+        expect(find.byKey(const Key('navItemExport')), findsOneWidget);
+
+        // Verify tapping each tab at narrow width works cleanly
+        await tester.tap(find.byKey(const Key('navItemOrganization')));
+        await tester.pumpAndSettle();
+        expect(selected, 3);
+        expect(tester.takeException(), isNull);
+      }
     },
   );
 }

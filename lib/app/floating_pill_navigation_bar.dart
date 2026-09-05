@@ -12,12 +12,14 @@ class FloatingPillDestination {
     required this.activeIcon,
     required this.inactiveIcon,
     required this.key,
+    this.semanticLabel,
   });
 
   final String label;
   final IconData activeIcon;
   final IconData inactiveIcon;
   final Key key;
+  final String? semanticLabel;
 }
 
 /// A modern, refined floating pill navigation bar featuring frosted glassmorphic
@@ -52,6 +54,13 @@ class FloatingPillNavigationBar extends StatelessWidget {
       activeIcon: Icons.event_note_rounded,
       inactiveIcon: Icons.event_note_outlined,
       key: Key('navItemEvents'),
+    ),
+    FloatingPillDestination(
+      label: 'Org',
+      semanticLabel: 'Organization',
+      activeIcon: Icons.groups_rounded,
+      inactiveIcon: Icons.groups_outlined,
+      key: Key('navItemOrganization'),
     ),
     FloatingPillDestination(
       label: 'Export',
@@ -179,7 +188,7 @@ class _PillNavigationItemState extends State<_PillNavigationItem> {
       child: Semantics(
         button: true,
         selected: isSelected,
-        label: widget.destination.label,
+        label: widget.destination.semanticLabel ?? widget.destination.label,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: widget.onTap,

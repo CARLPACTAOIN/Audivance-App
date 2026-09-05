@@ -22,6 +22,7 @@ import 'package:audivance/features/backup/backup_service.dart';
 import 'package:audivance/features/events/event_service.dart';
 import 'package:audivance/features/export/export_package_writer.dart';
 import 'package:audivance/features/export/export_service.dart';
+import 'package:audivance/features/organization/widgets/officer_editor_dialog.dart';
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart' as crypto;
 import 'package:drift/native.dart';
@@ -435,13 +436,16 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await _openProfile(tester);
+    await _openOrganization(tester, profile: true);
 
     expect(find.text('Profile'), findsWidgets);
-    expect(find.text('Officer Roster'), findsOneWidget);
     expect(find.byKey(const Key('profileOrganizationName')), findsOneWidget);
     expect(find.text('Prof. Santos'), findsWidgets);
     expect(find.text('Needs officers'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('organizationOfficersTab')));
+    await tester.pumpAndSettle();
+    expect(find.text('Officer Roster'), findsOneWidget);
   });
 
   testWidgets('Profile organization edit validates and saves updates', (
@@ -454,25 +458,16 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await _openProfile(tester);
+    await _openOrganization(tester, profile: true);
     await tester.tap(find.byKey(const Key('profileEditOrganizationButton')));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('profileOrganizationNameField')),
       '',
     );
-    await tester.enterText(
-      find.byKey(const Key('profileTreasurerField')),
-      '',
-    );
-    await tester.enterText(
-      find.byKey(const Key('profileAuditorField')),
-      '',
-    );
-    await tester.enterText(
-      find.byKey(const Key('profileHeadField')),
-      '',
-    );
+    await tester.enterText(find.byKey(const Key('profileTreasurerField')), '');
+    await tester.enterText(find.byKey(const Key('profileAuditorField')), '');
+    await tester.enterText(find.byKey(const Key('profileHeadField')), '');
     await tester.tap(find.byKey(const Key('profileOrganizationSubmitButton')));
     await tester.pumpAndSettle();
 
@@ -520,7 +515,7 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await _openProfile(tester);
+    await _openOrganization(tester);
     await _tapVisible(tester, find.byKey(const Key('profileAddOfficerButton')));
     await tester.pumpAndSettle();
     await _fillProfileOfficerForm(
@@ -564,7 +559,7 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await _openProfile(tester);
+    await _openOrganization(tester);
     await _tapVisible(
       tester,
       find.byKey(const Key('profileOfficerArchiveofficer-1')),
@@ -622,10 +617,18 @@ void main() {
       find.byKey(const Key('eventLiquidationButtonevent-1')),
     );
     expect(find.text('Archived Treasurer'), findsNothing);
-    expect(button.onPressed, isNull);
+    expect(button.onPressed, isNotNull);
+
+    await tester.tap(find.byKey(const Key('eventLiquidationButtonevent-1')));
+    await tester.pumpAndSettle();
+    expect(find.text('Archived Treasurer'), findsNothing);
+    expect(
+      find.byKey(const Key('liquidationAddOfficerButton')),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('liquidation officer prompt opens Profile add officer form', (
+  testWidgets('liquidation officer prompt opens shared officer form in place', (
     tester,
   ) async {
     final harness = _WidgetHarness();
@@ -648,8 +651,16 @@ void main() {
     await _tapVisible(tester, promptButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('Profile'), findsWidgets);
+    expect(find.text('Event Financials'), findsOneWidget);
     expect(find.byKey(const Key('profileOfficerNameField')), findsOneWidget);
+    expect(
+      find.byKey(const Key('profileOfficerPositionField')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('profileOfficerCommitteeField')),
+      findsOneWidget,
+    );
     await _fillProfileOfficerForm(
       tester,
       name: 'New Liquidation Officer',
@@ -661,7 +672,592 @@ void main() {
     final officers = await harness.repository.listOfficers();
     expect(officers, hasLength(1));
     expect(officers.single.fullName, 'New Liquidation Officer');
-    expect(find.text('New Liquidation Officer'), findsOneWidget);
+    expect(find.text('Event Financials'), findsOneWidget);
+    expect(
+      (await harness.repository.listAuditLogs()).map((log) => log.action),
+      contains('officer.create'),
+    );
+  });
+
+  testWidgets(
+    'five navigation destinations with no overflow at narrow widths',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.unlockService.configurePin('123456');
+
+      for (final width in [320.0, 360.0, 375.0]) {
+        tester.view.physicalSize = Size(width, 700);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        await tester.pumpWidget(harness.app());
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.byKey(const Key('navItemDashboard')), findsOneWidget);
+        expect(find.byKey(const Key('navItemTreasury')), findsOneWidget);
+        expect(find.byKey(const Key('navItemEvents')), findsOneWidget);
+        expect(find.byKey(const Key('navItemOrganization')), findsOneWidget);
+        expect(find.byKey(const Key('navItemExport')), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('navItemOrganization')));
+        await tester.pumpAndSettle();
+        expect(find.text('Organization'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
+
+  testWidgets('Organization absent from Settings', (tester) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('workspaceSettingsButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.byKey(const Key('adminMenuBackupTile')), findsOneWidget);
+    expect(find.byKey(const Key('adminMenuProfileTile')), findsNothing);
+    expect(find.text('Organization & Officers'), findsNothing);
+    expect(find.text('Organization Profile'), findsNothing);
+  });
+
+  testWidgets(
+    'Organization screen displays Profile and Officers tabs and toggles between them',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+
+      await _openOrganization(tester);
+      expect(find.byKey(const Key('organizationProfileTab')), findsOneWidget);
+      expect(find.byKey(const Key('organizationOfficersTab')), findsOneWidget);
+
+      // Initial tab is Officers
+      expect(
+        find.byKey(const Key('organizationOfficersContent')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('profileAddOfficerButton')), findsOneWidget);
+
+      // Switch to Profile tab
+      await tester.tap(find.byKey(const Key('organizationProfileTab')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('organizationProfileContent')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('profileEditOrganizationButton')),
+        findsOneWidget,
+      );
+
+      // Switch back to Officers tab
+      await tester.tap(find.byKey(const Key('organizationOfficersTab')));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('organizationOfficersContent')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('identical shared form from Officers and Liquidation', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+
+    // Entry point 1: Officers tab
+    await _openOrganization(tester);
+    await _tapVisible(tester, find.byKey(const Key('profileAddOfficerButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(OfficerEditorDialog), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(OfficerEditorDialog),
+        matching: find.text('Add Officer'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('profileOfficerNameField')), findsOneWidget);
+    expect(
+      find.byKey(const Key('profileOfficerPositionField')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('profileOfficerCommitteeField')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('profileOfficerSubmitButton')), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Entry point 2: Liquidation dialog
+    await _openEvents(tester);
+    await _openLiquidationDialog(tester);
+    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
+    await tester.ensureVisible(addOfficer);
+    await tester.tap(addOfficer);
+    await tester.pumpAndSettle();
+
+    // Identical shared form fields in Liquidation entry point
+    expect(find.byType(OfficerEditorDialog), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(OfficerEditorDialog),
+        matching: find.text('Add Officer'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('profileOfficerNameField')), findsOneWidget);
+    expect(
+      find.byKey(const Key('profileOfficerPositionField')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('profileOfficerCommitteeField')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('profileOfficerSubmitButton')), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(OfficerEditorDialog),
+        matching: find.text('Cancel'),
+      ),
+    );
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('position and committee fields available in both entry points', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+
+    // Entry point 1: Officers tab
+    await _openOrganization(tester);
+    await _tapVisible(tester, find.byKey(const Key('profileAddOfficerButton')));
+    await tester.pumpAndSettle();
+
+    // Position & Committee fields test in Officers tab
+    await tester.enterText(
+      find.byKey(const Key('profileOfficerNameField')),
+      'Test Org Officer',
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerPositionField')));
+    await tester.pumpAndSettle();
+    expect(find.text('Member'), findsWidgets);
+    expect(find.text('Head'), findsWidgets);
+    await tester.tap(find.text('Head').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Committee heads must be assigned to a committee.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Entry point 2: Liquidation dialog
+    await _openEvents(tester);
+    await _openLiquidationDialog(tester);
+    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
+    await tester.ensureVisible(addOfficer);
+    await tester.tap(addOfficer);
+    await tester.pumpAndSettle();
+
+    // Position & Committee fields test in Liquidation dialog
+    await tester.enterText(
+      find.byKey(const Key('profileOfficerNameField')),
+      'Test Liq Officer',
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerPositionField')));
+    await tester.pumpAndSettle();
+    expect(find.text('Member'), findsWidgets);
+    expect(find.text('Head'), findsWidgets);
+    await tester.tap(find.text('Head').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Committee heads must be assigned to a committee.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.descendant(
+        of: find.byType(OfficerEditorDialog),
+        matching: find.text('Cancel'),
+      ),
+    );
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('liquidation inputs remain unchanged while adding an officer', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openEvents(tester);
+    await _openLiquidationDialog(tester);
+
+    await _enterTextByKey(
+      tester,
+      const Key('liquidationPayeeField'),
+      'Draft Merchant',
+    );
+    await _enterTextByKey(
+      tester,
+      const Key('liquidationEvidenceField'),
+      'EV-1234',
+    );
+    await _tapVisible(
+      tester,
+      find.byKey(const Key('liquidationFundingModeOptionoutOfPocket')),
+    );
+
+    // Cancel adding officer: inputs stay unchanged
+    var addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
+    await tester.ensureVisible(addOfficer);
+    await tester.tap(addOfficer);
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(OfficerEditorDialog),
+        matching: find.text('Cancel'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    var payeeField = tester.widget<TextFormField>(
+      find.byKey(const Key('liquidationPayeeField')),
+    );
+    var evidenceField = tester.widget<TextFormField>(
+      find.byKey(const Key('liquidationEvidenceField')),
+    );
+    expect(payeeField.controller!.text, 'Draft Merchant');
+    expect(evidenceField.controller!.text, 'EV-1234');
+
+    // Save officer: inputs still remain unchanged
+    addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
+    await tester.ensureVisible(addOfficer);
+    await tester.tap(addOfficer);
+    await tester.pumpAndSettle();
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Preserved Draft Officer',
+      position: OfficerPosition.head,
+      committee: Committee.finance,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+
+    payeeField = tester.widget<TextFormField>(
+      find.byKey(const Key('liquidationPayeeField')),
+    );
+    evidenceField = tester.widget<TextFormField>(
+      find.byKey(const Key('liquidationEvidenceField')),
+    );
+    expect(payeeField.controller!.text, 'Draft Merchant');
+    expect(evidenceField.controller!.text, 'EV-1234');
+    expect(find.text('Preserved Draft Officer'), findsOneWidget);
+  });
+
+  testWidgets('newly created Out-of-Pocket officer is selected automatically', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openEvents(tester);
+    await _openLiquidationDialog(tester);
+
+    await _tapVisible(
+      tester,
+      find.byKey(const Key('liquidationFundingModeOptionoutOfPocket')),
+    );
+
+    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
+    await tester.ensureVisible(addOfficer);
+    await tester.tap(addOfficer);
+    await tester.pumpAndSettle();
+
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Auto Selected Officer',
+      position: OfficerPosition.member,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Auto Selected Officer'), findsOneWidget);
+    final officer = (await harness.repository.listOfficers()).single;
+    expect(officer.fullName, 'Auto Selected Officer');
+  });
+
+  testWidgets(
+    'newly created Released Funds officer remains ineligible without custody',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedCompletedEvent();
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+      await _openLiquidationDialog(tester);
+
+      final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
+      await tester.ensureVisible(addOfficer);
+      await tester.tap(addOfficer);
+      await tester.pumpAndSettle();
+      await _fillProfileOfficerForm(
+        tester,
+        name: 'New Custodian',
+        position: OfficerPosition.member,
+        committee: Committee.finance,
+      );
+      await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Fund custody required'), findsOneWidget);
+      expect(find.textContaining('requires funds released'), findsOneWidget);
+
+      // Verify the newly created unfunded officer is disabled in dropdown items
+      final dropdown = tester.widget<DropdownButton<StableId>>(
+        find.byType(DropdownButton<StableId>),
+      );
+      final officerItem = dropdown.items!.firstWhere(
+        (i) => i.value == 'officer-1',
+      );
+      expect(officerItem.enabled, isFalse);
+      expect(dropdown.value, isNull);
+
+      final submitButton = find.byKey(const Key('liquidationSubmitButton'));
+      await tester.ensureVisible(submitButton);
+      await tester.tap(submitButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Select an accountable officer.'), findsOneWidget);
+    },
+  );
+
+  testWidgets('officer creation produces an audit log', (tester) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+
+    // Create from Officers tab
+    await _openOrganization(tester);
+    await _tapVisible(tester, find.byKey(const Key('profileAddOfficerButton')));
+    await tester.pumpAndSettle();
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Roster Officer',
+      position: OfficerPosition.member,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+
+    // Create from Liquidation
+    await _openEvents(tester);
+    await _openLiquidationDialog(tester);
+    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
+    await tester.ensureVisible(addOfficer);
+    await tester.tap(addOfficer);
+    await tester.pumpAndSettle();
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Liquidation Officer',
+      position: OfficerPosition.member,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+
+    final logs = await harness.repository.listAuditLogs();
+    final createLogs = logs.where((l) => l.action == 'officer.create').toList();
+    expect(createLogs, hasLength(2));
+    expect(
+      createLogs.map((l) => l.reference),
+      containsAll(['Roster Officer', 'Liquidation Officer']),
+    );
+  });
+
+  testWidgets('duplicate committee heads remain blocked', (tester) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent();
+    await harness.unlockService.configurePin('123456');
+
+    await harness.repository.saveOfficers(const [
+      Officer(
+        id: 'existing-head',
+        fullName: 'Existing Finance Head',
+        position: OfficerPosition.head,
+        committee: Committee.finance,
+      ),
+    ]);
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+
+    // Blocked in Officers tab
+    await _openOrganization(tester);
+    await _tapVisible(tester, find.byKey(const Key('profileAddOfficerButton')));
+    await tester.pumpAndSettle();
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Second Org Head',
+      position: OfficerPosition.head,
+      committee: Committee.finance,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Only one active head'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Blocked in Liquidation dialog
+    await _openEvents(tester);
+    await _openLiquidationDialog(tester);
+    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
+    await tester.ensureVisible(addOfficer);
+    await tester.tap(addOfficer);
+    await tester.pumpAndSettle();
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Second Liq Head',
+      position: OfficerPosition.head,
+      committee: Committee.finance,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Only one active head'), findsOneWidget);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(OfficerEditorDialog),
+        matching: find.text('Cancel'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final officers = await harness.repository.listOfficers();
+    expect(officers, hasLength(1));
+    expect(officers.single.id, 'existing-head');
+  });
+
+  testWidgets('event details remain open throughout the flow', (tester) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent();
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+
+    // Open Event Details
+    await _openEvents(tester);
+    await _openEventDetails(tester, 'event-1');
+    expect(find.text('Event Financials'), findsOneWidget);
+
+    // Open Liquidation Dialog
+    final button = find.byKey(const Key('eventLiquidationButtonevent-1'));
+    await tester.scrollUntilVisible(
+      button,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await Scrollable.ensureVisible(tester.element(button), alignment: 0.35);
+    await tester.pumpAndSettle();
+    await tester.tap(button);
+    await tester.pumpAndSettle();
+
+    // Event details remains open behind liquidation dialog
+    expect(find.text('Event Financials'), findsOneWidget);
+    expect(find.byKey(const Key('liquidationPayeeField')), findsOneWidget);
+
+    // Open Add Officer dialog
+    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
+    await tester.ensureVisible(addOfficer);
+    await tester.tap(addOfficer);
+    await tester.pumpAndSettle();
+
+    // Event details remains open behind add officer dialog
+    expect(find.text('Event Financials'), findsOneWidget);
+    expect(find.byKey(const Key('profileOfficerNameField')), findsOneWidget);
+
+    // Fill and save officer
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Flow Officer',
+      position: OfficerPosition.member,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+
+    // Back to liquidation dialog, Event Details still open
+    expect(find.text('Event Financials'), findsOneWidget);
+    expect(find.byKey(const Key('liquidationPayeeField')), findsOneWidget);
+
+    // Cancel liquidation dialog
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    // Back on Event Details screen
+    expect(find.text('Event Financials'), findsOneWidget);
+    expect(
+      find.byKey(const Key('eventLiquidationButtonevent-1')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Profile handles long labels at 375px width', (tester) async {
@@ -687,9 +1283,11 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
-    await _openProfile(tester);
+    await _openOrganization(tester, profile: true);
 
     expect(find.textContaining('Junior Philippine'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('organizationOfficersTab')));
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const Key('profileOfficerNameofficer-long')),
       findsOneWidget,
@@ -1659,11 +2257,11 @@ void main() {
     expect(find.text('manifest.json'), findsNothing);
 
     await tester.scrollUntilVisible(
-      find.text('USM-OSA-F46 Liquidation Reports'),
+      find.text('Liquidation Reports'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('USM-OSA-F46 Liquidation Reports'), findsOneWidget);
+    expect(find.text('Liquidation Reports'), findsOneWidget);
     expect(find.text('USM-OSA-F46 Liquidation Report'), findsNothing);
   });
 
@@ -1724,13 +2322,14 @@ void main() {
     await _openExport(tester);
 
     await tester.scrollUntilVisible(
-      find.text('USM-OSA-F46 Liquidation Reports'),
+      find.text('Liquidation Reports'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    expect(find.text('USM-OSA-F46 Liquidation Reports'), findsOneWidget);
-    await tester.tap(find.text('USM-OSA-F46 Liquidation Reports'));
+    expect(find.text('Liquidation Reports'), findsOneWidget);
+    await tester.tap(find.text('Liquidation Reports'));
     await tester.pumpAndSettle();
+    expect(find.text('Leadership Summit'), findsOneWidget);
     expect(find.text('USM-OSA-F46 Liquidation Report'), findsOneWidget);
     expect(
       find.text('reports/liquidation/Leadership-Summit-event-1.pdf'),
@@ -1776,12 +2375,10 @@ void main() {
     await _openExport(tester);
     await tester.tap(find.byKey(const Key('exportGeneratePreviewButton')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('exportPreviewInspectButton')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('exportPreviewInspectButton')));
+    await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.text('Generated Preview'),
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
     expect(find.text('Generated Preview'), findsOneWidget);
     await tester.tap(find.text('Generated Preview'));
     await tester.pumpAndSettle();
@@ -1895,10 +2492,13 @@ void main() {
     );
     expect(history.single.sameDayBackupFound, isFalse);
     await tester.scrollUntilVisible(
-      find.text('Backup reminder overridden'),
+      find.text('Export Records'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    expect(find.text('Export Records'), findsOneWidget);
+    await tester.tap(find.text('Export Records'));
+    await tester.pumpAndSettle();
     expect(find.text('Backup reminder overridden'), findsOneWidget);
   });
 
@@ -2039,7 +2639,6 @@ Future<void> _fillSetupForm(
   );
 }
 
-
 Future<void> _openTreasury(WidgetTester tester) async {
   await tester.tap(find.text('Treasury').last);
   await tester.pumpAndSettle();
@@ -2055,17 +2654,16 @@ Future<void> _openExport(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _openProfile(WidgetTester tester) async {
-  final directProfile = find.text('Profile');
-  if (directProfile.evaluate().isNotEmpty) {
-    await tester.tap(directProfile.last);
+Future<void> _openOrganization(
+  WidgetTester tester, {
+  bool profile = false,
+}) async {
+  await tester.tap(find.byKey(const Key('navItemOrganization')));
+  await tester.pumpAndSettle();
+  if (profile) {
+    await tester.tap(find.byKey(const Key('organizationProfileTab')));
     await tester.pumpAndSettle();
-    return;
   }
-  await tester.tap(find.byKey(const Key('workspaceSettingsButton')));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('adminMenuProfileTile')));
-  await tester.pumpAndSettle();
 }
 
 Future<void> _openBackup(WidgetTester tester) async {

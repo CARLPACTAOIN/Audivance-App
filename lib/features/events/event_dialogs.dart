@@ -8,8 +8,10 @@ import '../../core/domain/attachment_ref.dart';
 import '../../core/domain/identity.dart';
 import '../../core/domain/money.dart';
 import '../audit/domain/audit_models.dart';
-import '../treasury/treasury_formatters.dart';
 import '../liquidation/liquidation_service.dart';
+import '../organization/organization_service.dart';
+import '../organization/widgets/officer_editor_dialog.dart';
+import '../treasury/treasury_formatters.dart';
 import 'event_service.dart';
 
 class CreateEventDialog extends StatefulWidget {
@@ -873,6 +875,7 @@ class SubmitLiquidationDialog extends StatefulWidget {
     required this.officers,
     required this.attachmentPicker,
     required this.attachmentStorage,
+    required this.organizationService,
   });
 
   final LiquidationService service;
@@ -880,6 +883,7 @@ class SubmitLiquidationDialog extends StatefulWidget {
   final List<OfficerOption> officers;
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
+  final OrganizationService organizationService;
 
   @override
   State<SubmitLiquidationDialog> createState() =>
@@ -896,16 +900,19 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
   AttachmentRef? _receiptAttachment;
   ReceiptType _receiptType = ReceiptType.officialReceipt;
   FundingMode _fundingMode = FundingMode.releasedFunds;
+  late List<OfficerOption> _officers;
   StableId? _officerId;
+  String? _officerGuidance;
   String? _serviceError;
   var _isSubmitting = false;
 
   @override
   void initState() {
     super.initState();
+    _officers = [...widget.officers];
     _officerId =
-        _firstFundedOfficerId(widget.officers) ??
-        (widget.officers.isEmpty ? null : widget.officers.first.id);
+        _firstFundedOfficerId(_officers) ??
+        (_officers.isEmpty ? null : _officers.first.id);
   }
 
   @override
@@ -1009,20 +1016,21 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                                 _fundingMode = mode;
                                 if (_fundingMode == FundingMode.releasedFunds) {
                                   final selected = _officerById(
-                                    widget.officers,
+                                    _officers,
                                     _officerId,
                                   );
                                   if (selected == null ||
                                       !selected.hasFundCustody) {
                                     _officerId = _firstFundedOfficerId(
-                                      widget.officers,
+                                      _officers,
                                     );
                                   }
                                 } else {
-                                  _officerId ??= widget.officers.isEmpty
+                                  _officerId ??= _officers.isEmpty
                                       ? null
-                                      : widget.officers.first.id;
+                                      : _officers.first.id;
                                 }
+                                _officerGuidance = null;
                               });
                             },
                           ),
@@ -1031,46 +1039,70 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<StableId>(
+                KeyedSubtree(
                   key: const Key('liquidationOfficerField'),
-                  initialValue: _officerId,
-                  isExpanded: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Accountable officer',
-                  ),
-                  items: widget.officers
-                      .map(
-                        (officer) => DropdownMenuItem(
-                          value: officer.id,
-                          enabled:
-                              _fundingMode != FundingMode.releasedFunds ||
-                              officer.hasFundCustody,
-                          child: Text(
-                            _fundingMode == FundingMode.releasedFunds
-                                ? '${officer.fullName} - held ${officer.fundCustodyBalanceLabel}'
-                                : officer.fullName,
-                            overflow: TextOverflow.ellipsis,
+                  child: DropdownButtonFormField<StableId>(
+                    key: ValueKey(
+                      'liquidationOfficerDropdown-${_officerId ?? 'none'}-${_officers.length}',
+                    ),
+                    initialValue: _officerId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Accountable officer',
+                    ),
+                    items: _officers
+                        .map(
+                          (officer) => DropdownMenuItem(
+                            value: officer.id,
+                            enabled:
+                                _fundingMode != FundingMode.releasedFunds ||
+                                officer.hasFundCustody,
+                            child: Text(
+                              _fundingMode == FundingMode.releasedFunds
+                                  ? '${officer.fullName} - held ${officer.fundCustodyBalanceLabel}'
+                                  : officer.fullName,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                        ),
-                      )
-                      .toList(growable: false),
-                  validator: (value) {
-                    if (value == null) {
-                      return 'Select an accountable officer.';
-                    }
-                    final selected = _officerById(widget.officers, value);
-                    if (_fundingMode == FundingMode.releasedFunds &&
-                        (selected == null || !selected.hasFundCustody)) {
-                      return 'Select an officer with held funds for this event.';
-                    }
-                    return null;
-                  },
-                  onChanged: (value) {
-                    setState(() {
-                      _officerId = value;
-                    });
-                  },
+                        )
+                        .toList(growable: false),
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Select an accountable officer.';
+                      }
+                      final selected = _officerById(_officers, value);
+                      if (_fundingMode == FundingMode.releasedFunds &&
+                          (selected == null || !selected.hasFundCustody)) {
+                        return 'Select an officer with held funds for this event.';
+                      }
+                      return null;
+                    },
+                    onChanged: (value) {
+                      setState(() {
+                        _officerId = value;
+                        _officerGuidance = null;
+                      });
+                    },
+                  ),
                 ),
+                const SizedBox(height: AppSpacing.sm),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    key: const Key('liquidationAddOfficerButton'),
+                    onPressed: _isSubmitting ? null : _addOfficer,
+                    icon: const Icon(Icons.person_add_alt_1, size: 18),
+                    label: const Text('Add officer'),
+                  ),
+                ),
+                if (_officerGuidance != null) ...[
+                  const SizedBox(height: AppSpacing.sm),
+                  InlineStatusPanel(
+                    tone: InlineStatusTone.warning,
+                    title: 'Fund custody required',
+                    message: _officerGuidance!,
+                  ),
+                ],
                 const SizedBox(height: 16),
                 _SectionHeader(
                   title: 'Receipt attachment',
@@ -1186,6 +1218,42 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
   void _removeLine(int index) {
     setState(() {
       _lines.removeAt(index).dispose();
+    });
+  }
+
+  Future<void> _addOfficer() async {
+    final result = await showDialog<OfficerEditorResult>(
+      context: context,
+      builder: (context) =>
+          OfficerEditorDialog(service: widget.organizationService),
+    );
+    if (!mounted || result == null) {
+      return;
+    }
+
+    final officers = await widget.service.listOfficerOptionsForEvent(
+      widget.event.id,
+    );
+    if (!mounted) {
+      return;
+    }
+    final createdOfficer = _officerById(officers, result.officerId);
+    setState(() {
+      _officers = officers;
+      if (_fundingMode == FundingMode.outOfPocket) {
+        _officerId = createdOfficer?.id;
+        _officerGuidance = null;
+      } else if (createdOfficer?.hasFundCustody ?? false) {
+        _officerId = createdOfficer!.id;
+        _officerGuidance = null;
+      } else {
+        final selected = _officerById(_officers, _officerId);
+        if (selected == null || !selected.hasFundCustody) {
+          _officerId = _firstFundedOfficerId(_officers);
+        }
+        _officerGuidance =
+            '${createdOfficer?.fullName ?? 'The new officer'} was added, but Released Funds liquidation requires funds released to that officer for this event.';
+      }
     });
   }
 

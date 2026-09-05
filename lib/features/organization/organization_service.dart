@@ -78,10 +78,12 @@ class OrganizationService {
     return const ValidationResult.valid();
   }
 
-  Future<ValidationResult> saveOfficer(SaveOfficerCommand command) async {
+  Future<OfficerSaveResult> saveOfficer(SaveOfficerCommand command) async {
     final name = command.fullName.trim();
     if (name.isEmpty) {
-      return ValidationResult.failure('Officer name is required.');
+      return OfficerSaveResult.invalid(
+        ValidationResult.failure('Officer name is required.'),
+      );
     }
 
     final officers = await repository.listOfficers();
@@ -95,7 +97,7 @@ class OrganizationService {
     );
     final result = await repository.saveOfficers([officer]);
     if (result.isInvalid) {
-      return result;
+      return OfficerSaveResult.invalid(result);
     }
 
     await _appendAuditLog(
@@ -105,7 +107,7 @@ class OrganizationService {
       beforeSnapshot: existing == null ? null : _officerSnapshot(existing),
       afterSnapshot: _officerSnapshot(officer),
     );
-    return const ValidationResult.valid();
+    return OfficerSaveResult.valid(officer.id);
   }
 
   Future<ValidationResult> setOfficerArchived({
@@ -231,6 +233,29 @@ class SaveOfficerCommand {
   final Committee? committee;
 }
 
+class OfficerSaveResult {
+  const OfficerSaveResult._({required this.validation, this.officerId});
+
+  factory OfficerSaveResult.valid(StableId officerId) {
+    return OfficerSaveResult._(
+      validation: const ValidationResult.valid(),
+      officerId: officerId,
+    );
+  }
+
+  factory OfficerSaveResult.invalid(ValidationResult validation) {
+    assert(validation.isInvalid);
+    return OfficerSaveResult._(validation: validation);
+  }
+
+  final ValidationResult validation;
+  final StableId? officerId;
+
+  bool get isValid => validation.isValid;
+  bool get isInvalid => validation.isInvalid;
+  String get summary => validation.summary;
+}
+
 class OrganizationWorkspaceSnapshot {
   const OrganizationWorkspaceSnapshot({
     required this.organization,
@@ -326,9 +351,7 @@ List<String> parseSignatoryNames(String value) {
       .toList(growable: false);
 }
 
-ValidationResult _validateOrganization(
-  UpdateOrganizationCommand command,
-) {
+ValidationResult _validateOrganization(UpdateOrganizationCommand command) {
   final messages = <String>[];
   if (command.name.trim().isEmpty) {
     messages.add('Organization name is required.');

@@ -47,6 +47,7 @@ class ExportService {
       recordCounts: recordCounts,
       attachments: attachments,
       packageFiles: _packageStructureFor(data),
+      liquidationReportTitles: liquidationReportTitlesFor(events: data.events),
     );
   }
 
@@ -143,6 +144,7 @@ class ExportService {
       recordCounts: recordCounts,
       attachments: _buildAttachments(data),
       packageFiles: _packageStructureFor(data),
+      liquidationReportTitles: liquidationReportTitlesFor(events: data.events),
     );
     final textEntries = _archiveTextEntriesWithoutManifest(data, snapshot);
     final reportBundle = await const PdfReportService().buildReports(
@@ -261,6 +263,7 @@ class ExportCenterSnapshot {
     required this.recordCounts,
     required this.attachments,
     required this.packageFiles,
+    this.liquidationReportTitles = const <String, String>{},
   });
 
   final String organizationName;
@@ -270,6 +273,7 @@ class ExportCenterSnapshot {
   final List<ExportRecordCount> recordCounts;
   final List<ExportAttachmentView> attachments;
   final List<String> packageFiles;
+  final Map<String, String> liquidationReportTitles;
 
   int get blockerCount => issues
       .where((issue) => issue.severity == ExportReadinessSeverity.blocker)

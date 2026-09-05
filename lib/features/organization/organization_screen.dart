@@ -4,17 +4,20 @@ import '../../app/ui/app_ui.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 import 'organization_service.dart';
+import 'widgets/officer_editor_dialog.dart';
 import 'widgets/signature_block_preview.dart';
+
+enum OrganizationSection { profile, officers }
 
 class OrganizationScreen extends StatefulWidget {
   const OrganizationScreen({
     super.key,
     required this.service,
-    this.openOfficerFormOnStart = false,
+    this.initialSection = OrganizationSection.officers,
   });
 
   final OrganizationService service;
-  final bool openOfficerFormOnStart;
+  final OrganizationSection initialSection;
 
   @override
   State<OrganizationScreen> createState() => _OrganizationScreenState();
@@ -22,13 +25,13 @@ class OrganizationScreen extends StatefulWidget {
 
 class _OrganizationScreenState extends State<OrganizationScreen> {
   late Future<OrganizationWorkspaceSnapshot> _snapshotFuture;
-  var _openedInitialOfficerForm = false;
+  late OrganizationSection _currentSection;
 
   @override
   void initState() {
     super.initState();
+    _currentSection = widget.initialSection;
     _resetFuture();
-    _openInitialOfficerFormIfNeeded();
   }
 
   @override
@@ -37,9 +40,8 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
     if (oldWidget.service != widget.service) {
       _resetFuture();
     }
-    if (!oldWidget.openOfficerFormOnStart && widget.openOfficerFormOnStart) {
-      _openedInitialOfficerForm = false;
-      _openInitialOfficerFormIfNeeded();
+    if (oldWidget.initialSection != widget.initialSection) {
+      _currentSection = widget.initialSection;
     }
   }
 
@@ -51,42 +53,25 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
     setState(_resetFuture);
   }
 
-  void _openInitialOfficerFormIfNeeded() {
-    if (!widget.openOfficerFormOnStart || _openedInitialOfficerForm) {
-      return;
-    }
-    _openedInitialOfficerForm = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      _showOfficerDialog();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<OrganizationWorkspaceSnapshot>(
       future: _snapshotFuture,
       builder: (context, snapshot) {
         final Widget child;
-        if (snapshot.connectionState != ConnectionState.done) {
-          child = const AppStateView.loading(
-            key: ValueKey('loading'),
-            title: 'Loading Profile',
-            message: 'Reading organization and officer records.',
-          );
-        } else if (snapshot.hasError) {
+        if (snapshot.hasError) {
           child = AppStateView.error(
             key: const ValueKey('error'),
             title: 'Profile data could not be loaded',
             message: snapshot.error.toString(),
             onAction: _refresh,
           );
-        } else {
+        } else if (snapshot.hasData) {
           child = _OrganizationContent(
             key: const ValueKey('content'),
             snapshot: snapshot.data!,
+            initialSection: _currentSection,
+            onSectionChanged: (section) => _currentSection = section,
             onEditOrganization: _showEditOrganizationDialog,
             onAddOfficer: () => _showOfficerDialog(),
             onEditOfficer: _showOfficerDialog,
@@ -94,6 +79,12 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
                 _confirmOfficerArchive(officer: officer, isArchived: true),
             onRestoreOfficer: (officer) =>
                 _confirmOfficerArchive(officer: officer, isArchived: false),
+          );
+        } else {
+          child = const AppStateView.loading(
+            key: ValueKey('loading'),
+            title: 'Loading Profile',
+            message: 'Reading organization and officer records.',
           );
         }
         return AppCrossfade(child: child);
@@ -120,12 +111,12 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
   }
 
   Future<void> _showOfficerDialog([OfficerRowView? officer]) async {
-    final result = await showDialog<ValidationResult>(
+    final result = await showDialog<OfficerEditorResult>(
       context: context,
       builder: (context) =>
-          _OfficerDialog(service: widget.service, officer: officer),
+          OfficerEditorDialog(service: widget.service, officer: officer),
     );
-    if (!mounted || result == null || result.isInvalid) {
+    if (!mounted || result == null) {
       return;
     }
     _refresh();
@@ -150,10 +141,12 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
   }
 }
 
-class _OrganizationContent extends StatelessWidget {
+class _OrganizationContent extends StatefulWidget {
   const _OrganizationContent({
     super.key,
     required this.snapshot,
+    required this.initialSection,
+    this.onSectionChanged,
     required this.onEditOrganization,
     required this.onAddOfficer,
     required this.onEditOfficer,
@@ -162,6 +155,8 @@ class _OrganizationContent extends StatelessWidget {
   });
 
   final OrganizationWorkspaceSnapshot snapshot;
+  final OrganizationSection initialSection;
+  final ValueChanged<OrganizationSection>? onSectionChanged;
   final VoidCallback onEditOrganization;
   final VoidCallback onAddOfficer;
   final ValueChanged<OfficerRowView> onEditOfficer;
@@ -169,27 +164,105 @@ class _OrganizationContent extends StatelessWidget {
   final ValueChanged<OfficerRowView> onRestoreOfficer;
 
   @override
+  State<_OrganizationContent> createState() => _OrganizationContentState();
+}
+
+class _OrganizationContentState extends State<_OrganizationContent>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(
+      length: OrganizationSection.values.length,
+      initialIndex: widget.initialSection.index,
+      vsync: this,
+    );
+    _tabController.addListener(_handleTabChange);
+  }
+
+  void _handleTabChange() {
+    widget.onSectionChanged?.call(
+      OrganizationSection.values[_tabController.index],
+    );
+  }
+
+  @override
+  void didUpdateWidget(_OrganizationContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialSection != widget.initialSection &&
+        _tabController.index != widget.initialSection.index) {
+      _tabController.animateTo(widget.initialSection.index);
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabChange);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ResponsivePageScaffold(
       children: [
         AppSlideFadeIn(
-          child: _ProfileHeader(
-            snapshot: snapshot,
-            onEditOrganization: onEditOrganization,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Organization',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TabBar(
+                controller: _tabController,
+                isScrollable: false,
+                tabs: const [
+                  Tab(
+                    key: Key('organizationProfileTab'),
+                    icon: Icon(Icons.business_outlined),
+                    text: 'Profile',
+                  ),
+                  Tab(
+                    key: Key('organizationOfficersTab'),
+                    icon: Icon(Icons.groups_outlined),
+                    text: 'Officers',
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 16),
-        AppSlideFadeIn(
-          delay: AppMotion.staggerStep,
-          child: _OfficerRosterPanel(
-            activeOfficers: snapshot.activeOfficers,
-            archivedOfficers: snapshot.archivedOfficers,
-            committeeSummaries: snapshot.committeeSummaries,
-            onAddOfficer: onAddOfficer,
-            onEditOfficer: onEditOfficer,
-            onArchiveOfficer: onArchiveOfficer,
-            onRestoreOfficer: onRestoreOfficer,
-          ),
+        AnimatedBuilder(
+          animation: _tabController,
+          builder: (context, _) {
+            final section = OrganizationSection.values[_tabController.index];
+            return AppCrossfade(
+              child: section == OrganizationSection.profile
+                  ? _ProfileHeader(
+                      key: const ValueKey('organizationProfileContent'),
+                      snapshot: widget.snapshot,
+                      onEditOrganization: widget.onEditOrganization,
+                    )
+                  : _OfficerRosterPanel(
+                      key: const ValueKey('organizationOfficersContent'),
+                      activeOfficers: widget.snapshot.activeOfficers,
+                      archivedOfficers: widget.snapshot.archivedOfficers,
+                      committeeSummaries: widget.snapshot.committeeSummaries,
+                      onAddOfficer: widget.onAddOfficer,
+                      onEditOfficer: widget.onEditOfficer,
+                      onArchiveOfficer: widget.onArchiveOfficer,
+                      onRestoreOfficer: widget.onRestoreOfficer,
+                    ),
+            );
+          },
         ),
       ],
     );
@@ -198,6 +271,7 @@ class _OrganizationContent extends StatelessWidget {
 
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({
+    super.key,
     required this.snapshot,
     required this.onEditOrganization,
   });
@@ -339,6 +413,7 @@ class _ProfileHeader extends StatelessWidget {
 
 class _OfficerRosterPanel extends StatelessWidget {
   const _OfficerRosterPanel({
+    super.key,
     required this.activeOfficers,
     required this.archivedOfficers,
     required this.committeeSummaries,
@@ -708,26 +783,30 @@ class _OrganizationDialogState extends State<_OrganizationDialog> {
       return;
     }
 
-    final financeHeads = officers.where((o) =>
-        o.committee == Committee.finance &&
-        o.position == OfficerPosition.head);
-    final financeMembers =
-        officers.where((o) => o.committee == Committee.finance);
+    final financeHeads = officers.where(
+      (o) =>
+          o.committee == Committee.finance &&
+          o.position == OfficerPosition.head,
+    );
+    final financeMembers = officers.where(
+      (o) => o.committee == Committee.finance,
+    );
     final treasurer = financeHeads.isNotEmpty
         ? financeHeads.first.fullName
         : (financeMembers.isNotEmpty ? financeMembers.first.fullName : '');
 
-    final auditHeads = officers.where((o) =>
-        o.committee == Committee.audit &&
-        o.position == OfficerPosition.head);
-    final auditMembers =
-        officers.where((o) => o.committee == Committee.audit);
+    final auditHeads = officers.where(
+      (o) =>
+          o.committee == Committee.audit && o.position == OfficerPosition.head,
+    );
+    final auditMembers = officers.where((o) => o.committee == Committee.audit);
     final auditor = auditHeads.isNotEmpty
         ? auditHeads.first.fullName
         : (auditMembers.isNotEmpty ? auditMembers.first.fullName : '');
 
     final otherOfficers = officers.where(
-        (o) => o.fullName != treasurer && o.fullName != auditor);
+      (o) => o.fullName != treasurer && o.fullName != auditor,
+    );
     final head = otherOfficers.isNotEmpty ? otherOfficers.first.fullName : '';
 
     var filledCount = 0;
@@ -828,9 +907,9 @@ class _OrganizationDialogState extends State<_OrganizationDialog> {
                   Text(
                     'Official Signatories',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
-                        ),
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                   OutlinedButton.icon(
                     onPressed: _autoFillFromOfficers,
@@ -902,181 +981,6 @@ class _OrganizationDialogState extends State<_OrganizationDialog> {
         treasurerSignatory: _treasurerController.text.trim(),
         auditorSignatory: _auditorController.text.trim(),
         headSignatory: _headController.text.trim(),
-      ),
-    );
-    if (!mounted) {
-      return;
-    }
-    if (result.isInvalid) {
-      setState(() {
-        _isSubmitting = false;
-        _serviceError = result.summary;
-      });
-      return;
-    }
-    Navigator.pop(context, result);
-  }
-}
-
-class _OfficerDialog extends StatefulWidget {
-  const _OfficerDialog({required this.service, this.officer});
-
-  final OrganizationService service;
-  final OfficerRowView? officer;
-
-  @override
-  State<_OfficerDialog> createState() => _OfficerDialogState();
-}
-
-class _OfficerDialogState extends State<_OfficerDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
-  late OfficerPosition _position;
-  Committee? _committee;
-  String? _serviceError;
-  var _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final officer = widget.officer;
-    _nameController = TextEditingController(text: officer?.fullName ?? '');
-    _position = officer?.position ?? OfficerPosition.member;
-    _committee = officer?.committee;
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isEditing = widget.officer != null;
-    return AppDialogFrame(
-      title: isEditing ? 'Edit Officer' : 'Add Officer',
-      status: _serviceError == null
-          ? null
-          : InlineStatusPanel(
-              title: 'Officer could not be saved',
-              message: _serviceError!,
-              tone: InlineStatusTone.error,
-            ),
-      actions: [
-        TextButton(
-          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton.icon(
-          key: const Key('profileOfficerSubmitButton'),
-          onPressed: _isSubmitting ? null : _submit,
-          icon: _isSubmitting
-              ? const SizedBox.square(
-                  dimension: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.save_outlined),
-          label: const Text('Save Officer'),
-        ),
-      ],
-      children: [
-        Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _LabeledTextField(
-                key: const Key('profileOfficerNameField'),
-                controller: _nameController,
-                label: 'Officer name',
-              ),
-              const SizedBox(height: 14),
-              DropdownButtonFormField<OfficerPosition>(
-                key: const Key('profileOfficerPositionField'),
-                initialValue: _position,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Position'),
-                items: const [
-                  DropdownMenuItem(
-                    value: OfficerPosition.member,
-                    child: Text('Member', overflow: TextOverflow.ellipsis),
-                  ),
-                  DropdownMenuItem(
-                    value: OfficerPosition.head,
-                    child: Text('Head', overflow: TextOverflow.ellipsis),
-                  ),
-                ],
-                onChanged: _isSubmitting
-                    ? null
-                    : (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        setState(() => _position = value);
-                      },
-              ),
-              const SizedBox(height: 14),
-              DropdownButtonFormField<Committee?>(
-                key: const Key('profileOfficerCommitteeField'),
-                initialValue: _committee,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: 'Committee'),
-                items: const [
-                  DropdownMenuItem<Committee?>(
-                    value: null,
-                    child: Text(
-                      'No committee',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  DropdownMenuItem<Committee?>(
-                    value: Committee.finance,
-                    child: Text(
-                      'Finance Committee',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  DropdownMenuItem<Committee?>(
-                    value: Committee.audit,
-                    child: Text(
-                      'Audit Committee',
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-                validator: (value) {
-                  if (_position == OfficerPosition.head && value == null) {
-                    return 'Committee heads must be assigned to a committee.';
-                  }
-                  return null;
-                },
-                onChanged: _isSubmitting
-                    ? null
-                    : (value) => setState(() => _committee = value),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Future<void> _submit() async {
-    setState(() => _serviceError = null);
-    if (!_formKey.currentState!.validate()) {
-      setState(() {
-        _serviceError = 'Fix the highlighted fields before saving.';
-      });
-      return;
-    }
-    setState(() => _isSubmitting = true);
-    final result = await widget.service.saveOfficer(
-      SaveOfficerCommand(
-        id: widget.officer?.id,
-        fullName: _nameController.text,
-        position: _position,
-        committee: _committee,
       ),
     );
     if (!mounted) {

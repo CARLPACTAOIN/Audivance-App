@@ -469,7 +469,6 @@ extension BackupHistoryRecordMapper on BackupHistoryRecord {
   }
 }
 
-
 String? _encodeNullableObject(Map<String, Object?>? value) {
   return value == null ? null : jsonEncode(value);
 }

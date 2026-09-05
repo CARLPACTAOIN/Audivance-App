@@ -1141,8 +1141,8 @@ _SignatureNames _signatureNames({
   final headName = explicitHead.isNotEmpty
       ? explicitHead
       : (signatories.length > 2
-          ? signatories[2]
-          : (signatories.isNotEmpty ? signatories.first : ''));
+            ? signatories[2]
+            : (signatories.isNotEmpty ? signatories.first : ''));
 
   return _SignatureNames(
     treasurerName: resolveSignatory(
@@ -1422,12 +1422,33 @@ String _officerPositionLabel(OfficerPosition position) {
   };
 }
 
-String _liquidationReportPath(AuditEvent event) {
+String liquidationReportPath(AuditEvent event) {
   return p.posix.join(
     'reports',
     'liquidation',
     '${_slug(event.name)}-${_slug(event.id)}.pdf',
   );
+}
+
+String _liquidationReportPath(AuditEvent event) => liquidationReportPath(event);
+
+Map<String, String> liquidationReportTitlesFor({
+  required List<AuditEvent> events,
+}) {
+  return {for (final event in events) liquidationReportPath(event): event.name};
+}
+
+String eventTitleFromReportPath(String path, [Map<String, String>? titles]) {
+  if (titles != null && titles.containsKey(path)) {
+    return titles[path]!;
+  }
+  final fileName = p.basenameWithoutExtension(path);
+  final lastHyphen = fileName.lastIndexOf('-');
+  if (lastHyphen > 0) {
+    final nameSlug = fileName.substring(0, lastHyphen);
+    return nameSlug.replaceAll('-', ' ');
+  }
+  return fileName.replaceAll('-', ' ');
 }
 
 String _slug(String value) {

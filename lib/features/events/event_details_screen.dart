@@ -8,6 +8,8 @@ import '../../core/domain/money.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 import '../liquidation/liquidation_service.dart';
+import '../organization/organization_service.dart';
+import '../organization/widgets/officer_editor_dialog.dart';
 import '../treasury/treasury_formatters.dart';
 import 'event_dialogs.dart';
 import 'event_service.dart';
@@ -20,8 +22,8 @@ class EventDetailsScreen extends StatefulWidget {
     required this.liquidationService,
     required this.attachmentPicker,
     required this.attachmentStorage,
+    required this.organizationService,
     this.asOf,
-    this.onOpenOfficerManagement,
   });
 
   final StableId eventId;
@@ -29,8 +31,8 @@ class EventDetailsScreen extends StatefulWidget {
   final LiquidationService liquidationService;
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
+  final OrganizationService organizationService;
   final DateTime? asOf;
-  final VoidCallback? onOpenOfficerManagement;
 
   @override
   State<EventDetailsScreen> createState() => _EventDetailsScreenState();
@@ -51,8 +53,9 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     if (oldWidget.eventId != widget.eventId ||
         oldWidget.service != widget.service ||
         oldWidget.liquidationService != widget.liquidationService ||
+        oldWidget.organizationService != widget.organizationService ||
         oldWidget.asOf != widget.asOf ||
-        oldWidget.onOpenOfficerManagement != widget.onOpenOfficerManagement) {
+        oldWidget.attachmentStorage != widget.attachmentStorage) {
       _detailsFuture = _loadDetails();
     }
   }
@@ -157,7 +160,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
               onSubmitLiquidation: () => _showSubmitLiquidation(data),
               onMarkLiquidated: () => _markLiquidated(data),
               onPayReimbursement: _showPayReimbursement,
-              onCreateOfficer: _openOfficerManagement,
+              onCreateOfficer: _showOfficerEditor,
             );
           }
           return AppCrossfade(child: child);
@@ -208,6 +211,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
         officers: data.officerOptions,
         attachmentPicker: widget.attachmentPicker,
         attachmentStorage: widget.attachmentStorage,
+        organizationService: widget.organizationService,
       ),
     );
     if (!mounted || result == null || result.isInvalid) {
@@ -246,13 +250,16 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     _refresh();
   }
 
-  void _openOfficerManagement() {
-    final onOpenOfficerManagement = widget.onOpenOfficerManagement;
-    if (onOpenOfficerManagement == null) {
+  Future<void> _showOfficerEditor() async {
+    final result = await showDialog<OfficerEditorResult>(
+      context: context,
+      builder: (context) =>
+          OfficerEditorDialog(service: widget.organizationService),
+    );
+    if (!mounted || result == null) {
       return;
     }
-    Navigator.pop(context);
-    onOpenOfficerManagement();
+    _refresh();
   }
 }
 
@@ -327,7 +334,6 @@ class _EventDetailsContent extends StatelessWidget {
                     child: _EventActionsBar(
                       event: data.event,
                       liquidationEvent: data.liquidationEvent,
-                      hasOfficers: data.officerOptions.isNotEmpty,
                       onAdjustBudget: onAdjustBudget,
                       onReviewBudget: onReviewBudget,
                       onSubmitLiquidation: onSubmitLiquidation,
@@ -544,7 +550,6 @@ class _EventActionsBar extends StatelessWidget {
   const _EventActionsBar({
     required this.event,
     required this.liquidationEvent,
-    required this.hasOfficers,
     required this.onAdjustBudget,
     required this.onReviewBudget,
     required this.onSubmitLiquidation,
@@ -553,7 +558,6 @@ class _EventActionsBar extends StatelessWidget {
 
   final EventCardView event;
   final LiquidationEventView? liquidationEvent;
-  final bool hasOfficers;
   final VoidCallback onAdjustBudget;
   final VoidCallback onReviewBudget;
   final VoidCallback onSubmitLiquidation;
@@ -562,48 +566,123 @@ class _EventActionsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final canLiquidate =
-        liquidationEvent != null &&
-        liquidationEvent!.canSubmitLiquidation &&
-        hasOfficers;
+        liquidationEvent != null && liquidationEvent!.canSubmitLiquidation;
+    final isLiquidated = event.status == AuditEventStatus.liquidated;
+
+    final liquidationBtn = SizedBox(
+      height: 44,
+      child: FilledButton.icon(
+        key: Key('eventLiquidationButton${event.id}'),
+        onPressed: canLiquidate ? onSubmitLiquidation : null,
+        icon: const Icon(Icons.add_task, size: 18),
+        label: const Text('Liquidate / Add Receipt'),
+      ),
+    );
+
+    final budgetReviewBtn = SizedBox(
+      height: 44,
+      child: OutlinedButton.icon(
+        key: Key('eventBudgetReviewButton${event.id}'),
+        onPressed: onReviewBudget,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppColors.surfaceSubtle.withValues(alpha: 0.5),
+        ),
+        icon: const Icon(Icons.analytics_outlined, size: 18),
+        label: const Text('Budget Review'),
+      ),
+    );
+
+    final adjustBudgetBtn = event.canAdjustBudget
+        ? SizedBox(
+            height: 44,
+            child: OutlinedButton.icon(
+              key: Key('eventAdjustBudgetButton${event.id}'),
+              onPressed: onAdjustBudget,
+              style: OutlinedButton.styleFrom(
+                backgroundColor: AppColors.surfaceSubtle.withValues(alpha: 0.5),
+              ),
+              icon: const Icon(Icons.tune, size: 18),
+              label: const Text('Adjust Budget'),
+            ),
+          )
+        : null;
+
+    final markLiquidatedBtn = SizedBox(
+      height: 44,
+      child: OutlinedButton.icon(
+        key: Key('eventMarkLiquidatedButton${event.id}'),
+        onPressed: isLiquidated ? null : onMarkLiquidated,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppColors.surfaceSubtle.withValues(alpha: 0.5),
+        ),
+        icon: Icon(
+          isLiquidated ? Icons.check_circle_outline : Icons.verified_outlined,
+          size: 18,
+        ),
+        label: const Text('Mark Liquidated'),
+      ),
+    );
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const AppSectionHeader(title: 'Actions'),
+          AppSectionHeader(
+            icon: Icons.bolt_rounded,
+            title: 'Actions',
+            trailing: StatusBadge(
+              label: isLiquidated
+                  ? 'Liquidated'
+                  : canLiquidate
+                  ? 'Ready'
+                  : 'Pending',
+              tone: isLiquidated
+                  ? InlineStatusTone.success
+                  : canLiquidate
+                  ? InlineStatusTone.info
+                  : InlineStatusTone.warning,
+            ),
+          ),
           const SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.md,
-            runSpacing: AppSpacing.sm,
-            children: [
-              FilledButton.icon(
-                key: Key('eventLiquidationButton${event.id}'),
-                onPressed: canLiquidate ? onSubmitLiquidation : null,
-                icon: const Icon(Icons.add_task, size: 18),
-                label: const Text('Liquidate / Add Receipt'),
-              ),
-              OutlinedButton.icon(
-                key: Key('eventBudgetReviewButton${event.id}'),
-                onPressed: onReviewBudget,
-                icon: const Icon(Icons.analytics_outlined, size: 18),
-                label: const Text('Budget Review'),
-              ),
-              if (event.canAdjustBudget)
-                OutlinedButton.icon(
-                  key: Key('eventAdjustBudgetButton${event.id}'),
-                  onPressed: onAdjustBudget,
-                  icon: const Icon(Icons.tune, size: 18),
-                  label: const Text('Adjust Budget'),
-                ),
-              OutlinedButton.icon(
-                key: Key('eventMarkLiquidatedButton${event.id}'),
-                onPressed: event.status == AuditEventStatus.liquidated
-                    ? null
-                    : onMarkLiquidated,
-                icon: const Icon(Icons.verified_outlined, size: 18),
-                label: const Text('Mark Liquidated'),
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 540;
+              if (isWide) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    liquidationBtn,
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      children: [
+                        Expanded(child: budgetReviewBtn),
+                        if (adjustBudgetBtn != null) ...[
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(child: adjustBudgetBtn),
+                        ],
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(child: markLiquidatedBtn),
+                      ],
+                    ),
+                  ],
+                );
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  liquidationBtn,
+                  const SizedBox(height: AppSpacing.sm),
+                  budgetReviewBtn,
+                  if (adjustBudgetBtn != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    adjustBudgetBtn,
+                  ],
+                  const SizedBox(height: AppSpacing.sm),
+                  markLiquidatedBtn,
+                ],
+              );
+            },
           ),
         ],
       ),

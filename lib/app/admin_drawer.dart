@@ -7,14 +7,11 @@ import '../features/backup/backup_history_service.dart';
 import '../features/backup/backup_package_io.dart';
 import '../features/backup/backup_screen.dart';
 import '../features/backup/backup_service.dart';
-import '../features/organization/organization_screen.dart';
-import '../features/organization/organization_service.dart';
 import 'brand_logo.dart';
 import 'ui/app_ui.dart';
 
 /// Admin menu presented from the top app bar action.
-/// Consolidates Organization Profile, Officer Roster, and Backup & Restore
-/// into a clean, unified administration panel.
+/// Provides device-level maintenance and recovery actions.
 class AdminMenuSheet extends StatelessWidget {
   const AdminMenuSheet({
     super.key,
@@ -67,11 +64,6 @@ class AdminMenuSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final orgService = OrganizationService(
-      repository: repository,
-      idGenerator: idGenerator,
-    );
-
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
@@ -105,7 +97,7 @@ class AdminMenuSheet extends StatelessWidget {
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
                   child: Text(
-                    'Administration & Settings',
+                    'Settings',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium
@@ -124,44 +116,6 @@ class AdminMenuSheet extends StatelessWidget {
               padding: EdgeInsets.zero,
               child: Column(
                 children: [
-                  ListTile(
-                    key: const Key('adminMenuProfileTile'),
-                    leading: const Icon(
-                      Icons.business_outlined,
-                      color: AppColors.info,
-                    ),
-                    title: const Text(
-                      'Organization & Officers',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: const Text(
-                      'Manage profile, advisers, signatories, and roster',
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                    trailing: const Icon(
-                      Icons.chevron_right,
-                      size: 20,
-                      color: AppColors.textMuted,
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => Scaffold(
-                            appBar: AppBar(title: const Text('Profile')),
-                            body: SafeArea(
-                              child: OrganizationScreen(service: orgService),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1, color: AppColors.divider),
                   ListTile(
                     key: const Key('adminMenuBackupTile'),
                     leading: const Icon(

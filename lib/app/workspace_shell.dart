@@ -60,7 +60,7 @@ class WorkspaceShell extends StatefulWidget {
 class _WorkspaceShellState extends State<WorkspaceShell> {
   var _selectedIndex = 0;
   final _activatedIndices = <int>{0};
-  final _refreshCounts = [0, 0, 0, 0];
+  final _refreshCounts = [0, 0, 0, 0, 0];
 
   @override
   Widget build(BuildContext context) {
@@ -101,7 +101,7 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
               asOf: widget.asOf,
               refreshTrigger: _refreshCounts[0],
               onOpenLedger: () => _selectIndex(1),
-              onOpenExportCenter: () => _selectIndex(3),
+              onOpenExportCenter: () => _selectIndex(4),
             ),
             _activatedIndices.contains(1)
                 ? TreasuryScreen(
@@ -128,10 +128,22 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
                     attachmentStorage: widget.attachmentStorage,
                     asOf: widget.asOf,
                     refreshTrigger: _refreshCounts[2],
-                    onOpenOfficerManagement: _openOfficerManagement,
+                    organizationService: OrganizationService(
+                      repository: widget.repository,
+                      idGenerator: widget.idGenerator,
+                    ),
                   )
                 : const SizedBox.shrink(),
             _activatedIndices.contains(3)
+                ? OrganizationScreen(
+                    service: OrganizationService(
+                      repository: widget.repository,
+                      idGenerator: widget.idGenerator,
+                    ),
+                    initialSection: OrganizationSection.officers,
+                  )
+                : const SizedBox.shrink(),
+            _activatedIndices.contains(4)
                 ? ExportScreen(
                     service: ExportService(
                       repository: widget.repository,
@@ -159,7 +171,7 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
                         widget.exportPackageWriter ??
                         const FilePickerExportPackageWriter(),
                     asOf: widget.asOf,
-                    refreshTrigger: _refreshCounts[3],
+                    refreshTrigger: _refreshCounts[4],
                   )
                 : const SizedBox.shrink(),
           ],
@@ -182,29 +194,6 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
       backupPackageReader: widget.backupPackageReader,
       onRestoreBackup: widget.onRestoreBackup,
       storagePaths: widget.storagePaths,
-    );
-    if (mounted) {
-      _refreshCurrentTab();
-    }
-  }
-
-  Future<void> _openOfficerManagement() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(title: const Text('Profile')),
-          body: SafeArea(
-            child: OrganizationScreen(
-              service: OrganizationService(
-                repository: widget.repository,
-                idGenerator: widget.idGenerator,
-              ),
-              openOfficerFormOnStart: true,
-            ),
-          ),
-        ),
-      ),
     );
     if (mounted) {
       _refreshCurrentTab();

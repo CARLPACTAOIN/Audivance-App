@@ -9,6 +9,7 @@ import '../../core/domain/money.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/domain/audit_models.dart';
 import '../liquidation/liquidation_service.dart';
+import '../organization/organization_service.dart';
 import '../treasury/treasury_formatters.dart';
 import 'event_details_screen.dart';
 import 'event_dialogs.dart';
@@ -26,7 +27,7 @@ class EventScreen extends StatefulWidget {
     required this.attachmentStorage,
     this.asOf,
     this.refreshTrigger = 0,
-    this.onOpenOfficerManagement,
+    required this.organizationService,
   });
 
   final EventService service;
@@ -35,7 +36,7 @@ class EventScreen extends StatefulWidget {
   final AttachmentStorageService attachmentStorage;
   final DateTime? asOf;
   final int refreshTrigger;
-  final VoidCallback? onOpenOfficerManagement;
+  final OrganizationService organizationService;
 
   @override
   State<EventScreen> createState() => _EventScreenState();
@@ -56,9 +57,9 @@ class _EventScreenState extends State<EventScreen> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.service != widget.service ||
         oldWidget.liquidationService != widget.liquidationService ||
+        oldWidget.organizationService != widget.organizationService ||
         oldWidget.asOf != widget.asOf ||
-        oldWidget.refreshTrigger != widget.refreshTrigger ||
-        oldWidget.onOpenOfficerManagement != widget.onOpenOfficerManagement) {
+        oldWidget.refreshTrigger != widget.refreshTrigger) {
       _load();
     }
   }
@@ -93,8 +94,8 @@ class _EventScreenState extends State<EventScreen> {
           liquidationService: widget.liquidationService,
           attachmentPicker: widget.attachmentPicker,
           attachmentStorage: widget.attachmentStorage,
+          organizationService: widget.organizationService,
           asOf: widget.asOf,
-          onOpenOfficerManagement: widget.onOpenOfficerManagement,
         ),
       ),
     );
