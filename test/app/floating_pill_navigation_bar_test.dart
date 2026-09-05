@@ -1,4 +1,5 @@
 import 'package:audivance/app/floating_pill_navigation_bar.dart';
+import 'package:audivance/app/ui/app_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -180,6 +181,45 @@ void main() {
       expect(constrainedBoxFinder, findsOneWidget);
     },
   );
+
+  testWidgets('pill chassis has a prominent elevated treatment', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          bottomNavigationBar: FloatingPillNavigationBar(
+            selectedIndex: 0,
+            onDestinationSelected: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    final chassis = tester.widget<Container>(
+      find.byKey(const Key('floatingNavPillChassis')),
+    );
+    final chassisDecoration = chassis.decoration! as BoxDecoration;
+    expect(chassisDecoration.boxShadow, hasLength(2));
+    expect(
+      chassisDecoration.boxShadow!.first.color,
+      AppColors.brandLight.withValues(alpha: 0.18),
+    );
+
+    final selectedItem = tester.widget<AnimatedContainer>(
+      find.descendant(
+        of: find.byKey(const Key('navItemDashboard')),
+        matching: find.byType(AnimatedContainer),
+      ),
+    );
+    final selectedDecoration = selectedItem.decoration! as BoxDecoration;
+    expect(
+      selectedDecoration.color,
+      AppColors.brandContainer.withValues(alpha: 0.92),
+    );
+    expect(selectedDecoration.border, isNotNull);
+    expect(selectedDecoration.boxShadow, isNotEmpty);
+  });
 
   testWidgets(
     'five navigation destinations with no overflow at narrow widths',

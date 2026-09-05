@@ -158,8 +158,8 @@ class _SetupScreenState extends State<SetupScreen> {
     if (!RegExp(r'^\d+$').hasMatch(value!)) {
       return 'PIN must use digits only.';
     }
-    if (value.length < 6) {
-      return 'PIN must be at least 6 digits.';
+    if (value.length != 6) {
+      return 'PIN must be exactly 6 digits.';
     }
     return null;
   }
@@ -469,7 +469,7 @@ class _Step1AccountScreen extends StatelessWidget {
                         key: const Key('setupPinField'),
                         controller: pinController,
                         label: 'PIN',
-                        helperText: 'Use at least 6 digits.',
+                        helperText: 'Use exactly 6 digits.',
                         prefixIcon: Icons.password_outlined,
                         obscureText: true,
                         keyboardType: TextInputType.number,

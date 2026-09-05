@@ -306,6 +306,31 @@ void main() {
     expect(find.text('Treasury Balance'), findsNothing);
   });
 
+  testWidgets('unlock requires exactly six numeric digits', (tester) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.unlockService.configurePin('123456');
+    await harness.unlockService.lock();
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+
+    final pinField = find.byKey(const Key('unlockPinField'));
+    final submitButton = find.byKey(const Key('unlockSubmitButton'));
+
+    for (final invalidPin in ['12345', '1234567', '12345a']) {
+      await tester.enterText(pinField, invalidPin);
+      await tester.tap(submitButton);
+      await tester.pump();
+
+      expect(find.text('PIN must be exactly 6 digits.'), findsOneWidget);
+      expect(find.text('PIN does not match this workspace.'), findsNothing);
+    }
+
+    expect(find.text('Treasury Balance'), findsNothing);
+  });
+
   testWidgets('unlock rejects wrong PIN with visible error', (tester) async {
     final harness = _WidgetHarness();
     addTearDown(harness.close);
@@ -315,10 +340,16 @@ void main() {
 
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('unlockPinField')));
+    await tester.pump();
     await tester.enterText(find.byKey(const Key('unlockPinField')), '000000');
+
+    expect(tester.testTextInput.isVisible, isTrue);
+
     await tester.tap(find.byKey(const Key('unlockSubmitButton')));
     await tester.pumpAndSettle();
 
+    expect(tester.testTextInput.isVisible, isFalse);
     expect(find.text('PIN does not match this workspace.'), findsOneWidget);
     expect(find.text('Treasury Balance'), findsNothing);
   });

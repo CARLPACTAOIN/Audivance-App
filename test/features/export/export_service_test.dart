@@ -149,6 +149,13 @@ void main() {
     expect(body, contains('ARI SANTOS'));
     expect(body, contains('BEA REYES'));
 
+    final rawPdf = latin1.decode(liquidation.bytes, allowInvalid: true);
+    expect(
+      rawPdf,
+      isNot(contains('0.12941 0.12941 0.12941 rg')),
+      reason: 'USM-OSA-F46 item headers and total row must use black fill.',
+    );
+
     expect(
       _pdfContextAround(liquidation.bytes, 'USM-OSA-F46-Rev.0.2025.05.05'),
       contains('1 0 0 1 40 34 cm'),
@@ -174,6 +181,40 @@ void main() {
     expect(liquidation.byteLength, greaterThan(0));
     expect(liquidation.checksum, hasLength(64));
   });
+
+  test(
+    'multi-page liquidation PDF prints form code only on last page',
+    () async {
+      await _seedCompleteWorkspace(repository);
+      for (var index = 2; index <= 90; index++) {
+        await repository.saveLiquidationLine(
+          LiquidationLine(
+            id: 'line-$index',
+            receiptId: 'receipt-1',
+            description: 'Expense item $index',
+            quantity: 1,
+            unitCost: Money.php(1),
+          ),
+        );
+      }
+
+      final reports = await service.buildReports(
+        asOf: DateTime(2026, 8, 18, 12),
+      );
+      final liquidation = reports.files.singleWhere(
+        (file) => isUsmOsaF46LiquidationReportPath(file.path),
+      );
+
+      expect(_pdfPageCount(liquidation.bytes), greaterThan(1));
+      expect(
+        _pdfTextOccurrenceCount(
+          liquidation.bytes,
+          'USM-OSA-F46-Rev.0.2025.05.05',
+        ),
+        1,
+      );
+    },
+  );
 
   test('generates liquidation PDFs for events without receipts', () async {
     await _seedWorkspaceWithoutLiquidation(repository);
@@ -649,6 +690,18 @@ String _pdfExtractedText(List<int> bytes) {
     buffer.write(value);
   }
   return buffer.toString();
+}
+
+int _pdfTextOccurrenceCount(List<int> bytes, String text) {
+  return RegExp(RegExp.escape(text))
+      .allMatches(_pdfExtractedText(bytes))
+      .length;
+}
+
+int _pdfPageCount(List<int> bytes) {
+  final raw = latin1.decode(bytes, allowInvalid: true);
+  final match = RegExp(r'/Count\s+(\d+)').firstMatch(raw);
+  return int.tryParse(match?.group(1) ?? '') ?? 0;
 }
 
 String _pdfContextAround(List<int> bytes, String text) {

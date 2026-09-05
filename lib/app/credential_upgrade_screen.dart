@@ -87,7 +87,7 @@ class _CredentialUpgradeScreenState extends State<CredentialUpgradeScreen> {
                         keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
                           labelText: 'New PIN',
-                          helperText: 'Use at least 6 digits.',
+                          helperText: 'Use exactly 6 digits.',
                         ),
                         validator: _pinValidator,
                       ),
@@ -162,8 +162,8 @@ class _CredentialUpgradeScreenState extends State<CredentialUpgradeScreen> {
     if (!RegExp(r'^\d+$').hasMatch(value!)) {
       return 'PIN must use digits only.';
     }
-    if (value.length < 6) {
-      return 'PIN must be at least 6 digits.';
+    if (value.length != 6) {
+      return 'PIN must be exactly 6 digits.';
     }
     return null;
   }

@@ -82,7 +82,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
                           labelText: 'PIN',
                           helperText: 'Your PIN is verified on this device.',
                         ),
-                        validator: _requiredValidator,
+                        validator: _pinValidator,
                       ),
                       const SizedBox(height: AppSpacing.xl),
                       FilledButton.icon(
@@ -110,6 +110,7 @@ class _UnlockScreenState extends State<UnlockScreen> {
   }
 
   Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
     setState(() => _errorText = null);
     if (!_formKey.currentState!.validate()) {
       return;
@@ -143,9 +144,12 @@ class _UnlockScreenState extends State<UnlockScreen> {
   }
 }
 
-String? _requiredValidator(String? value) {
+String? _pinValidator(String? value) {
   if (value == null || value.trim().isEmpty) {
     return 'This field is required.';
+  }
+  if (!RegExp(r'^\d{6}$').hasMatch(value)) {
+    return 'PIN must be exactly 6 digits.';
   }
   return null;
 }

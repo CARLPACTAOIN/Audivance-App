@@ -525,7 +525,7 @@ Future<PdfReportFile> _liquidationPdfFile({
     pw.MultiPage(
       pageFormat: _f46Metrics.pageFormat,
       margin: _f46Metrics.pageMargin,
-      footer: (context) => _formCodeFooter(),
+      footer: _lastPageFormCodeFooter,
       build: (context) => [
         _officialHeader(logo),
         pw.SizedBox(height: 5),
@@ -655,6 +655,13 @@ pw.Widget _officialHeader(pw.MemoryImage? logo) {
       ),
     ],
   );
+}
+
+pw.Widget _lastPageFormCodeFooter(pw.Context context) {
+  if (context.pageNumber != context.pagesCount) {
+    return pw.SizedBox();
+  }
+  return _formCodeFooter();
 }
 
 pw.Widget _formCodeFooter() {
@@ -846,7 +853,7 @@ pw.Widget _liquidationItemsTable(List<UsmOsaF46LineItem> items) {
     columnWidths: _itemColumnWidths,
     children: [
       pw.TableRow(
-        decoration: const pw.BoxDecoration(color: PdfColors.grey900),
+        decoration: const pw.BoxDecoration(color: PdfColors.black),
         children: [
           _itemHeader('Item\nNumber'),
           _itemHeader('Nature'),
@@ -877,7 +884,7 @@ pw.Widget _liquidationTotalRow(Money totalAmount) {
         children: [
           pw.Container(
             height: UsmOsaF46TemplateMetrics.totalRowHeight,
-            color: PdfColors.grey900,
+            color: PdfColors.black,
             alignment: pw.Alignment.centerRight,
             padding: const pw.EdgeInsets.only(right: 6),
             child: pw.Text(
@@ -891,11 +898,16 @@ pw.Widget _liquidationTotalRow(Money totalAmount) {
           ),
           pw.Container(
             height: UsmOsaF46TemplateMetrics.totalRowHeight,
+            color: PdfColors.black,
             alignment: pw.Alignment.centerLeft,
             padding: const pw.EdgeInsets.only(left: 8),
             child: pw.Text(
               _formatPhpPaper(totalAmount),
-              style: _officialTextStyle(fontSize: 8.5, bold: true),
+              style: _officialTextStyle(
+                fontSize: 8.5,
+                bold: true,
+                color: PdfColors.white,
+              ),
             ),
           ),
         ],

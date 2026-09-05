@@ -96,15 +96,21 @@ class FloatingPillNavigationBar extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 520.0),
               child: Container(
+                key: const Key('floatingNavPillChassis'),
                 height: pillHeight,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(32.0),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 20.0,
-                      offset: const Offset(0, 8),
-                      spreadRadius: 0,
+                      color: AppColors.brandLight.withValues(alpha: 0.18),
+                      blurRadius: 24.0,
+                      spreadRadius: 1.0,
+                    ),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      blurRadius: 30.0,
+                      offset: const Offset(0, 12),
+                      spreadRadius: 1.0,
                     ),
                   ],
                 ),
@@ -119,11 +125,18 @@ class FloatingPillNavigationBar extends StatelessWidget {
                         vertical: 5.0,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xEB131922),
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            AppColors.surfaceElevated.withValues(alpha: 0.98),
+                            AppColors.surface.withValues(alpha: 0.98),
+                          ],
+                        ),
                         borderRadius: BorderRadius.circular(32.0),
                         border: Border.all(
-                          color: AppColors.borderSubtle,
-                          width: 1.0,
+                          color: AppColors.brandLight.withValues(alpha: 0.55),
+                          width: 1.25,
                         ),
                       ),
                       child: Row(
@@ -200,10 +213,23 @@ class _PillNavigationItemState extends State<_PillNavigationItem> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(24.0),
               color: isSelected
-                  ? AppColors.brandContainer.withValues(alpha: 0.55)
+                  ? AppColors.brandContainer.withValues(alpha: 0.92)
                   : isHovered
                   ? AppColors.surfaceSubtle
                   : Colors.transparent,
+              border: isSelected
+                  ? Border.all(
+                      color: AppColors.brandLight.withValues(alpha: 0.48),
+                    )
+                  : null,
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: AppColors.brand.withValues(alpha: 0.18),
+                        blurRadius: 12.0,
+                      ),
+                    ]
+                  : null,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -239,7 +265,7 @@ class _PillNavigationItemState extends State<_PillNavigationItem> {
                         ? AppColors.textPrimary
                         : isHovered
                         ? AppColors.textPrimary
-                        : AppColors.textMuted,
+                        : AppColors.textSecondary,
                     height: 1.15,
                   ),
                 ),

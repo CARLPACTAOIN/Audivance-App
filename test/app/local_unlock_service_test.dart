@@ -46,6 +46,22 @@ void main() {
     );
   });
 
+  test('configure PIN requires exactly six numeric digits', () async {
+    final service = SecureLocalUnlockService(
+      store: InMemorySecureCredentialStore(),
+      hasher: const CredentialHasher(iterations: 1000),
+      random: Random(8),
+    );
+
+    for (final invalidPin in ['12345', '1234567', '12345a']) {
+      final result = await service.configurePin(invalidPin);
+
+      expect(result.isValid, isFalse);
+    }
+
+    expect((await service.configurePin('123456')).isValid, isTrue);
+  });
+
   test(
     'configure PIN persists credential envelope and generated database key',
     () async {

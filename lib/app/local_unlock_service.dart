@@ -332,8 +332,8 @@ ValidationResult _validatePin(String pin) {
   if (!RegExp(r'^\d+$').hasMatch(pin)) {
     return ValidationResult.failure('PIN must use digits only.');
   }
-  if (pin.length < 6) {
-    return ValidationResult.failure('PIN must be at least 6 digits.');
+  if (pin.length != 6) {
+    return ValidationResult.failure('PIN must be exactly 6 digits.');
   }
   return const ValidationResult.valid();
 }
