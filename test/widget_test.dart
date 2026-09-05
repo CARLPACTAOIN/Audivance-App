@@ -301,6 +301,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Unlock workspace'), findsOneWidget);
+    expect(find.byType(AudivanceBackground), findsOneWidget);
     expect(find.byKey(const Key('unlockBrandLogo')), findsOneWidget);
     expect(find.byKey(const Key('unlockPinField')), findsOneWidget);
     expect(find.text('Treasury Balance'), findsNothing);
