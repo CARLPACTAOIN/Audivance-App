@@ -78,6 +78,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo/
+    - assets/fonts/Roboto-Regular.ttf
+    - assets/fonts/Roboto-Bold.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -18,6 +18,7 @@ import '../audit/domain/audit_models.dart';
 import '../audit/domain/audit_rules.dart';
 import '../treasury/treasury_formatters.dart';
 import 'pdf_report_service.dart';
+import 'pdf_font_theme.dart';
 
 class ExportService {
   const ExportService({required this.repository, this.attachmentStorage});
@@ -1063,7 +1064,7 @@ Future<Uint8List> _receiptBundlePdfBytes({
   required _ReceiptBundleRecord bundle,
   required Map<StableId, Uint8List> bytesByReceiptId,
 }) async {
-  final document = pw.Document(compress: false);
+  final document = pw.Document(compress: false, theme: await loadPdfTheme());
   for (var index = 0; index < bundle.receipts.length; index += 1) {
     final receipt = bundle.receipts[index];
     final order = index + 1;

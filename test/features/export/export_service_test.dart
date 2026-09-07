@@ -10,6 +10,8 @@ import 'package:audivance/features/audit/data/drift_audit_repository.dart';
 import 'package:audivance/features/audit/domain/audit_models.dart';
 import 'package:audivance/features/export/export_service.dart';
 import 'package:audivance/features/export/pdf_report_service.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:archive/archive.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
@@ -106,6 +108,49 @@ void main() {
   );
 
   test(
+    'generated PDFs embed a Unicode-capable font for accented names',
+    () async {
+      await _seedCompleteWorkspace(
+        repository,
+        organizationName: 'Asociación José Ñandú',
+        eventName: 'Reunión de Finanzas',
+        payeeOrMerchant: 'Café Niño',
+        lineDescription: 'Crème brûlée',
+      );
+
+      final reports = await service.buildReports(
+        asOf: DateTime(2026, 8, 18, 12),
+      );
+      final organization = reports.files.singleWhere(
+        (file) => file.path == 'reports/organization_summary.pdf',
+      );
+      final liquidation = reports.files.singleWhere(
+        (file) => isUsmOsaF46LiquidationReportPath(file.path),
+      );
+
+      final organizationPdf = latin1.decode(
+        organization.bytes,
+        allowInvalid: true,
+      );
+      final liquidationPdf = latin1.decode(
+        liquidation.bytes,
+        allowInvalid: true,
+      );
+      final organizationText = _pdfExtractedText(organization.bytes);
+      final liquidationText = _pdfExtractedText(liquidation.bytes);
+
+      expect(organizationPdf, contains('Roboto'));
+      expect(liquidationPdf, contains('Roboto'));
+      expect(organizationText, contains('Asociación José Ñandú'));
+      expect(liquidationText, contains('Reunión de Finanzas'));
+      expect(liquidationText, contains('Café Niño'));
+      expect(liquidationText, contains('Crème brûlée'));
+      expect(organization.byteLength, greaterThan(0));
+      expect(liquidation.byteLength, greaterThan(0));
+    },
+  );
+
+  test(
     'USM logo asset is registered for USM-OSA-F46 report generation',
     () async {
       final data = await rootBundle.load(
@@ -156,10 +201,34 @@ void main() {
       reason: 'USM-OSA-F46 item headers and total row must use black fill.',
     );
 
+    expect(rawPdf, contains('1 0 0 1 40 34 cm'));
+  });
+
+  test('liquidation total row separates label and amount into two distinct columns with corresponding backgrounds', () {
+    final table = buildLiquidationTotalRow(Money.php(200)) as pw.Table;
+    expect(table.columnWidths?.length, 2);
+    expect(table.children.single.children.length, 2);
+
+    final labelContainer = table.children.single.children[0] as pw.Container;
+    final amountContainer = table.children.single.children[1] as pw.Container;
+
     expect(
-      _pdfContextAround(liquidation.bytes, 'USM-OSA-F46-Rev.0.2025.05.05'),
-      contains('1 0 0 1 40 34 cm'),
+      (labelContainer.decoration as pw.BoxDecoration).color,
+      PdfColors.black,
     );
+    expect(
+      (amountContainer.decoration as pw.BoxDecoration).color,
+      PdfColors.white,
+    );
+
+    final labelText = labelContainer.child as pw.Text;
+    final amountText = amountContainer.child as pw.Text;
+
+    expect(labelText.text.toPlainText(), 'TOTAL:');
+    expect(labelText.text.style?.color, PdfColors.white);
+
+    expect(amountText.text.toPlainText(), 'Php 200.00');
+    expect(amountText.text.style?.color, PdfColors.black);
   });
 
   test('liquidation PDF generation constrains long dynamic values', () async {
@@ -661,7 +730,8 @@ void _registerTestLogoAsset() {
             message.lengthInBytes,
           ),
         );
-        if (key != UsmOsaF46TemplateAssets.defaultLogoAssetPath) {
+        if (key != UsmOsaF46TemplateAssets.defaultLogoAssetPath &&
+            !key.startsWith('assets/fonts/')) {
           return null;
         }
         final bytes = await File(key).readAsBytes();
@@ -689,7 +759,45 @@ String _pdfExtractedText(List<int> bytes) {
     }
     buffer.write(value);
   }
-  return buffer.toString();
+  final basicText = buffer.toString();
+  if (basicText.isNotEmpty) {
+    return basicText;
+  }
+
+  // Embedded TrueType fonts use encoded glyph IDs instead of literal PDF
+  // strings. Use Poppler when available so content assertions continue to
+  // validate the rendered text rather than the PDF's internal encoding.
+  final tempDirectory = Directory.systemTemp.createTempSync('audivance-pdf-');
+  final input = File('${tempDirectory.path}${Platform.pathSeparator}input.pdf')
+    ..writeAsBytesSync(bytes, flush: true);
+  try {
+    final executables = <String>[
+      if (Platform.isWindows) r'C:\Program Files\Git\mingw64\bin\pdftotext.exe',
+      'pdftotext',
+    ];
+    for (final executable in executables) {
+      if (executable.contains(Platform.pathSeparator) &&
+          !File(executable).existsSync()) {
+        continue;
+      }
+      final result = Process.runSync(executable, [
+        input.path,
+        '-',
+      ], runInShell: false);
+      if (result.exitCode == 0 && result.stdout is String) {
+        return result.stdout as String;
+      }
+    }
+  } on ProcessException {
+    // Keep the raw fallback below for environments without Poppler.
+  } finally {
+    try {
+      tempDirectory.deleteSync(recursive: true);
+    } on FileSystemException {
+      // Best-effort cleanup for locked temporary files on Windows.
+    }
+  }
+  return basicText;
 }
 
 int _pdfTextOccurrenceCount(List<int> bytes, String text) {
@@ -702,17 +810,6 @@ int _pdfPageCount(List<int> bytes) {
   final raw = latin1.decode(bytes, allowInvalid: true);
   final match = RegExp(r'/Count\s+(\d+)').firstMatch(raw);
   return int.tryParse(match?.group(1) ?? '') ?? 0;
-}
-
-String _pdfContextAround(List<int> bytes, String text) {
-  final raw = latin1.decode(bytes, allowInvalid: true);
-  final index = raw.indexOf(text);
-  if (index == -1) {
-    return '';
-  }
-  final start = (index - 120).clamp(0, raw.length);
-  final end = (index + text.length + 40).clamp(0, raw.length);
-  return raw.substring(start, end);
 }
 
 Future<void> _seedCompleteWorkspace(

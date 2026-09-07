@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart' as crypto;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:pdf/pdf.dart';
@@ -10,6 +11,7 @@ import '../../core/domain/identity.dart';
 import '../../core/domain/money.dart';
 import '../audit/domain/audit_models.dart';
 import '../treasury/treasury_formatters.dart';
+import 'pdf_font_theme.dart';
 
 class PdfReportService {
   const PdfReportService();
@@ -520,7 +522,7 @@ Future<PdfReportFile> _liquidationPdfFile({
   required pw.MemoryImage? logo,
   required UsmOsaF46ReportData data,
 }) async {
-  final document = pw.Document(compress: false);
+  final document = pw.Document(compress: false, theme: await loadPdfTheme());
   document.addPage(
     pw.MultiPage(
       pageFormat: _f46Metrics.pageFormat,
@@ -869,6 +871,10 @@ pw.Widget _liquidationItemsTable(List<UsmOsaF46LineItem> items) {
   );
 }
 
+@visibleForTesting
+pw.Widget buildLiquidationTotalRow(Money totalAmount) =>
+    _liquidationTotalRow(totalAmount);
+
 pw.Widget _liquidationTotalRow(Money totalAmount) {
   return pw.Table(
     border: pw.TableBorder.all(
@@ -898,7 +904,7 @@ pw.Widget _liquidationTotalRow(Money totalAmount) {
           ),
           pw.Container(
             height: UsmOsaF46TemplateMetrics.totalRowHeight,
-            color: PdfColors.black,
+            color: PdfColors.white,
             alignment: pw.Alignment.centerLeft,
             padding: const pw.EdgeInsets.only(left: 8),
             child: pw.Text(
@@ -906,7 +912,7 @@ pw.Widget _liquidationTotalRow(Money totalAmount) {
               style: _officialTextStyle(
                 fontSize: 8.5,
                 bold: true,
-                color: PdfColors.white,
+                color: PdfColors.black,
               ),
             ),
           ),
@@ -1260,7 +1266,7 @@ Future<PdfReportFile> _pdfFile({
   required DateTime asOf,
   required List<pw.Widget> Function() build,
 }) async {
-  final document = pw.Document(compress: false);
+  final document = pw.Document(compress: false, theme: await loadPdfTheme());
   document.addPage(
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
