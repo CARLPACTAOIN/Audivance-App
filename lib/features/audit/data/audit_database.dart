@@ -103,6 +103,11 @@ class FundMovements extends Table {
   TextColumn get fromFundSourceId => text().nullable()();
   TextColumn get toFundSourceId => text().nullable()();
   TextColumn get holderOfficerId => text().nullable()();
+  TextColumn get attachmentId => text().nullable()();
+  TextColumn get attachmentFileName => text().nullable()();
+  TextColumn get attachmentLocalPath => text().nullable()();
+  IntColumn get attachmentSizeBytes => integer().nullable()();
+  TextColumn get attachmentChecksum => text().nullable()();
   BoolColumn get isSystemGenerated => boolean()();
 
   @override
@@ -246,7 +251,7 @@ class BackupHistoryEntries extends Table {
 class AuditDatabase extends _$AuditDatabase {
   AuditDatabase(super.executor);
 
-  static const currentSchemaVersion = 4;
+  static const currentSchemaVersion = 5;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -265,6 +270,25 @@ class AuditDatabase extends _$AuditDatabase {
         if (from < 4) {
           await migrator.createTable(exportHistoryEntries);
           await migrator.createTable(backupHistoryEntries);
+        }
+        if (from < 5) {
+          await migrator.addColumn(fundMovements, fundMovements.attachmentId);
+          await migrator.addColumn(
+            fundMovements,
+            fundMovements.attachmentFileName,
+          );
+          await migrator.addColumn(
+            fundMovements,
+            fundMovements.attachmentLocalPath,
+          );
+          await migrator.addColumn(
+            fundMovements,
+            fundMovements.attachmentSizeBytes,
+          );
+          await migrator.addColumn(
+            fundMovements,
+            fundMovements.attachmentChecksum,
+          );
         }
       },
     );

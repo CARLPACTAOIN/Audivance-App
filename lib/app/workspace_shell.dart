@@ -126,6 +126,10 @@ class _WorkspaceShellState extends State<WorkspaceShell> {
                     ),
                     attachmentPicker: widget.attachmentPicker,
                     attachmentStorage: widget.attachmentStorage,
+                    treasuryService: TreasuryService(
+                      repository: widget.repository,
+                      idGenerator: widget.idGenerator,
+                    ),
                     asOf: widget.asOf,
                     refreshTrigger: _refreshCounts[2],
                     organizationService: OrganizationService(

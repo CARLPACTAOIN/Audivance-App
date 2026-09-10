@@ -264,6 +264,18 @@ void main() {
     expect(result.summary, contains('remarks are required'));
   });
 
+  test('budget adjustment is rejected without resolution attachment', () async {
+    await _seedSource(repository, id: 'source-1', balance: Money.php(5000));
+    await _seedAdjustableEvent(repository);
+
+    final result = await service.adjustEventBudget(
+      _adjustCommand(resolutionAttachment: null),
+    );
+
+    expect(result.isInvalid, isTrue);
+    expect(result.summary, contains('Resolution attachment is required'));
+  });
+
   test(
     'budget increase is rejected when source balance is insufficient',
     () async {
@@ -316,8 +328,11 @@ void main() {
       expect(movements.single.fromFundSourceId, 'source-1');
       expect(movements.single.toFundSourceId, isNull);
       expect(movements.single.remarks, 'Approved by adviser');
+      expect(movements.single.supportingAttachment, isNotNull);
+      expect(movements.single.supportingAttachment!.fileName, _attachment.fileName);
       expect(logs.single.action, 'events.budgetIncrease');
       expect(logs.single.amount, Money.php(500));
+      expect(logs.single.metadata['resolutionAttachmentId'], _attachment.id);
     },
   );
 
@@ -640,6 +655,159 @@ void main() {
       expect(current!.actual, Money.php(550));
     },
   );
+
+  test('rejects updating nonexistent event', () async {
+    await _seedSetup(repository);
+
+    final result = await service.updateEvent(
+      UpdateEventCommand(
+        eventId: 'nonexistent-event',
+        name: 'Renamed Summit',
+        type: 'Workshop',
+        semester: '2nd Semester',
+        schoolYear: '2026-2027',
+        startDate: DateTime(2026, 8, 20),
+        endDate: DateTime(2026, 8, 22),
+        resolutionNumber: 'RES-2026-002',
+        resolutionAttachment: _attachment,
+      ),
+    );
+
+    expect(result.isInvalid, isTrue);
+    expect(result.summary, contains('Selected event does not exist'));
+  });
+
+  test('rejects updating liquidated event', () async {
+    await _seedSetup(repository);
+    await _seedSource(repository, id: 'source-1', balance: Money.php(5000));
+    await _seedAdjustableEvent(repository, isLiquidated: true);
+
+    final result = await service.updateEvent(
+      UpdateEventCommand(
+        eventId: 'event-1',
+        name: 'Renamed Summit',
+        type: 'Workshop',
+        semester: '2nd Semester',
+        schoolYear: '2026-2027',
+        startDate: DateTime(2026, 8, 20),
+        endDate: DateTime(2026, 8, 22),
+        resolutionNumber: 'RES-2026-002',
+        resolutionAttachment: _attachment,
+      ),
+    );
+
+    expect(result.isInvalid, isTrue);
+    expect(result.summary, contains('Liquidated events cannot be edited'));
+  });
+
+  test(
+    'rejects updating event with invalid date range or missing resolution',
+    () async {
+      await _seedSetup(repository);
+      await _seedSource(repository, id: 'source-1', balance: Money.php(5000));
+      await _seedAdjustableEvent(repository);
+
+      final invalidDates = await service.updateEvent(
+        UpdateEventCommand(
+          eventId: 'event-1',
+          name: 'Renamed Summit',
+          type: 'Workshop',
+          semester: '2nd Semester',
+          schoolYear: '2026-2027',
+          startDate: DateTime(2026, 8, 25),
+          endDate: DateTime(2026, 8, 20),
+          resolutionNumber: 'RES-2026-002',
+          resolutionAttachment: _attachment,
+        ),
+      );
+
+      expect(invalidDates.isInvalid, isTrue);
+      expect(
+        invalidDates.summary,
+        contains('Event end date cannot be before the start date'),
+      );
+
+      final missingAttachment = await service.updateEvent(
+        UpdateEventCommand(
+          eventId: 'event-1',
+          name: 'Renamed Summit',
+          type: 'Workshop',
+          semester: '2nd Semester',
+          schoolYear: '2026-2027',
+          startDate: DateTime(2026, 8, 20),
+          endDate: DateTime(2026, 8, 22),
+          resolutionNumber: 'RES-2026-002',
+          resolutionAttachment: null,
+        ),
+      );
+
+      expect(missingAttachment.isInvalid, isTrue);
+      expect(
+        missingAttachment.summary,
+        contains('Event resolution attachment is required'),
+      );
+    },
+  );
+
+  test(
+    'successfully updates non-financial details, preserves balance, and logs audit entry',
+    () async {
+      await _seedSetup(repository);
+      await _seedSource(repository, id: 'source-1', balance: Money.php(5000));
+      await _seedAdjustableEvent(repository);
+
+      const updatedAttachment = AttachmentRef(
+        id: 'attachment-2',
+        fileName: 'updated_resolution.pdf',
+        localPath: 'attachments/updated_resolution.pdf',
+      );
+
+      final result = await service.updateEvent(
+        UpdateEventCommand(
+          eventId: 'event-1',
+          name: 'Updated Leadership Summit',
+          type: 'Activity',
+          semester: '2nd Semester',
+          schoolYear: '2027-2028',
+          startDate: DateTime(2026, 9, 1),
+          endDate: DateTime(2026, 9, 3),
+          permitApprovalDate: DateTime(2026, 8, 30),
+          resolutionNumber: 'RES-2026-999',
+          resolutionAttachment: updatedAttachment,
+        ),
+      );
+
+      expect(result.isValid, isTrue);
+
+      final stored = (await repository.listAuditEvents()).firstWhere(
+        (e) => e.id == 'event-1',
+      );
+      expect(stored.name, 'Updated Leadership Summit');
+      expect(stored.type, 'Activity');
+      expect(stored.semester, '2nd Semester');
+      expect(stored.schoolYear, '2027-2028');
+      expect(stored.startDate, DateTime(2026, 9, 1));
+      expect(stored.endDate, DateTime(2026, 9, 3));
+      expect(stored.permitApprovalDate, DateTime(2026, 8, 30));
+      expect(stored.resolutionNumber, 'RES-2026-999');
+      expect(
+        stored.resolutionAttachment?.localPath,
+        'attachments/updated_resolution.pdf',
+      );
+
+      // Financial balances MUST remain untouched
+      expect(stored.budget, Money.php(1000));
+      expect(stored.approvedBudgetBalance, Money.php(800));
+
+      // Audit log entry must be present
+      final logs = await repository.listAuditLogs();
+      final updateLog = logs.firstWhere((log) => log.action == 'events.update');
+      expect(updateLog.targetRecordId, 'event-1');
+      expect(updateLog.actor, 'local-account');
+      expect(updateLog.beforeSnapshot?['name'], 'Leadership Summit');
+      expect(updateLog.afterSnapshot?['name'], 'Updated Leadership Summit');
+    },
+  );
 }
 
 CreateEventCommand _command({
@@ -693,6 +861,7 @@ AdjustEventBudgetCommand _adjustCommand({
   Money amount = const Money.centavos(50000),
   StableId treasurySourceId = 'source-1',
   String remarks = 'Approved by adviser',
+  AttachmentRef? resolutionAttachment = _attachment,
 }) {
   return AdjustEventBudgetCommand(
     eventId: eventId,
@@ -701,6 +870,7 @@ AdjustEventBudgetCommand _adjustCommand({
     treasurySourceId: treasurySourceId,
     adjustmentDate: DateTime(2026, 8, 18),
     remarks: remarks,
+    resolutionAttachment: resolutionAttachment,
   );
 }
 

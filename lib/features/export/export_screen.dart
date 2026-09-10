@@ -860,7 +860,7 @@ class _BackupReminderDialog extends StatelessWidget {
   }
 }
 
-class _ExportHistoryPanel extends StatelessWidget {
+class _ExportHistoryPanel extends StatefulWidget {
   const _ExportHistoryPanel({
     required this.exportHistory,
     required this.backupHistory,
@@ -870,9 +870,27 @@ class _ExportHistoryPanel extends StatelessWidget {
   final List<BackupHistoryEntry> backupHistory;
 
   @override
+  State<_ExportHistoryPanel> createState() => _ExportHistoryPanelState();
+}
+
+class _ExportHistoryPanelState extends State<_ExportHistoryPanel> {
+  int _currentPage = 0;
+  int _pageSize = 5;
+
+  @override
   Widget build(BuildContext context) {
-    final latestBackup = backupHistory.isEmpty ? null : backupHistory.first;
-    final recentExports = exportHistory.take(5).toList(growable: false);
+    final latestBackup =
+        widget.backupHistory.isEmpty ? null : widget.backupHistory.first;
+    final totalItems = widget.exportHistory.length;
+    final totalPages = (totalItems / _pageSize).ceil();
+    if (_currentPage >= totalPages && totalPages > 0) {
+      _currentPage = totalPages - 1;
+    }
+    final pagedExports = widget.exportHistory
+        .skip(_currentPage * _pageSize)
+        .take(_pageSize)
+        .toList(growable: false);
+
     return _Panel(
       title: 'Export History',
       child: Column(
@@ -881,7 +899,8 @@ class _ExportHistoryPanel extends StatelessWidget {
           if (latestBackup == null)
             const InlineStatusPanel(
               title: 'No backup recorded',
-              message: 'Generate a same-day backup before COA export to avoid the reminder.',
+              message:
+                  'Generate a same-day backup before COA export to avoid the reminder.',
               tone: InlineStatusTone.warning,
             )
           else
@@ -892,7 +911,7 @@ class _ExportHistoryPanel extends StatelessWidget {
               tone: _backupStatusTone(latestBackup.status),
             ),
           const SizedBox(height: 12),
-          if (exportHistory.isEmpty)
+          if (widget.exportHistory.isEmpty)
             const _EmptyPanelMessage(
               icon: Icons.history_outlined,
               text: 'No COA ZIP export attempts have been recorded yet.',
@@ -932,7 +951,7 @@ class _ExportHistoryPanel extends StatelessWidget {
                         border: Border.all(color: AppColors.borderSubtle),
                       ),
                       child: Text(
-                        '${exportHistory.length} record${exportHistory.length == 1 ? '' : 's'}',
+                        '$totalItems record${totalItems == 1 ? '' : 's'}',
                         style: Theme.of(context).textTheme.bodySmall
                             ?.copyWith(color: AppColors.textSecondary),
                       ),
@@ -940,13 +959,35 @@ class _ExportHistoryPanel extends StatelessWidget {
                   ],
                 ),
                 children: [
-                  for (final entry in recentExports)
+                  for (final entry in pagedExports)
                     Padding(
-                      padding: EdgeInsets.only(
-                        bottom: entry == recentExports.last ? 0 : 8,
-                      ),
+                      padding: const EdgeInsets.only(bottom: 8),
                       child: _ExportHistoryRow(entry: entry),
                     ),
+                  if (totalItems > _pageSize || totalPages > 1) ...[
+                    const SizedBox(height: 4),
+                    AppPaginationBar(
+                      currentPage: _currentPage,
+                      totalPages: totalPages,
+                      totalItems: totalItems,
+                      pageSize: _pageSize,
+                      itemLabel: 'records',
+                      prevKey: const Key('exportHistoryPrevPageButton'),
+                      nextKey: const Key('exportHistoryNextPageButton'),
+                      pageSizeOptions: const [5, 10],
+                      onPageSizeChanged: (newSize) {
+                        setState(() {
+                          _pageSize = newSize;
+                          _currentPage = 0;
+                        });
+                      },
+                      onPageChanged: (newPage) {
+                        setState(() {
+                          _currentPage = newPage;
+                        });
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -101,7 +101,6 @@ class UsmOsaF46TemplateMetrics {
   static const itemRowMinHeight = 16.0;
   static const totalRowHeight = 16.0;
   static const signatureBlockHeight = 88.0;
-  static const commissionerLineWidth = 188.0;
 }
 
 class UsmOsaF46ReportData {
@@ -559,8 +558,6 @@ Future<PdfReportFile> _liquidationPdfFile({
           organizationHeadName: data.organizationHeadName,
           adviserName: data.adviserName,
         ),
-        pw.SizedBox(height: 58),
-        _commissionerLines(),
       ],
     ),
   );
@@ -1043,25 +1040,6 @@ pw.Widget _signatureCell({
   );
 }
 
-pw.Widget _commissionerLines() {
-  return pw.Row(
-    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-    children: [_commissionerLine(), _commissionerLine()],
-  );
-}
-
-pw.Widget _commissionerLine() {
-  return pw.Container(
-    width: UsmOsaF46TemplateMetrics.commissionerLineWidth,
-    child: pw.Column(
-      children: [
-        pw.Container(height: 0.9, color: PdfColors.black),
-        pw.SizedBox(height: 4),
-        pw.Text('COMMISSIONER', style: _officialTextStyle(fontSize: 6.5)),
-      ],
-    ),
-  );
-}
 
 const _itemColumnWidths = {
   0: pw.FlexColumnWidth(0.72),

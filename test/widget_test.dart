@@ -656,7 +656,7 @@ void main() {
     expect(find.text('Archived Treasurer'), findsNothing);
     expect(
       find.byKey(const Key('liquidationAddOfficerButton')),
-      findsOneWidget,
+      findsNothing,
     );
   });
 
@@ -844,15 +844,19 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    // Entry point 2: Liquidation dialog
+    // Entry point 2: Event Details prompt
     await _openEvents(tester);
-    await _openLiquidationDialog(tester);
-    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
-    await tester.ensureVisible(addOfficer);
-    await tester.tap(addOfficer);
+    await _openEventDetails(tester, 'event-1');
+    final addOfficer = find.byKey(const Key('eventAddOfficerPromptButton'));
+    await tester.scrollUntilVisible(
+      addOfficer,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _tapVisible(tester, addOfficer);
     await tester.pumpAndSettle();
 
-    // Identical shared form fields in Liquidation entry point
+    // Identical shared form fields in Event prompt entry point
     expect(find.byType(OfficerEditorDialog), findsOneWidget);
     expect(
       find.descendant(
@@ -919,15 +923,19 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    // Entry point 2: Liquidation dialog
+    // Entry point 2: Event Details prompt
     await _openEvents(tester);
-    await _openLiquidationDialog(tester);
-    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
-    await tester.ensureVisible(addOfficer);
-    await tester.tap(addOfficer);
+    await _openEventDetails(tester, 'event-1');
+    final addOfficer = find.byKey(const Key('eventAddOfficerPromptButton'));
+    await tester.scrollUntilVisible(
+      addOfficer,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _tapVisible(tester, addOfficer);
     await tester.pumpAndSettle();
 
-    // Position & Committee fields test in Liquidation dialog
+    // Position & Committee fields test in Event prompt
     await tester.enterText(
       find.byKey(const Key('profileOfficerNameField')),
       'Test Liq Officer',
@@ -955,7 +963,28 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets('liquidation inputs remain unchanged while adding an officer', (
+  testWidgets(
+    'SubmitLiquidationDialog does not have Add Officer button',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedCompletedEvent();
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+      await _openLiquidationDialog(tester);
+
+      expect(
+        find.byKey(const Key('liquidationAddOfficerButton')),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets('newly created Out-of-Pocket officer can be selected in liquidation', (
     tester,
   ) async {
     final harness = _WidgetHarness();
@@ -967,92 +996,16 @@ void main() {
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
     await _openEvents(tester);
-    await _openLiquidationDialog(tester);
+    await _openEventDetails(tester, 'event-1');
 
-    await _enterTextByKey(
-      tester,
-      const Key('liquidationPayeeField'),
-      'Draft Merchant',
+    // Add officer from event prompt
+    final promptButton = find.byKey(const Key('eventAddOfficerPromptButton'));
+    await tester.scrollUntilVisible(
+      promptButton,
+      300,
+      scrollable: find.byType(Scrollable).first,
     );
-    await _enterTextByKey(
-      tester,
-      const Key('liquidationEvidenceField'),
-      'EV-1234',
-    );
-    await _tapVisible(
-      tester,
-      find.byKey(const Key('liquidationFundingModeOptionoutOfPocket')),
-    );
-
-    // Cancel adding officer: inputs stay unchanged
-    var addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
-    await tester.ensureVisible(addOfficer);
-    await tester.tap(addOfficer);
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.descendant(
-        of: find.byType(OfficerEditorDialog),
-        matching: find.text('Cancel'),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    var payeeField = tester.widget<TextFormField>(
-      find.byKey(const Key('liquidationPayeeField')),
-    );
-    var evidenceField = tester.widget<TextFormField>(
-      find.byKey(const Key('liquidationEvidenceField')),
-    );
-    expect(payeeField.controller!.text, 'Draft Merchant');
-    expect(evidenceField.controller!.text, 'EV-1234');
-
-    // Save officer: inputs still remain unchanged
-    addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
-    await tester.ensureVisible(addOfficer);
-    await tester.tap(addOfficer);
-    await tester.pumpAndSettle();
-    await _fillProfileOfficerForm(
-      tester,
-      name: 'Preserved Draft Officer',
-      position: OfficerPosition.head,
-      committee: Committee.finance,
-    );
-    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
-    await tester.pumpAndSettle();
-
-    payeeField = tester.widget<TextFormField>(
-      find.byKey(const Key('liquidationPayeeField')),
-    );
-    evidenceField = tester.widget<TextFormField>(
-      find.byKey(const Key('liquidationEvidenceField')),
-    );
-    expect(payeeField.controller!.text, 'Draft Merchant');
-    expect(evidenceField.controller!.text, 'EV-1234');
-    expect(find.text('Preserved Draft Officer'), findsOneWidget);
-  });
-
-  testWidgets('newly created Out-of-Pocket officer is selected automatically', (
-    tester,
-  ) async {
-    final harness = _WidgetHarness();
-    addTearDown(harness.close);
-    await harness.seedSetup();
-    await harness.seedCompletedEvent();
-    await harness.unlockService.configurePin('123456');
-
-    await tester.pumpWidget(harness.app());
-    await tester.pumpAndSettle();
-    await _openEvents(tester);
-    await _openLiquidationDialog(tester);
-
-    await _tapVisible(
-      tester,
-      find.byKey(const Key('liquidationFundingModeOptionoutOfPocket')),
-    );
-
-    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
-    await tester.ensureVisible(addOfficer);
-    await tester.tap(addOfficer);
+    await _tapVisible(tester, promptButton);
     await tester.pumpAndSettle();
 
     await _fillProfileOfficerForm(
@@ -1063,7 +1016,23 @@ void main() {
     await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Auto Selected Officer'), findsOneWidget);
+    // Now open liquidation dialog and verify officer appears
+    final liqBtn = find.byKey(const Key('eventLiquidationButtonevent-1'));
+    await tester.scrollUntilVisible(
+      liqBtn,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await Scrollable.ensureVisible(tester.element(liqBtn), alignment: 0.35);
+    await tester.pumpAndSettle();
+    await tester.tap(liqBtn);
+    await tester.pumpAndSettle();
+    await _tapVisible(
+      tester,
+      find.byKey(const Key('liquidationFundingModeOptionoutOfPocket')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Auto Selected Officer'), findsOneWidget);
     final officer = (await harness.repository.listOfficers()).single;
     expect(officer.fullName, 'Auto Selected Officer');
   });
@@ -1080,12 +1049,18 @@ void main() {
       await tester.pumpWidget(harness.app());
       await tester.pumpAndSettle();
       await _openEvents(tester);
-      await _openLiquidationDialog(tester);
+      await _openEventDetails(tester, 'event-1');
 
-      final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
-      await tester.ensureVisible(addOfficer);
-      await tester.tap(addOfficer);
+      // Add officer from event prompt
+      final promptButton = find.byKey(const Key('eventAddOfficerPromptButton'));
+      await tester.scrollUntilVisible(
+        promptButton,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await _tapVisible(tester, promptButton);
       await tester.pumpAndSettle();
+
       await _fillProfileOfficerForm(
         tester,
         name: 'New Custodian',
@@ -1095,8 +1070,17 @@ void main() {
       await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
       await tester.pumpAndSettle();
 
-      expect(find.text('Fund custody required'), findsOneWidget);
-      expect(find.textContaining('requires funds released'), findsOneWidget);
+      // Open liquidation dialog
+      final liqBtn = find.byKey(const Key('eventLiquidationButtonevent-1'));
+      await tester.scrollUntilVisible(
+        liqBtn,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await Scrollable.ensureVisible(tester.element(liqBtn), alignment: 0.35);
+      await tester.pumpAndSettle();
+      await tester.tap(liqBtn);
+      await tester.pumpAndSettle();
 
       // Verify the newly created unfunded officer is disabled in dropdown items
       final dropdown = tester.widget<DropdownButton<StableId>>(
@@ -1126,6 +1110,27 @@ void main() {
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
 
+    // Create from Event Details prompt (when officerCount == 0)
+    await _openEvents(tester);
+    await _openEventDetails(tester, 'event-1');
+    final addOfficer = find.byKey(const Key('eventAddOfficerPromptButton'));
+    await tester.scrollUntilVisible(
+      addOfficer,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _tapVisible(tester, addOfficer);
+    await tester.pumpAndSettle();
+    await _fillProfileOfficerForm(
+      tester,
+      name: 'Liquidation Officer',
+      position: OfficerPosition.member,
+    );
+    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('eventDetailsBackButton')));
+    await tester.pumpAndSettle();
+
     // Create from Officers tab
     await _openOrganization(tester);
     await _tapVisible(tester, find.byKey(const Key('profileAddOfficerButton')));
@@ -1133,21 +1138,6 @@ void main() {
     await _fillProfileOfficerForm(
       tester,
       name: 'Roster Officer',
-      position: OfficerPosition.member,
-    );
-    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
-    await tester.pumpAndSettle();
-
-    // Create from Liquidation
-    await _openEvents(tester);
-    await _openLiquidationDialog(tester);
-    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
-    await tester.ensureVisible(addOfficer);
-    await tester.tap(addOfficer);
-    await tester.pumpAndSettle();
-    await _fillProfileOfficerForm(
-      tester,
-      name: 'Liquidation Officer',
       position: OfficerPosition.member,
     );
     await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
@@ -1197,30 +1187,6 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
 
-    // Blocked in Liquidation dialog
-    await _openEvents(tester);
-    await _openLiquidationDialog(tester);
-    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
-    await tester.ensureVisible(addOfficer);
-    await tester.tap(addOfficer);
-    await tester.pumpAndSettle();
-    await _fillProfileOfficerForm(
-      tester,
-      name: 'Second Liq Head',
-      position: OfficerPosition.head,
-      committee: Committee.finance,
-    );
-    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Only one active head'), findsOneWidget);
-    await tester.tap(
-      find.descendant(
-        of: find.byType(OfficerEditorDialog),
-        matching: find.text('Cancel'),
-      ),
-    );
-    await tester.pumpAndSettle();
-
     final officers = await harness.repository.listOfficers();
     expect(officers, hasLength(1));
     expect(officers.single.id, 'existing-head');
@@ -1241,26 +1207,14 @@ void main() {
     await _openEventDetails(tester, 'event-1');
     expect(find.text('Event Financials'), findsOneWidget);
 
-    // Open Liquidation Dialog
-    final button = find.byKey(const Key('eventLiquidationButtonevent-1'));
+    // Open Add Officer prompt
+    final promptButton = find.byKey(const Key('eventAddOfficerPromptButton'));
     await tester.scrollUntilVisible(
-      button,
+      promptButton,
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await Scrollable.ensureVisible(tester.element(button), alignment: 0.35);
-    await tester.pumpAndSettle();
-    await tester.tap(button);
-    await tester.pumpAndSettle();
-
-    // Event details remains open behind liquidation dialog
-    expect(find.text('Event Financials'), findsOneWidget);
-    expect(find.byKey(const Key('liquidationPayeeField')), findsOneWidget);
-
-    // Open Add Officer dialog
-    final addOfficer = find.byKey(const Key('liquidationAddOfficerButton'));
-    await tester.ensureVisible(addOfficer);
-    await tester.tap(addOfficer);
+    await _tapVisible(tester, promptButton);
     await tester.pumpAndSettle();
 
     // Event details remains open behind add officer dialog
@@ -1276,20 +1230,11 @@ void main() {
     await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
     await tester.pumpAndSettle();
 
-    // Back to liquidation dialog, Event Details still open
-    expect(find.text('Event Financials'), findsOneWidget);
-    expect(find.byKey(const Key('liquidationPayeeField')), findsOneWidget);
-
-    // Cancel liquidation dialog
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-
     // Back on Event Details screen
     expect(find.text('Event Financials'), findsOneWidget);
-    expect(
-      find.byKey(const Key('eventLiquidationButtonevent-1')),
-      findsOneWidget,
-    );
+    final officers = await harness.repository.listOfficers();
+    expect(officers, hasLength(1));
+    expect(officers.single.fullName, 'Flow Officer');
   });
 
   testWidgets('Profile handles long labels at 375px width', (tester) async {
@@ -1823,6 +1768,86 @@ void main() {
     expect(find.text('Adjust Budget'), findsOneWidget);
   });
 
+  testWidgets(
+    'Edit Event details updates metadata and displays new values on screen',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedCompletedEvent();
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+      await _openEventDetails(tester, 'event-1');
+
+      // Tap the Edit button in EventHeaderCard
+      final editBtn = find.byKey(const Key('eventEditButtonevent-1'));
+      expect(editBtn, findsOneWidget);
+      await tester.tap(editBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Edit Event Details'), findsOneWidget);
+      expect(find.text('Financial Safeguards'), findsOneWidget);
+
+      // Edit name and semester
+      await tester.enterText(
+        find.byKey(const Key('eventEditNameField')),
+        'Leadership Gala 2026',
+      );
+      await tester.enterText(
+        find.byKey(const Key('eventEditSemesterField')),
+        '2nd Semester',
+      );
+
+      // Submit form
+      final submitBtn = find.byKey(const Key('eventEditSubmitButton'));
+      await tester.scrollUntilVisible(
+        submitBtn,
+        300,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
+
+      // Dialog closed and details updated
+      expect(find.text('Edit Event Details'), findsNothing);
+      expect(find.text('Leadership Gala 2026'), findsOneWidget);
+      expect(find.textContaining('2nd Semester'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Edit Event buttons are disabled for liquidated events', (
+    tester,
+  ) async {
+    final harness = _WidgetHarness();
+    addTearDown(harness.close);
+    await harness.seedSetup();
+    await harness.seedCompletedEvent(isLiquidated: true);
+    await harness.unlockService.configurePin('123456');
+
+    await tester.pumpWidget(harness.app());
+    await tester.pumpAndSettle();
+    await _openEvents(tester);
+    await _openEventDetails(tester, 'event-1');
+
+    final headerEditBtn = tester.widget<IconButton>(
+      find.byKey(const Key('eventEditButtonevent-1')),
+    );
+    expect(headerEditBtn.onPressed, isNull);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('eventEditDetailsButtonevent-1')),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    final actionsEditBtn = tester.widget<OutlinedButton>(
+      find.byKey(const Key('eventEditDetailsButtonevent-1')),
+    );
+    expect(actionsEditBtn.onPressed, isNull);
+  });
+
   testWidgets('Adjust Budget form validates required fields', (tester) async {
     final harness = _WidgetHarness();
     addTearDown(harness.close);
@@ -1842,6 +1867,10 @@ void main() {
     expect(find.text('Enter a valid PHP amount.'), findsOneWidget);
     expect(find.text('Enter a valid date.'), findsOneWidget);
     expect(find.text('This field is required.'), findsOneWidget);
+    expect(
+      find.text('Select an approved resolution attachment.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Budget increase shows insufficient-source error', (
@@ -1981,6 +2010,7 @@ void main() {
     expect(find.text('PHP 200'), findsWidgets);
     expect(find.text('PHP 800'), findsWidgets);
     expect(find.text('20.00%'), findsWidgets);
+    expect(find.text('Unutilized Approved Budget'), findsOneWidget);
     expect(find.text('Healthy'), findsWidgets);
   });
 
@@ -2101,6 +2131,65 @@ void main() {
       findsNothing,
     );
   });
+
+  testWidgets(
+    'SubmitLiquidationDialog does not have Add Fund to Officer and event actions bar allows it',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedOfficer();
+      await harness.seedCompletedEvent();
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+      await _openLiquidationDialog(tester);
+
+      // Verify "Add Fund to Officer" buttons are removed from SubmitLiquidationDialog
+      expect(
+        find.byKey(const Key('liquidationAddFundToOfficerButton')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const Key('liquidationResolveAddFundToOfficerButton')),
+        findsNothing,
+      );
+
+      // Close dialog
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      // Open Add Fund to Officer from Event Actions Bar
+      final addFundBtn = find.byKey(
+        const Key('eventAddFundToOfficerButtonevent-1'),
+      );
+      await tester.ensureVisible(addFundBtn);
+      await tester.tap(addFundBtn);
+      await tester.pumpAndSettle();
+
+      // Inside AddFundToOfficerDialog
+      expect(find.text('Add Fund to Officer'), findsWidgets);
+      await _enterTextByKey(
+        tester,
+        const Key('addFundToOfficerAmountField'),
+        '400',
+      );
+      await tester.tap(
+        find.byKey(const Key('addFundToOfficerSubmitButton')),
+      );
+      await tester.pumpAndSettle();
+
+      // Verify fund release movement was created
+      final movements = await harness.repository.listFundMovements();
+      final releaseMovement = movements.firstWhere(
+        (m) => m.type == FundMovementType.fundRelease,
+      );
+      expect(releaseMovement.amount, const Money.centavos(40000));
+      expect(releaseMovement.holderOfficerId, 'officer-1');
+    },
+  );
 
   testWidgets(
     'out-of-pocket liquidation displays pending reimbursement claim',
@@ -2618,6 +2707,278 @@ void main() {
 
     expect(find.text('Add the first treasury source'), findsOneWidget);
   });
+
+  testWidgets(
+    'Export History pagination allows paging through records and changing page size',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedExportWorkspace();
+      await harness.unlockService.configurePin('123456');
+
+      for (var i = 1; i <= 12; i++) {
+        await harness.repository.appendExportHistory(
+          ExportHistoryEntry(
+            id: 'export-entry-$i',
+            fileName: 'audivance_export_$i.zip',
+            generatedAt: DateTime(2026, 8, i),
+            byteLength: 1024 * i,
+            checksum: 'checksum-$i',
+            status: ExportHistoryStatus.success,
+            backupReminderStatus: BackupReminderStatus.satisfied,
+            sameDayBackupFound: true,
+            blockerCount: 0,
+            warningCount: 0,
+            createdAt: DateTime(2026, 8, i),
+          ),
+        );
+      }
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openExport(tester);
+
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('exportHistoryExpandableTile')),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('12 records'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('exportHistoryExpandableTile')));
+      await tester.pumpAndSettle();
+
+      final nextBtn = find.byKey(const Key('exportHistoryNextPageButton'));
+      final prevBtn = find.byKey(const Key('exportHistoryPrevPageButton'));
+
+      await Scrollable.ensureVisible(tester.element(nextBtn), alignment: 0.5);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Showing 1–5 of 12 records'), findsOneWidget);
+      expect(find.text('1 of 3'), findsOneWidget);
+      expect(
+        tester.widget<OutlinedButton>(prevBtn).onPressed,
+        isNull,
+      );
+
+      await tester.tap(nextBtn);
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 6–10 of 12 records'), findsOneWidget);
+      expect(find.text('2 of 3'), findsOneWidget);
+
+      await Scrollable.ensureVisible(tester.element(nextBtn), alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(nextBtn);
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 11–12 of 12 records'), findsOneWidget);
+      expect(find.text('3 of 3'), findsOneWidget);
+      expect(
+        tester.widget<OutlinedButton>(nextBtn).onPressed,
+        isNull,
+      );
+
+      await Scrollable.ensureVisible(tester.element(prevBtn), alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(prevBtn);
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 6–10 of 12 records'), findsOneWidget);
+
+      // Change page size to 10
+      await Scrollable.ensureVisible(
+        tester.element(find.text('10')),
+        alignment: 0.5,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('10'));
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 1–10 of 12 records'), findsOneWidget);
+      expect(find.text('1 of 2'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Event Liquidation Receipts pagination displays chunked receipts and navigates pages',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedCompletedEvent();
+      await harness.seedOfficer();
+      await harness.unlockService.configurePin('123456');
+
+      for (var i = 1; i <= 12; i++) {
+        await harness.repository.saveLiquidationReceipt(
+          LiquidationReceipt(
+            id: 'receipt-$i',
+            eventId: 'event-1',
+            payeeOrMerchant: 'Merchant $i',
+            date: DateTime(2026, 8, i),
+            evidenceNumber: 'EVID-$i',
+            receiptType: ReceiptType.officialReceipt,
+            fundingMode: FundingMode.outOfPocket,
+            accountableOfficerId: 'officer-1',
+            attachment: _attachment,
+          ),
+        );
+      }
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+      await _openEventDetails(tester, 'event-1');
+
+      await tester.scrollUntilVisible(
+        find.text('Liquidation Receipts'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('12 receipts'), findsOneWidget);
+      final prevBtn = find.byKey(const Key('liquidationReceiptsPrevButton'));
+      final nextBtn = find.byKey(const Key('liquidationReceiptsNextButton'));
+
+      await Scrollable.ensureVisible(tester.element(prevBtn), alignment: 0.5);
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 1–10 of 12 receipts'), findsOneWidget);
+      expect(find.text('Merchant 12'), findsOneWidget);
+      expect(find.text('Merchant 3'), findsOneWidget);
+      expect(find.text('Merchant 1'), findsNothing);
+      expect(tester.widget<OutlinedButton>(prevBtn).onPressed, isNull);
+
+      await Scrollable.ensureVisible(tester.element(nextBtn), alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(nextBtn);
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 11–12 of 12 receipts'), findsOneWidget);
+      expect(find.text('Merchant 1'), findsOneWidget);
+      expect(find.text('Merchant 2'), findsOneWidget);
+      expect(find.text('Merchant 12'), findsNothing);
+      expect(tester.widget<OutlinedButton>(nextBtn).onPressed, isNull);
+
+      await Scrollable.ensureVisible(tester.element(prevBtn), alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(prevBtn);
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 1–10 of 12 receipts'), findsOneWidget);
+      expect(find.text('Merchant 12'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Events Overview List filters by academic term and navigates page chunks',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.unlockService.configurePin('123456');
+
+      // Seed treasury source with ample balance for event budgets
+      await harness.seedTreasurySource(balance: Money.php(50000));
+
+      // Seed 7 events in 1st Semester and 2 events in 2nd Semester
+      for (var i = 1; i <= 7; i++) {
+        final result = await harness.repository.saveAuditEvent(
+          event: AuditEvent(
+            id: 'event-sem1-$i',
+            name: 'Sem 1 Event $i',
+            type: 'Leadership',
+            semester: '1st Semester',
+            schoolYear: '2026-2027',
+            startDate: DateTime(2026, 8, i),
+            endDate: DateTime(2026, 8, i),
+            resolutionNumber: 'RES-S1-$i',
+            budget: Money.php(1000),
+            approvedBudgetBalance: Money.php(1000),
+            resolutionAttachment: _attachment,
+          ),
+          allocations: [
+            EventFundingAllocation(
+              eventId: 'event-sem1-$i',
+              fundSourceId: 'source-1',
+              amount: Money.php(1000),
+            ),
+          ],
+        );
+        expect(result.isValid, isTrue);
+      }
+      for (var i = 1; i <= 2; i++) {
+        final result = await harness.repository.saveAuditEvent(
+          event: AuditEvent(
+            id: 'event-sem2-$i',
+            name: 'Sem 2 Event $i',
+            type: 'Academic',
+            semester: '2nd Semester',
+            schoolYear: '2026-2027',
+            startDate: DateTime(2027, 1, i),
+            endDate: DateTime(2027, 1, i),
+            resolutionNumber: 'RES-S2-$i',
+            budget: Money.php(2000),
+            approvedBudgetBalance: Money.php(2000),
+            resolutionAttachment: _attachment,
+          ),
+          allocations: [
+            EventFundingAllocation(
+              eventId: 'event-sem2-$i',
+              fundSourceId: 'source-1',
+              amount: Money.php(2000),
+            ),
+          ],
+        );
+        expect(result.isValid, isTrue);
+      }
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+
+      expect(find.byKey(const Key('eventsFilterTermAll')), findsOneWidget);
+      expect(find.text('All Terms (9)'), findsOneWidget);
+      expect(find.text('Showing 1–6 of 9 events'), findsOneWidget);
+      expect(find.text('Sem 2 Event 2'), findsOneWidget);
+      expect(find.text('Sem 1 Event 7'), findsOneWidget);
+      expect(find.text('Sem 1 Event 1'), findsNothing);
+
+      final nextBtn = find.byKey(const Key('eventsOverviewNextPageButton'));
+      final prevBtn = find.byKey(const Key('eventsOverviewPrevPageButton'));
+
+      await Scrollable.ensureVisible(tester.element(nextBtn), alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(nextBtn);
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 7–9 of 9 events'), findsOneWidget);
+      expect(find.text('Sem 1 Event 1'), findsOneWidget);
+      expect(find.text('Sem 2 Event 2'), findsNothing);
+
+      await Scrollable.ensureVisible(tester.element(prevBtn), alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(prevBtn);
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 1–6 of 9 events'), findsOneWidget);
+      expect(find.text('Sem 2 Event 2'), findsOneWidget);
+
+      // Filter to 2nd Semester
+      final sem2Chip = find.byKey(
+        const Key('eventsFilterTerm_2nd Semester · 2026-2027'),
+      );
+      await Scrollable.ensureVisible(tester.element(sem2Chip), alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(sem2Chip);
+      await tester.pumpAndSettle();
+      expect(find.text('Sem 2 Event 1'), findsOneWidget);
+      expect(find.text('Sem 2 Event 2'), findsOneWidget);
+      expect(find.text('Sem 1 Event 7'), findsNothing);
+      // Because 2nd semester only has 2 events (<= 6), no pagination bar needed
+      expect(nextBtn, findsNothing);
+
+      // Switch back to All Terms
+      final allChip = find.byKey(const Key('eventsFilterTermAll'));
+      await Scrollable.ensureVisible(tester.element(allChip), alignment: 0.5);
+      await tester.pumpAndSettle();
+      await tester.tap(allChip);
+      await tester.pumpAndSettle();
+      expect(find.text('Showing 1–6 of 9 events'), findsOneWidget);
+      expect(find.text('Sem 2 Event 2'), findsOneWidget);
+    },
+  );
 }
 
 Future<void> _fillSetupForm(
@@ -2854,6 +3215,7 @@ Future<void> _fillBudgetAdjustmentForm(
   WidgetTester tester, {
   BudgetAdjustmentDirection direction = BudgetAdjustmentDirection.increase,
   String amount = '500',
+  bool selectAttachment = true,
 }) async {
   if (direction == BudgetAdjustmentDirection.decrease) {
     await tester.tap(
@@ -2878,6 +3240,18 @@ Future<void> _fillBudgetAdjustmentForm(
     const Key('eventBudgetAdjustmentRemarksField'),
     'Approved by adviser',
   );
+  if (selectAttachment) {
+    final attachmentBtn = find.byKey(
+      const Key('eventBudgetAdjustmentResolutionAttachmentSelectButton'),
+    );
+    await Scrollable.ensureVisible(
+      tester.element(attachmentBtn),
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(attachmentBtn, warnIfMissed: false);
+    await tester.pumpAndSettle();
+  }
 }
 
 Future<void> _fillLiquidationForm(
@@ -3321,6 +3695,10 @@ class _DeterministicIdGenerator implements StableIdGenerator {
 
 class _FakeAttachmentPicker implements AttachmentPicker {
   var _counter = 0;
+  bool cameraSupported = false;
+
+  @override
+  bool get supportsCamera => cameraSupported;
 
   @override
   Future<PickedAttachment?> pickAttachment() async {
@@ -3328,6 +3706,15 @@ class _FakeAttachmentPicker implements AttachmentPicker {
     return PickedAttachment(
       fileName: 'selected-$_counter.pdf',
       bytes: Uint8List.fromList([_counter]),
+    );
+  }
+
+  @override
+  Future<PickedAttachment?> captureCamera() async {
+    _counter += 1;
+    return PickedAttachment(
+      fileName: 'scanned-receipt-$_counter.jpg',
+      bytes: Uint8List.fromList([_counter, 255, 216, 255]),
     );
   }
 }

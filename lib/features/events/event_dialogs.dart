@@ -10,8 +10,8 @@ import '../../core/domain/money.dart';
 import '../audit/domain/audit_models.dart';
 import '../liquidation/liquidation_service.dart';
 import '../organization/organization_service.dart';
-import '../organization/widgets/officer_editor_dialog.dart';
 import '../treasury/treasury_formatters.dart';
+import '../treasury/treasury_service.dart';
 import 'event_service.dart';
 
 class CreateEventDialog extends StatefulWidget {
@@ -420,17 +420,395 @@ class _CreateEventDialogState extends State<CreateEventDialog> {
   }
 }
 
+class EditEventDialog extends StatefulWidget {
+  const EditEventDialog({
+    super.key,
+    required this.service,
+    required this.event,
+    required this.attachmentPicker,
+    required this.attachmentStorage,
+  });
+
+  final EventService service;
+  final EventCardView event;
+  final AttachmentPicker attachmentPicker;
+  final AttachmentStorageService attachmentStorage;
+
+  @override
+  State<EditEventDialog> createState() => _EditEventDialogState();
+}
+
+class _EditEventDialogState extends State<EditEventDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
+  late String _selectedType;
+  late final TextEditingController _semesterController;
+  late final TextEditingController _schoolYearController;
+  late final TextEditingController _startDateController;
+  late final TextEditingController _endDateController;
+  late final TextEditingController _permitDateController;
+  late final TextEditingController _resolutionNumberController;
+  AttachmentRef? _resolutionAttachment;
+
+  String? _formError;
+  String? _serviceError;
+  var _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final event = widget.event;
+    _nameController = TextEditingController(text: event.name);
+    _selectedType = event.type;
+    if (!const ['Project', 'Program', 'Activity'].contains(_selectedType)) {
+      _selectedType = 'Activity';
+    }
+    _semesterController = TextEditingController(text: event.semester);
+    _schoolYearController = TextEditingController(text: event.schoolYear);
+    _startDateController = TextEditingController(
+      text: _formatDateInput(event.startDate),
+    );
+    _endDateController = TextEditingController(
+      text: _formatDateInput(event.endDate),
+    );
+    _permitDateController = TextEditingController(
+      text: event.permitApprovalDate == null
+          ? ''
+          : _formatDateInput(event.permitApprovalDate!),
+    );
+    _resolutionNumberController = TextEditingController(
+      text: event.resolutionNumber,
+    );
+    _resolutionAttachment = event.resolutionAttachment;
+  }
+
+  static String _formatDateInput(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _semesterController.dispose();
+    _schoolYearController.dispose();
+    _startDateController.dispose();
+    _endDateController.dispose();
+    _permitDateController.dispose();
+    _resolutionNumberController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      setState(() {
+        _formError = 'Fix the highlighted fields before saving updates.';
+        _serviceError = null;
+      });
+      return;
+    }
+    final startDate = _parseDate(_startDateController.text);
+    final endDate = _parseDate(_endDateController.text);
+    if (startDate == null || endDate == null) {
+      setState(() {
+        _formError = 'Enter valid start and end dates.';
+        _serviceError = null;
+      });
+      return;
+    }
+    if (endDate.isBefore(startDate)) {
+      setState(() {
+        _serviceError = 'Event end date cannot be before the start date.';
+      });
+      return;
+    }
+    if (_resolutionAttachment == null) {
+      setState(() {
+        _formError = 'Event resolution attachment is required.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+      _serviceError = null;
+      _formError = null;
+    });
+
+    final result = await widget.service.updateEvent(
+      UpdateEventCommand(
+        eventId: widget.event.id,
+        name: _nameController.text.trim(),
+        type: _selectedType,
+        semester: _semesterController.text.trim(),
+        schoolYear: _schoolYearController.text.trim(),
+        startDate: startDate,
+        endDate: endDate,
+        permitApprovalDate: _parseDate(_permitDateController.text),
+        resolutionNumber: _resolutionNumberController.text.trim(),
+        resolutionAttachment: _resolutionAttachment,
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+    if (result.isInvalid) {
+      setState(() {
+        _isSubmitting = false;
+        _serviceError = result.summary;
+      });
+      return;
+    }
+    Navigator.pop(context, result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppDialogFrame(
+      title: 'Edit Event Details',
+      maxWidth: 660,
+      status: _formError == null && _serviceError == null
+          ? null
+          : InlineStatusPanel(
+              title: _serviceError == null
+                  ? 'Review required fields'
+                  : 'Event could not be updated',
+              message: _serviceError ?? _formError!,
+              tone: InlineStatusTone.error,
+            ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('eventEditSubmitButton'),
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save Changes'),
+        ),
+      ],
+      children: [
+        AppCard(
+          padding: const EdgeInsets.all(AppSpacing.md),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Financial Safeguards',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: AppSpacing.md,
+                runSpacing: AppSpacing.xs,
+                alignment: WrapAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Approved Budget: ${widget.event.budgetLabel}',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    'Unutilized: ${widget.event.approvedBudgetBalanceLabel}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.brandLight,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Budget figures are protected by audit controls. To change allocations, use "Adjust Budget" on the event screen.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                key: const Key('eventEditNameField'),
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Event name'),
+                validator: _requiredValidator,
+                enabled: !_isSubmitting,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                key: const Key('eventEditTypeField'),
+                initialValue: _selectedType,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Event type'),
+                items: const [
+                  DropdownMenuItem(
+                    key: Key('eventEditTypeOptionProject'),
+                    value: 'Project',
+                    child: Text('Project'),
+                  ),
+                  DropdownMenuItem(
+                    key: Key('eventEditTypeOptionProgram'),
+                    value: 'Program',
+                    child: Text('Program'),
+                  ),
+                  DropdownMenuItem(
+                    key: Key('eventEditTypeOptionActivity'),
+                    value: 'Activity',
+                    child: Text('Activity'),
+                  ),
+                ],
+                validator: (value) => value == null || value.trim().isEmpty
+                    ? 'This field is required.'
+                    : null,
+                onChanged: _isSubmitting
+                    ? null
+                    : (value) {
+                        if (value != null) {
+                          setState(() {
+                            _selectedType = value;
+                          });
+                        }
+                      },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('eventEditSemesterField'),
+                controller: _semesterController,
+                decoration: const InputDecoration(labelText: 'Semester'),
+                validator: _requiredValidator,
+                enabled: !_isSubmitting,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('eventEditSchoolYearField'),
+                controller: _schoolYearController,
+                decoration: const InputDecoration(labelText: 'School year'),
+                validator: _requiredValidator,
+                enabled: !_isSubmitting,
+              ),
+              const SizedBox(height: 12),
+              AppDatePickerFormField(
+                key: const Key('eventEditStartDateField'),
+                controller: _startDateController,
+                labelText: 'Start date',
+                validator: _dateValidator,
+                isEnabled: !_isSubmitting,
+              ),
+              const SizedBox(height: 12),
+              AppDatePickerFormField(
+                key: const Key('eventEditEndDateField'),
+                controller: _endDateController,
+                labelText: 'End date',
+                validator: _dateValidator,
+                isEnabled: !_isSubmitting,
+              ),
+              const SizedBox(height: 12),
+              AppDatePickerFormField(
+                key: const Key('eventEditPermitDateField'),
+                controller: _permitDateController,
+                labelText: 'Permit approval date',
+                helperText: 'Optional. Select date or enter YYYY-MM-DD.',
+                validator: _optionalDateValidator,
+                isRequired: false,
+                isEnabled: !_isSubmitting,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('eventEditResolutionNumberField'),
+                controller: _resolutionNumberController,
+                decoration: const InputDecoration(
+                  labelText: 'Resolution number',
+                ),
+                validator: _requiredValidator,
+                enabled: !_isSubmitting,
+              ),
+              const SizedBox(height: 16),
+              _SectionHeader(
+                title: 'Resolution attachment',
+                action: const SizedBox.shrink(),
+              ),
+              const SizedBox(height: 12),
+              FormField<AttachmentRef>(
+                key: const Key('eventEditResolutionAttachmentField'),
+                validator: (_) => _resolutionAttachment == null
+                    ? 'Select a resolution attachment.'
+                    : null,
+                builder: (field) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AttachmentSelector(
+                      owner: AttachmentOwner(
+                        module: 'events',
+                        purpose: 'resolution',
+                        contextLabelProvider: () =>
+                            _nameController.text.trim().isNotEmpty
+                            ? _nameController.text.trim()
+                            : null,
+                      ),
+                      picker: widget.attachmentPicker,
+                      storage: widget.attachmentStorage,
+                      selectedAttachment: _resolutionAttachment,
+                      selectButtonKey: const Key(
+                        'eventEditResolutionAttachmentSelectButton',
+                      ),
+                      clearButtonKey: const Key(
+                        'eventEditResolutionAttachmentClearButton',
+                      ),
+                      isEnabled: !_isSubmitting,
+                      onChanged: (attachment) {
+                        setState(() {
+                          _resolutionAttachment = attachment;
+                        });
+                        field.didChange(attachment);
+                      },
+                    ),
+                    if (field.hasError) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        field.errorText!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class AdjustBudgetDialog extends StatefulWidget {
   const AdjustBudgetDialog({
     super.key,
     required this.service,
     required this.event,
     required this.sourceOptions,
+    required this.attachmentPicker,
+    required this.attachmentStorage,
   });
 
   final EventService service;
   final EventCardView event;
   final List<TreasurySourceAllocationOption> sourceOptions;
+  final AttachmentPicker attachmentPicker;
+  final AttachmentStorageService attachmentStorage;
 
   @override
   State<AdjustBudgetDialog> createState() => _AdjustBudgetDialogState();
@@ -441,6 +819,7 @@ class _AdjustBudgetDialogState extends State<AdjustBudgetDialog> {
   final _amountController = TextEditingController();
   final _dateController = TextEditingController();
   final _remarksController = TextEditingController();
+  AttachmentRef? _resolutionAttachment;
   BudgetAdjustmentDirection _direction = BudgetAdjustmentDirection.increase;
   StableId? _sourceId;
   String? _serviceError;
@@ -578,6 +957,57 @@ class _AdjustBudgetDialogState extends State<AdjustBudgetDialog> {
                   ),
                   validator: _requiredValidator,
                 ),
+                const SizedBox(height: 16),
+                _SectionHeader(
+                  title: 'Resolution attachment',
+                  action: const SizedBox.shrink(),
+                ),
+                const SizedBox(height: 12),
+                FormField<AttachmentRef>(
+                  key: const Key('eventBudgetAdjustmentResolutionAttachmentField'),
+                  validator: (_) => _resolutionAttachment == null
+                      ? 'Select an approved resolution attachment.'
+                      : null,
+                  builder: (field) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AttachmentSelector(
+                        owner: AttachmentOwner(
+                          module: 'events',
+                          purpose: 'budget_adjustment',
+                          contextLabelProvider: () =>
+                              '${widget.event.name} Budget Adjustment',
+                        ),
+                        picker: widget.attachmentPicker,
+                        storage: widget.attachmentStorage,
+                        selectedAttachment: _resolutionAttachment,
+                        selectButtonKey: const Key(
+                          'eventBudgetAdjustmentResolutionAttachmentSelectButton',
+                        ),
+                        clearButtonKey: const Key(
+                          'eventBudgetAdjustmentResolutionAttachmentClearButton',
+                        ),
+                        isEnabled: !_isSubmitting,
+                        onChanged: (attachment) {
+                          setState(() {
+                            _resolutionAttachment = attachment;
+                          });
+                          field.didChange(attachment);
+                        },
+                      ),
+                      if (field.hasError) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          field.errorText!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 14),
                 _BudgetAdjustmentReviewPanel(review: review),
                 if (_serviceError != null) ...[
@@ -654,6 +1084,7 @@ class _AdjustBudgetDialogState extends State<AdjustBudgetDialog> {
         treasurySourceId: _sourceId!,
         adjustmentDate: _parseDate(_dateController.text)!,
         remarks: _remarksController.text,
+        resolutionAttachment: _resolutionAttachment,
       ),
     );
     if (!mounted) {
@@ -876,6 +1307,7 @@ class SubmitLiquidationDialog extends StatefulWidget {
     required this.attachmentPicker,
     required this.attachmentStorage,
     required this.organizationService,
+    this.treasuryService,
   });
 
   final LiquidationService service;
@@ -884,6 +1316,7 @@ class SubmitLiquidationDialog extends StatefulWidget {
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
   final OrganizationService organizationService;
+  final TreasuryService? treasuryService;
 
   @override
   State<SubmitLiquidationDialog> createState() =>
@@ -910,9 +1343,9 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
   void initState() {
     super.initState();
     _officers = [...widget.officers];
-    _officerId =
-        _firstFundedOfficerId(_officers) ??
-        (_officers.isEmpty ? null : _officers.first.id);
+    _officerId = _fundingMode == FundingMode.releasedFunds
+        ? _firstFundedOfficerId(_officers)
+        : (_officers.isEmpty ? null : _officers.first.id);
   }
 
   @override
@@ -1085,16 +1518,6 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                     },
                   ),
                 ),
-                const SizedBox(height: AppSpacing.sm),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: OutlinedButton.icon(
-                    key: const Key('liquidationAddOfficerButton'),
-                    onPressed: _isSubmitting ? null : _addOfficer,
-                    icon: const Icon(Icons.person_add_alt_1, size: 18),
-                    label: const Text('Add officer'),
-                  ),
-                ),
                 if (_officerGuidance != null) ...[
                   const SizedBox(height: AppSpacing.sm),
                   InlineStatusPanel(
@@ -1218,42 +1641,6 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
   void _removeLine(int index) {
     setState(() {
       _lines.removeAt(index).dispose();
-    });
-  }
-
-  Future<void> _addOfficer() async {
-    final result = await showDialog<OfficerEditorResult>(
-      context: context,
-      builder: (context) =>
-          OfficerEditorDialog(service: widget.organizationService),
-    );
-    if (!mounted || result == null) {
-      return;
-    }
-
-    final officers = await widget.service.listOfficerOptionsForEvent(
-      widget.event.id,
-    );
-    if (!mounted) {
-      return;
-    }
-    final createdOfficer = _officerById(officers, result.officerId);
-    setState(() {
-      _officers = officers;
-      if (_fundingMode == FundingMode.outOfPocket) {
-        _officerId = createdOfficer?.id;
-        _officerGuidance = null;
-      } else if (createdOfficer?.hasFundCustody ?? false) {
-        _officerId = createdOfficer!.id;
-        _officerGuidance = null;
-      } else {
-        final selected = _officerById(_officers, _officerId);
-        if (selected == null || !selected.hasFundCustody) {
-          _officerId = _firstFundedOfficerId(_officers);
-        }
-        _officerGuidance =
-            '${createdOfficer?.fullName ?? 'The new officer'} was added, but Released Funds liquidation requires funds released to that officer for this event.';
-      }
     });
   }
 
@@ -1425,6 +1812,319 @@ class _PayReimbursementDialogState extends State<PayReimbursementDialog> {
       return;
     }
     Navigator.pop(context, result);
+  }
+}
+
+class AddFundToOfficerDialog extends StatefulWidget {
+  const AddFundToOfficerDialog({
+    super.key,
+    required this.treasuryService,
+    required this.eventId,
+    required this.eventName,
+    required this.approvedBudgetBalance,
+    required this.approvedBudgetBalanceLabel,
+    required this.officers,
+    this.initialOfficerId,
+  });
+
+  final TreasuryService treasuryService;
+  final StableId eventId;
+  final String eventName;
+  final Money approvedBudgetBalance;
+  final String approvedBudgetBalanceLabel;
+  final List<OfficerOption> officers;
+  final StableId? initialOfficerId;
+
+  @override
+  State<AddFundToOfficerDialog> createState() => _AddFundToOfficerDialogState();
+}
+
+class _AddFundToOfficerDialogState extends State<AddFundToOfficerDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _amountController = TextEditingController();
+  final _dateController = TextEditingController();
+  late final TextEditingController _purposeController;
+  final _remarksController = TextEditingController();
+  StableId? _selectedOfficerId;
+  String? _serviceError;
+  var _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _dateController.text =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    _purposeController = TextEditingController(
+      text: 'Fund release for ${widget.eventName}',
+    );
+    _selectedOfficerId = widget.initialOfficerId ??
+        (widget.officers.isNotEmpty ? widget.officers.first.id : null);
+    _amountController.addListener(_refreshReview);
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _dateController.dispose();
+    _purposeController.dispose();
+    _remarksController.dispose();
+    super.dispose();
+  }
+
+  void _refreshReview() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  String? _amountValidator(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'Enter a valid amount greater than zero.';
+    }
+    final parsed = parsePhpMoney(value.trim());
+    if (parsed == null || !parsed.isPositive) {
+      return 'Enter a valid amount greater than zero.';
+    }
+    if (parsed > widget.approvedBudgetBalance) {
+      return 'Amount cannot exceed unutilized approved budget (${widget.approvedBudgetBalanceLabel}).';
+    }
+    return null;
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    if (_selectedOfficerId == null) {
+      setState(() {
+        _serviceError = 'Select an officer to receive released funds.';
+      });
+      return;
+    }
+    setState(() {
+      _isSubmitting = true;
+      _serviceError = null;
+    });
+
+    final amount = parsePhpMoney(_amountController.text)!;
+    final date = _parseDate(_dateController.text) ?? DateTime.now();
+    final purpose = _purposeController.text.trim().isNotEmpty
+        ? _purposeController.text.trim()
+        : 'Fund release for ${widget.eventName}';
+    final remarks = _remarksController.text.trim().isNotEmpty
+        ? _remarksController.text.trim()
+        : null;
+
+    final result = await widget.treasuryService.recordManualMovement(
+      ManualFundMovementCommand(
+        type: FundMovementType.fundRelease,
+        amount: amount,
+        date: date,
+        purpose: purpose,
+        remarks: remarks,
+        eventId: widget.eventId,
+        holderOfficerId: _selectedOfficerId,
+      ),
+    );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (result.isInvalid) {
+      setState(() {
+        _isSubmitting = false;
+        _serviceError = result.summary;
+      });
+      return;
+    }
+
+    Navigator.pop(context, _selectedOfficerId);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final selectedOfficer = widget.officers
+        .where((o) => o.id == _selectedOfficerId)
+        .firstOrNull;
+    final amount = parsePhpMoney(_amountController.text) ?? Money.zero;
+    final projectedBalance = widget.approvedBudgetBalance - amount;
+    final currentCustody = selectedOfficer?.fundCustodyBalance ?? Money.zero;
+    final projectedCustody = currentCustody + amount;
+
+    return AlertDialog(
+      title: const Text('Add Fund to Officer'),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.eventName,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Unutilized approved budget: ${widget.approvedBudgetBalanceLabel}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<StableId>(
+                  key: const Key('addFundToOfficerSelectField'),
+                  initialValue: _selectedOfficerId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Accountable officer',
+                  ),
+                  items: widget.officers
+                      .map(
+                        (officer) => DropdownMenuItem(
+                          value: officer.id,
+                          child: Text(
+                            '${officer.fullName} (current held: ${officer.fundCustodyBalanceLabel})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) =>
+                      value == null ? 'Select an accountable officer.' : null,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _selectedOfficerId = value;
+                          });
+                        },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('addFundToOfficerAmountField'),
+                  controller: _amountController,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Amount to release',
+                    hintText: '0.00',
+                  ),
+                  validator: _amountValidator,
+                ),
+                const SizedBox(height: 12),
+                AppDatePickerFormField(
+                  key: const Key('addFundToOfficerDateField'),
+                  controller: _dateController,
+                  labelText: 'Release date',
+                  validator: _dateValidator,
+                  isEnabled: !_isSubmitting,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('addFundToOfficerPurposeField'),
+                  controller: _purposeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Purpose',
+                  ),
+                  validator: _requiredValidator,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('addFundToOfficerRemarksField'),
+                  controller: _remarksController,
+                  decoration: const InputDecoration(
+                    labelText: 'Remarks (optional)',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                AppCard(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Fund Release Impact',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Expanded(
+                            child: Text('Unutilized approved budget:'),
+                          ),
+                          Text(
+                            formatPhpMoney(
+                              projectedBalance < Money.zero
+                                  ? Money.zero
+                                  : projectedBalance,
+                            ),
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: projectedBalance < Money.zero
+                                  ? Theme.of(context).colorScheme.error
+                                  : null,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Expanded(
+                            child: Text('Officer custody balance:'),
+                          ),
+                          Text(
+                            formatPhpMoney(projectedCustody),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (_serviceError != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _serviceError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('addFundToOfficerSubmitButton'),
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Release Funds'),
+        ),
+      ],
+    );
   }
 }
 
@@ -1655,7 +2355,7 @@ class _BudgetActualMetrics extends StatelessWidget {
         SizedBox(
           width: tileWidth,
           child: _BudgetMetricTile(
-            label: 'Remaining Approved',
+            label: 'Unutilized Approved Budget',
             value: snapshot.approvedBudgetBalanceLabel,
           ),
         ),

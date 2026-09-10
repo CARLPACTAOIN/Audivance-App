@@ -42,6 +42,8 @@ class EventService {
               budget: event.budget,
               approvedBudgetBalance: event.approvedBudgetBalance,
               status: EventRules.calculateStatus(event: event, asOf: asOf),
+              permitApprovalDate: event.permitApprovalDate,
+              resolutionAttachment: event.resolutionAttachment,
             ),
           )
           .toList(growable: false),
@@ -169,6 +171,88 @@ class EventService {
     return const ValidationResult.valid();
   }
 
+  Future<ValidationResult> updateEvent(UpdateEventCommand command) async {
+    final events = await repository.listAuditEvents();
+    AuditEvent? event;
+    for (final candidate in events) {
+      if (candidate.id == command.eventId) {
+        event = candidate;
+        break;
+      }
+    }
+    if (event == null) {
+      return ValidationResult.failure('Selected event does not exist.');
+    }
+    if (event.isLiquidated) {
+      return ValidationResult.failure('Liquidated events cannot be edited.');
+    }
+
+    final validation = _validateUpdateCommand(command);
+    if (validation.isInvalid) {
+      return validation;
+    }
+
+    final updatedEvent = AuditEvent(
+      id: event.id,
+      name: command.name.trim(),
+      type: command.type.trim(),
+      semester: command.semester.trim(),
+      schoolYear: command.schoolYear.trim(),
+      startDate: command.startDate,
+      endDate: command.endDate,
+      permitApprovalDate: command.permitApprovalDate,
+      resolutionNumber: command.resolutionNumber.trim(),
+      budget: event.budget,
+      approvedBudgetBalance: event.approvedBudgetBalance,
+      resolutionAttachment: command.resolutionAttachment,
+      isLiquidated: event.isLiquidated,
+    );
+
+    await repository.updateAuditEvent(updatedEvent);
+
+    await repository.appendAuditLog(
+      AuditLogEntry(
+        id: idGenerator.nextId('audit-log'),
+        action: 'events.update',
+        actor: 'local-account',
+        targetRecordId: event.id,
+        occurredAt: _now(),
+        beforeSnapshot: {
+          'name': event.name,
+          'type': event.type,
+          'semester': event.semester,
+          'schoolYear': event.schoolYear,
+          'startDate': event.startDate.toIso8601String(),
+          'endDate': event.endDate.toIso8601String(),
+          'permitApprovalDate': event.permitApprovalDate?.toIso8601String(),
+          'resolutionNumber': event.resolutionNumber,
+          if (event.resolutionAttachment != null)
+            'resolutionAttachmentId': event.resolutionAttachment!.id,
+        },
+        afterSnapshot: {
+          'name': updatedEvent.name,
+          'type': updatedEvent.type,
+          'semester': updatedEvent.semester,
+          'schoolYear': updatedEvent.schoolYear,
+          'startDate': updatedEvent.startDate.toIso8601String(),
+          'endDate': updatedEvent.endDate.toIso8601String(),
+          'permitApprovalDate':
+              updatedEvent.permitApprovalDate?.toIso8601String(),
+          'resolutionNumber': updatedEvent.resolutionNumber,
+          if (updatedEvent.resolutionAttachment != null)
+            'resolutionAttachmentId': updatedEvent.resolutionAttachment!.id,
+        },
+        metadata: {
+          'eventName': updatedEvent.name,
+          if (command.resolutionAttachment != null)
+            'resolutionAttachmentId': command.resolutionAttachment!.id,
+        },
+      ),
+    );
+
+    return const ValidationResult.valid();
+  }
+
   Future<ValidationResult> adjustEventBudget(
     AdjustEventBudgetCommand command,
   ) async {
@@ -260,6 +344,7 @@ class EventService {
       eventId: event.id,
       fromFundSourceId: isIncrease ? source.id : null,
       toFundSourceId: isIncrease ? null : source.id,
+      supportingAttachment: command.resolutionAttachment,
       isSystemGenerated: true,
     );
     final movementResult = await repository.saveFundMovement(
@@ -294,6 +379,13 @@ class EventService {
           'direction': command.direction.name,
           'treasurySourceId': source.id,
           'remarks': command.remarks.trim(),
+          if (command.resolutionAttachment != null) ...{
+            'resolutionAttachmentId': command.resolutionAttachment!.id,
+            'resolutionAttachmentFileName':
+                command.resolutionAttachment!.fileName,
+            'resolutionAttachmentLocalPath':
+                command.resolutionAttachment!.localPath,
+          },
         },
       ),
     );
@@ -463,6 +555,34 @@ class EventService {
     return ValidationResult.invalid(messages);
   }
 
+  ValidationResult _validateUpdateCommand(UpdateEventCommand command) {
+    final messages = <String>[];
+    if (command.name.trim().isEmpty) {
+      messages.add('Event name is required.');
+    }
+    if (command.type.trim().isEmpty) {
+      messages.add('Event type is required.');
+    }
+    if (command.semester.trim().isEmpty) {
+      messages.add('Semester is required.');
+    }
+    if (command.schoolYear.trim().isEmpty) {
+      messages.add('School year is required.');
+    }
+    if (command.resolutionNumber.trim().isEmpty) {
+      messages.add('Resolution number is required.');
+    }
+    if (command.endDate.isBefore(command.startDate)) {
+      messages.add('Event end date cannot be before the start date.');
+    }
+    if (command.resolutionAttachment == null) {
+      messages.add('Event resolution attachment is required.');
+    }
+    return messages.isEmpty
+        ? const ValidationResult.valid()
+        : ValidationResult.invalid(messages);
+  }
+
   ValidationResult _validateBudgetAdjustmentCommand(
     AdjustEventBudgetCommand command,
     AuditEvent event,
@@ -484,6 +604,11 @@ class EventService {
     if (command.direction == BudgetAdjustmentDirection.decrease &&
         command.amount > event.budget) {
       messages.add('Budget decrease cannot make the event budget negative.');
+    }
+    if (command.resolutionAttachment == null ||
+        command.resolutionAttachment!.fileName.trim().isEmpty ||
+        command.resolutionAttachment!.localPath.trim().isEmpty) {
+      messages.add('Resolution attachment is required for budget adjustment.');
     }
     return ValidationResult.invalid(messages);
   }
@@ -533,6 +658,32 @@ class CreateEventCommand {
   final List<EventAllocationDraft> allocations;
 }
 
+class UpdateEventCommand {
+  const UpdateEventCommand({
+    required this.eventId,
+    required this.name,
+    required this.type,
+    required this.semester,
+    required this.schoolYear,
+    required this.startDate,
+    required this.endDate,
+    required this.resolutionNumber,
+    this.permitApprovalDate,
+    this.resolutionAttachment,
+  });
+
+  final StableId eventId;
+  final String name;
+  final String type;
+  final String semester;
+  final String schoolYear;
+  final DateTime startDate;
+  final DateTime endDate;
+  final DateTime? permitApprovalDate;
+  final String resolutionNumber;
+  final AttachmentRef? resolutionAttachment;
+}
+
 class EventAllocationDraft {
   const EventAllocationDraft({
     required this.fundSourceId,
@@ -551,6 +702,7 @@ class AdjustEventBudgetCommand {
     required this.treasurySourceId,
     required this.adjustmentDate,
     required this.remarks,
+    this.resolutionAttachment,
   });
 
   final StableId eventId;
@@ -559,6 +711,7 @@ class AdjustEventBudgetCommand {
   final StableId treasurySourceId;
   final DateTime adjustmentDate;
   final String remarks;
+  final AttachmentRef? resolutionAttachment;
 }
 
 enum BudgetAdjustmentDirection { increase, decrease }
@@ -726,6 +879,8 @@ class EventCardView {
     required this.budget,
     required this.approvedBudgetBalance,
     required this.status,
+    this.permitApprovalDate,
+    this.resolutionAttachment,
   });
 
   final StableId id;
@@ -739,6 +894,8 @@ class EventCardView {
   final Money budget;
   final Money approvedBudgetBalance;
   final AuditEventStatus status;
+  final DateTime? permitApprovalDate;
+  final AttachmentRef? resolutionAttachment;
 
   String get budgetLabel => formatPhpMoney(budget);
   String get approvedBudgetBalanceLabel =>
@@ -747,6 +904,7 @@ class EventCardView {
       '${formatDate(startDate)} - ${formatDate(endDate)}';
   String get statusLabel => auditEventStatusLabel(status);
   bool get canAdjustBudget => status != AuditEventStatus.liquidated;
+  bool get canEdit => status != AuditEventStatus.liquidated;
 }
 
 class TreasurySourceAllocationOption {

@@ -12,6 +12,7 @@ import '../liquidation/liquidation_service.dart';
 import '../organization/organization_service.dart';
 import '../treasury/treasury_formatters.dart';
 import 'event_details_screen.dart';
+import '../treasury/treasury_service.dart';
 import 'event_dialogs.dart';
 import 'event_service.dart';
 
@@ -25,6 +26,7 @@ class EventScreen extends StatefulWidget {
     required this.liquidationService,
     required this.attachmentPicker,
     required this.attachmentStorage,
+    this.treasuryService,
     this.asOf,
     this.refreshTrigger = 0,
     required this.organizationService,
@@ -34,6 +36,7 @@ class EventScreen extends StatefulWidget {
   final LiquidationService liquidationService;
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
+  final TreasuryService? treasuryService;
   final DateTime? asOf;
   final int refreshTrigger;
   final OrganizationService organizationService;
@@ -94,6 +97,7 @@ class _EventScreenState extends State<EventScreen> {
           liquidationService: widget.liquidationService,
           attachmentPicker: widget.attachmentPicker,
           attachmentStorage: widget.attachmentStorage,
+          treasuryService: widget.treasuryService,
           organizationService: widget.organizationService,
           asOf: widget.asOf,
         ),
@@ -278,35 +282,143 @@ class _EventOverviewHeader extends StatelessWidget {
   }
 }
 
-class _EventCardList extends StatelessWidget {
+class _EventCardList extends StatefulWidget {
   const _EventCardList({required this.events, required this.onSelectEvent});
 
   final List<EventCardView> events;
   final ValueChanged<EventCardView> onSelectEvent;
 
   @override
+  State<_EventCardList> createState() => _EventCardListState();
+}
+
+class _EventCardListState extends State<_EventCardList> {
+  String? _selectedTerm;
+  int _currentPage = 0;
+  int _pageSize = 6;
+
+  @override
   Widget build(BuildContext context) {
+    if (widget.events.isEmpty) {
+      return const _OverviewPanel(
+        title: 'Event Records',
+        child: _OverviewEmptyMessage(
+          icon: Icons.event_busy_outlined,
+          text:
+              'Fund Treasury first, then create the first event with split funding.',
+        ),
+      );
+    }
+
+    final terms = <String>[];
+    for (final event in widget.events) {
+      final term = '${event.semester} · ${event.schoolYear}';
+      if (!terms.contains(term)) {
+        terms.add(term);
+      }
+    }
+
+    if (_selectedTerm != null && !terms.contains(_selectedTerm)) {
+      _selectedTerm = null;
+    }
+
+    final filteredEvents = _selectedTerm == null
+        ? widget.events
+        : widget.events
+            .where((e) => '${e.semester} · ${e.schoolYear}' == _selectedTerm)
+            .toList(growable: false);
+
+    final totalItems = filteredEvents.length;
+    final totalPages = (totalItems / _pageSize).ceil();
+    if (_currentPage >= totalPages && totalPages > 0) {
+      _currentPage = totalPages - 1;
+    }
+
+    final pagedEvents = filteredEvents
+        .skip(_currentPage * _pageSize)
+        .take(_pageSize)
+        .toList(growable: false);
+
     return _OverviewPanel(
       title: 'Event Records',
-      child: events.isEmpty
-          ? const _OverviewEmptyMessage(
-              icon: Icons.event_busy_outlined,
-              text: 'Fund Treasury first, then create the first event with split funding.',
-            )
-          : Column(
-              children: [
-                for (var i = 0; i < events.length; i++) ...[
-                  AppSlideFadeIn(
-                    delay: AppMotion.staggerStep * math.min(i, 5),
-                    child: _EventCard(
-                      event: events[i],
-                      onTap: () => onSelectEvent(events[i]),
-                    ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (terms.length > 1) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  ChoiceChip(
+                    key: const Key('eventsFilterTermAll'),
+                    label: Text('All Terms (${widget.events.length})'),
+                    selected: _selectedTerm == null,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() {
+                          _selectedTerm = null;
+                          _currentPage = 0;
+                        });
+                      }
+                    },
                   ),
-                  if (i < events.length - 1) const SizedBox(height: 10),
+                  for (final term in terms) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    ChoiceChip(
+                      key: Key('eventsFilterTerm_$term'),
+                      label: Text(
+                        '$term (${widget.events.where((e) => '${e.semester} · ${e.schoolYear}' == term).length})',
+                      ),
+                      selected: _selectedTerm == term,
+                      onSelected: (selected) {
+                        setState(() {
+                          _selectedTerm = selected ? term : null;
+                          _currentPage = 0;
+                        });
+                      },
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          for (var i = 0; i < pagedEvents.length; i++) ...[
+            AppSlideFadeIn(
+              delay: AppMotion.staggerStep * math.min(i, 5),
+              child: _EventCard(
+                event: pagedEvents[i],
+                onTap: () => widget.onSelectEvent(pagedEvents[i]),
+              ),
+            ),
+            if (i < pagedEvents.length - 1) const SizedBox(height: 10),
+          ],
+          if (totalItems > _pageSize || totalPages > 1) ...[
+            const SizedBox(height: AppSpacing.md),
+            AppPaginationBar(
+              currentPage: _currentPage,
+              totalPages: totalPages,
+              totalItems: totalItems,
+              pageSize: _pageSize,
+              itemLabel: 'events',
+              prevKey: const Key('eventsOverviewPrevPageButton'),
+              nextKey: const Key('eventsOverviewNextPageButton'),
+              pageSizeOptions: const [6, 12],
+              onPageSizeChanged: (newSize) {
+                setState(() {
+                  _pageSize = newSize;
+                  _currentPage = 0;
+                });
+              },
+              onPageChanged: (newPage) {
+                setState(() {
+                  _currentPage = newPage;
+                });
+              },
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

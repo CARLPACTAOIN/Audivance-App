@@ -3430,6 +3430,60 @@ class $FundMovementsTable extends FundMovements
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _attachmentIdMeta = const VerificationMeta(
+    'attachmentId',
+  );
+  @override
+  late final GeneratedColumn<String> attachmentId = GeneratedColumn<String>(
+    'attachment_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attachmentFileNameMeta =
+      const VerificationMeta('attachmentFileName');
+  @override
+  late final GeneratedColumn<String> attachmentFileName =
+      GeneratedColumn<String>(
+        'attachment_file_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _attachmentLocalPathMeta =
+      const VerificationMeta('attachmentLocalPath');
+  @override
+  late final GeneratedColumn<String> attachmentLocalPath =
+      GeneratedColumn<String>(
+        'attachment_local_path',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _attachmentSizeBytesMeta =
+      const VerificationMeta('attachmentSizeBytes');
+  @override
+  late final GeneratedColumn<int> attachmentSizeBytes = GeneratedColumn<int>(
+    'attachment_size_bytes',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _attachmentChecksumMeta =
+      const VerificationMeta('attachmentChecksum');
+  @override
+  late final GeneratedColumn<String> attachmentChecksum =
+      GeneratedColumn<String>(
+        'attachment_checksum',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _isSystemGeneratedMeta = const VerificationMeta(
     'isSystemGenerated',
   );
@@ -3457,6 +3511,11 @@ class $FundMovementsTable extends FundMovements
     fromFundSourceId,
     toFundSourceId,
     holderOfficerId,
+    attachmentId,
+    attachmentFileName,
+    attachmentLocalPath,
+    attachmentSizeBytes,
+    attachmentChecksum,
     isSystemGenerated,
   ];
   @override
@@ -3558,6 +3617,51 @@ class $FundMovementsTable extends FundMovements
         ),
       );
     }
+    if (data.containsKey('attachment_id')) {
+      context.handle(
+        _attachmentIdMeta,
+        attachmentId.isAcceptableOrUnknown(
+          data['attachment_id']!,
+          _attachmentIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attachment_file_name')) {
+      context.handle(
+        _attachmentFileNameMeta,
+        attachmentFileName.isAcceptableOrUnknown(
+          data['attachment_file_name']!,
+          _attachmentFileNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attachment_local_path')) {
+      context.handle(
+        _attachmentLocalPathMeta,
+        attachmentLocalPath.isAcceptableOrUnknown(
+          data['attachment_local_path']!,
+          _attachmentLocalPathMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attachment_size_bytes')) {
+      context.handle(
+        _attachmentSizeBytesMeta,
+        attachmentSizeBytes.isAcceptableOrUnknown(
+          data['attachment_size_bytes']!,
+          _attachmentSizeBytesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('attachment_checksum')) {
+      context.handle(
+        _attachmentChecksumMeta,
+        attachmentChecksum.isAcceptableOrUnknown(
+          data['attachment_checksum']!,
+          _attachmentChecksumMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_system_generated')) {
       context.handle(
         _isSystemGeneratedMeta,
@@ -3622,6 +3726,26 @@ class $FundMovementsTable extends FundMovements
         DriftSqlType.string,
         data['${effectivePrefix}holder_officer_id'],
       ),
+      attachmentId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_id'],
+      ),
+      attachmentFileName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_file_name'],
+      ),
+      attachmentLocalPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_local_path'],
+      ),
+      attachmentSizeBytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}attachment_size_bytes'],
+      ),
+      attachmentChecksum: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}attachment_checksum'],
+      ),
       isSystemGenerated: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_system_generated'],
@@ -3648,6 +3772,11 @@ class FundMovementRecord extends DataClass
   final String? fromFundSourceId;
   final String? toFundSourceId;
   final String? holderOfficerId;
+  final String? attachmentId;
+  final String? attachmentFileName;
+  final String? attachmentLocalPath;
+  final int? attachmentSizeBytes;
+  final String? attachmentChecksum;
   final bool isSystemGenerated;
   const FundMovementRecord({
     required this.id,
@@ -3661,6 +3790,11 @@ class FundMovementRecord extends DataClass
     this.fromFundSourceId,
     this.toFundSourceId,
     this.holderOfficerId,
+    this.attachmentId,
+    this.attachmentFileName,
+    this.attachmentLocalPath,
+    this.attachmentSizeBytes,
+    this.attachmentChecksum,
     required this.isSystemGenerated,
   });
   @override
@@ -3686,6 +3820,21 @@ class FundMovementRecord extends DataClass
     }
     if (!nullToAbsent || holderOfficerId != null) {
       map['holder_officer_id'] = Variable<String>(holderOfficerId);
+    }
+    if (!nullToAbsent || attachmentId != null) {
+      map['attachment_id'] = Variable<String>(attachmentId);
+    }
+    if (!nullToAbsent || attachmentFileName != null) {
+      map['attachment_file_name'] = Variable<String>(attachmentFileName);
+    }
+    if (!nullToAbsent || attachmentLocalPath != null) {
+      map['attachment_local_path'] = Variable<String>(attachmentLocalPath);
+    }
+    if (!nullToAbsent || attachmentSizeBytes != null) {
+      map['attachment_size_bytes'] = Variable<int>(attachmentSizeBytes);
+    }
+    if (!nullToAbsent || attachmentChecksum != null) {
+      map['attachment_checksum'] = Variable<String>(attachmentChecksum);
     }
     map['is_system_generated'] = Variable<bool>(isSystemGenerated);
     return map;
@@ -3714,6 +3863,21 @@ class FundMovementRecord extends DataClass
       holderOfficerId: holderOfficerId == null && nullToAbsent
           ? const Value.absent()
           : Value(holderOfficerId),
+      attachmentId: attachmentId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentId),
+      attachmentFileName: attachmentFileName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentFileName),
+      attachmentLocalPath: attachmentLocalPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentLocalPath),
+      attachmentSizeBytes: attachmentSizeBytes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentSizeBytes),
+      attachmentChecksum: attachmentChecksum == null && nullToAbsent
+          ? const Value.absent()
+          : Value(attachmentChecksum),
       isSystemGenerated: Value(isSystemGenerated),
     );
   }
@@ -3735,6 +3899,19 @@ class FundMovementRecord extends DataClass
       fromFundSourceId: serializer.fromJson<String?>(json['fromFundSourceId']),
       toFundSourceId: serializer.fromJson<String?>(json['toFundSourceId']),
       holderOfficerId: serializer.fromJson<String?>(json['holderOfficerId']),
+      attachmentId: serializer.fromJson<String?>(json['attachmentId']),
+      attachmentFileName: serializer.fromJson<String?>(
+        json['attachmentFileName'],
+      ),
+      attachmentLocalPath: serializer.fromJson<String?>(
+        json['attachmentLocalPath'],
+      ),
+      attachmentSizeBytes: serializer.fromJson<int?>(
+        json['attachmentSizeBytes'],
+      ),
+      attachmentChecksum: serializer.fromJson<String?>(
+        json['attachmentChecksum'],
+      ),
       isSystemGenerated: serializer.fromJson<bool>(json['isSystemGenerated']),
     );
   }
@@ -3753,6 +3930,11 @@ class FundMovementRecord extends DataClass
       'fromFundSourceId': serializer.toJson<String?>(fromFundSourceId),
       'toFundSourceId': serializer.toJson<String?>(toFundSourceId),
       'holderOfficerId': serializer.toJson<String?>(holderOfficerId),
+      'attachmentId': serializer.toJson<String?>(attachmentId),
+      'attachmentFileName': serializer.toJson<String?>(attachmentFileName),
+      'attachmentLocalPath': serializer.toJson<String?>(attachmentLocalPath),
+      'attachmentSizeBytes': serializer.toJson<int?>(attachmentSizeBytes),
+      'attachmentChecksum': serializer.toJson<String?>(attachmentChecksum),
       'isSystemGenerated': serializer.toJson<bool>(isSystemGenerated),
     };
   }
@@ -3769,6 +3951,11 @@ class FundMovementRecord extends DataClass
     Value<String?> fromFundSourceId = const Value.absent(),
     Value<String?> toFundSourceId = const Value.absent(),
     Value<String?> holderOfficerId = const Value.absent(),
+    Value<String?> attachmentId = const Value.absent(),
+    Value<String?> attachmentFileName = const Value.absent(),
+    Value<String?> attachmentLocalPath = const Value.absent(),
+    Value<int?> attachmentSizeBytes = const Value.absent(),
+    Value<String?> attachmentChecksum = const Value.absent(),
     bool? isSystemGenerated,
   }) => FundMovementRecord(
     id: id ?? this.id,
@@ -3788,6 +3975,19 @@ class FundMovementRecord extends DataClass
     holderOfficerId: holderOfficerId.present
         ? holderOfficerId.value
         : this.holderOfficerId,
+    attachmentId: attachmentId.present ? attachmentId.value : this.attachmentId,
+    attachmentFileName: attachmentFileName.present
+        ? attachmentFileName.value
+        : this.attachmentFileName,
+    attachmentLocalPath: attachmentLocalPath.present
+        ? attachmentLocalPath.value
+        : this.attachmentLocalPath,
+    attachmentSizeBytes: attachmentSizeBytes.present
+        ? attachmentSizeBytes.value
+        : this.attachmentSizeBytes,
+    attachmentChecksum: attachmentChecksum.present
+        ? attachmentChecksum.value
+        : this.attachmentChecksum,
     isSystemGenerated: isSystemGenerated ?? this.isSystemGenerated,
   );
   FundMovementRecord copyWithCompanion(FundMovementsCompanion data) {
@@ -3811,6 +4011,21 @@ class FundMovementRecord extends DataClass
       holderOfficerId: data.holderOfficerId.present
           ? data.holderOfficerId.value
           : this.holderOfficerId,
+      attachmentId: data.attachmentId.present
+          ? data.attachmentId.value
+          : this.attachmentId,
+      attachmentFileName: data.attachmentFileName.present
+          ? data.attachmentFileName.value
+          : this.attachmentFileName,
+      attachmentLocalPath: data.attachmentLocalPath.present
+          ? data.attachmentLocalPath.value
+          : this.attachmentLocalPath,
+      attachmentSizeBytes: data.attachmentSizeBytes.present
+          ? data.attachmentSizeBytes.value
+          : this.attachmentSizeBytes,
+      attachmentChecksum: data.attachmentChecksum.present
+          ? data.attachmentChecksum.value
+          : this.attachmentChecksum,
       isSystemGenerated: data.isSystemGenerated.present
           ? data.isSystemGenerated.value
           : this.isSystemGenerated,
@@ -3831,6 +4046,11 @@ class FundMovementRecord extends DataClass
           ..write('fromFundSourceId: $fromFundSourceId, ')
           ..write('toFundSourceId: $toFundSourceId, ')
           ..write('holderOfficerId: $holderOfficerId, ')
+          ..write('attachmentId: $attachmentId, ')
+          ..write('attachmentFileName: $attachmentFileName, ')
+          ..write('attachmentLocalPath: $attachmentLocalPath, ')
+          ..write('attachmentSizeBytes: $attachmentSizeBytes, ')
+          ..write('attachmentChecksum: $attachmentChecksum, ')
           ..write('isSystemGenerated: $isSystemGenerated')
           ..write(')'))
         .toString();
@@ -3849,6 +4069,11 @@ class FundMovementRecord extends DataClass
     fromFundSourceId,
     toFundSourceId,
     holderOfficerId,
+    attachmentId,
+    attachmentFileName,
+    attachmentLocalPath,
+    attachmentSizeBytes,
+    attachmentChecksum,
     isSystemGenerated,
   );
   @override
@@ -3866,6 +4091,11 @@ class FundMovementRecord extends DataClass
           other.fromFundSourceId == this.fromFundSourceId &&
           other.toFundSourceId == this.toFundSourceId &&
           other.holderOfficerId == this.holderOfficerId &&
+          other.attachmentId == this.attachmentId &&
+          other.attachmentFileName == this.attachmentFileName &&
+          other.attachmentLocalPath == this.attachmentLocalPath &&
+          other.attachmentSizeBytes == this.attachmentSizeBytes &&
+          other.attachmentChecksum == this.attachmentChecksum &&
           other.isSystemGenerated == this.isSystemGenerated);
 }
 
@@ -3881,6 +4111,11 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
   final Value<String?> fromFundSourceId;
   final Value<String?> toFundSourceId;
   final Value<String?> holderOfficerId;
+  final Value<String?> attachmentId;
+  final Value<String?> attachmentFileName;
+  final Value<String?> attachmentLocalPath;
+  final Value<int?> attachmentSizeBytes;
+  final Value<String?> attachmentChecksum;
   final Value<bool> isSystemGenerated;
   final Value<int> rowid;
   const FundMovementsCompanion({
@@ -3895,6 +4130,11 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     this.fromFundSourceId = const Value.absent(),
     this.toFundSourceId = const Value.absent(),
     this.holderOfficerId = const Value.absent(),
+    this.attachmentId = const Value.absent(),
+    this.attachmentFileName = const Value.absent(),
+    this.attachmentLocalPath = const Value.absent(),
+    this.attachmentSizeBytes = const Value.absent(),
+    this.attachmentChecksum = const Value.absent(),
     this.isSystemGenerated = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -3910,6 +4150,11 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     this.fromFundSourceId = const Value.absent(),
     this.toFundSourceId = const Value.absent(),
     this.holderOfficerId = const Value.absent(),
+    this.attachmentId = const Value.absent(),
+    this.attachmentFileName = const Value.absent(),
+    this.attachmentLocalPath = const Value.absent(),
+    this.attachmentSizeBytes = const Value.absent(),
+    this.attachmentChecksum = const Value.absent(),
     required bool isSystemGenerated,
     this.rowid = const Value.absent(),
   }) : id = Value(id),
@@ -3931,6 +4176,11 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     Expression<String>? fromFundSourceId,
     Expression<String>? toFundSourceId,
     Expression<String>? holderOfficerId,
+    Expression<String>? attachmentId,
+    Expression<String>? attachmentFileName,
+    Expression<String>? attachmentLocalPath,
+    Expression<int>? attachmentSizeBytes,
+    Expression<String>? attachmentChecksum,
     Expression<bool>? isSystemGenerated,
     Expression<int>? rowid,
   }) {
@@ -3946,6 +4196,14 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
       if (fromFundSourceId != null) 'from_fund_source_id': fromFundSourceId,
       if (toFundSourceId != null) 'to_fund_source_id': toFundSourceId,
       if (holderOfficerId != null) 'holder_officer_id': holderOfficerId,
+      if (attachmentId != null) 'attachment_id': attachmentId,
+      if (attachmentFileName != null)
+        'attachment_file_name': attachmentFileName,
+      if (attachmentLocalPath != null)
+        'attachment_local_path': attachmentLocalPath,
+      if (attachmentSizeBytes != null)
+        'attachment_size_bytes': attachmentSizeBytes,
+      if (attachmentChecksum != null) 'attachment_checksum': attachmentChecksum,
       if (isSystemGenerated != null) 'is_system_generated': isSystemGenerated,
       if (rowid != null) 'rowid': rowid,
     });
@@ -3963,6 +4221,11 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     Value<String?>? fromFundSourceId,
     Value<String?>? toFundSourceId,
     Value<String?>? holderOfficerId,
+    Value<String?>? attachmentId,
+    Value<String?>? attachmentFileName,
+    Value<String?>? attachmentLocalPath,
+    Value<int?>? attachmentSizeBytes,
+    Value<String?>? attachmentChecksum,
     Value<bool>? isSystemGenerated,
     Value<int>? rowid,
   }) {
@@ -3978,6 +4241,11 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
       fromFundSourceId: fromFundSourceId ?? this.fromFundSourceId,
       toFundSourceId: toFundSourceId ?? this.toFundSourceId,
       holderOfficerId: holderOfficerId ?? this.holderOfficerId,
+      attachmentId: attachmentId ?? this.attachmentId,
+      attachmentFileName: attachmentFileName ?? this.attachmentFileName,
+      attachmentLocalPath: attachmentLocalPath ?? this.attachmentLocalPath,
+      attachmentSizeBytes: attachmentSizeBytes ?? this.attachmentSizeBytes,
+      attachmentChecksum: attachmentChecksum ?? this.attachmentChecksum,
       isSystemGenerated: isSystemGenerated ?? this.isSystemGenerated,
       rowid: rowid ?? this.rowid,
     );
@@ -4019,6 +4287,23 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     if (holderOfficerId.present) {
       map['holder_officer_id'] = Variable<String>(holderOfficerId.value);
     }
+    if (attachmentId.present) {
+      map['attachment_id'] = Variable<String>(attachmentId.value);
+    }
+    if (attachmentFileName.present) {
+      map['attachment_file_name'] = Variable<String>(attachmentFileName.value);
+    }
+    if (attachmentLocalPath.present) {
+      map['attachment_local_path'] = Variable<String>(
+        attachmentLocalPath.value,
+      );
+    }
+    if (attachmentSizeBytes.present) {
+      map['attachment_size_bytes'] = Variable<int>(attachmentSizeBytes.value);
+    }
+    if (attachmentChecksum.present) {
+      map['attachment_checksum'] = Variable<String>(attachmentChecksum.value);
+    }
     if (isSystemGenerated.present) {
       map['is_system_generated'] = Variable<bool>(isSystemGenerated.value);
     }
@@ -4042,6 +4327,11 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
           ..write('fromFundSourceId: $fromFundSourceId, ')
           ..write('toFundSourceId: $toFundSourceId, ')
           ..write('holderOfficerId: $holderOfficerId, ')
+          ..write('attachmentId: $attachmentId, ')
+          ..write('attachmentFileName: $attachmentFileName, ')
+          ..write('attachmentLocalPath: $attachmentLocalPath, ')
+          ..write('attachmentSizeBytes: $attachmentSizeBytes, ')
+          ..write('attachmentChecksum: $attachmentChecksum, ')
           ..write('isSystemGenerated: $isSystemGenerated, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -10107,6 +10397,11 @@ typedef $$FundMovementsTableCreateCompanionBuilder =
       Value<String?> fromFundSourceId,
       Value<String?> toFundSourceId,
       Value<String?> holderOfficerId,
+      Value<String?> attachmentId,
+      Value<String?> attachmentFileName,
+      Value<String?> attachmentLocalPath,
+      Value<int?> attachmentSizeBytes,
+      Value<String?> attachmentChecksum,
       required bool isSystemGenerated,
       Value<int> rowid,
     });
@@ -10123,6 +10418,11 @@ typedef $$FundMovementsTableUpdateCompanionBuilder =
       Value<String?> fromFundSourceId,
       Value<String?> toFundSourceId,
       Value<String?> holderOfficerId,
+      Value<String?> attachmentId,
+      Value<String?> attachmentFileName,
+      Value<String?> attachmentLocalPath,
+      Value<int?> attachmentSizeBytes,
+      Value<String?> attachmentChecksum,
       Value<bool> isSystemGenerated,
       Value<int> rowid,
     });
@@ -10188,6 +10488,31 @@ class $$FundMovementsTableFilterComposer
 
   ColumnFilters<String> get holderOfficerId => $composableBuilder(
     column: $table.holderOfficerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentId => $composableBuilder(
+    column: $table.attachmentId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentFileName => $composableBuilder(
+    column: $table.attachmentFileName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentLocalPath => $composableBuilder(
+    column: $table.attachmentLocalPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get attachmentSizeBytes => $composableBuilder(
+    column: $table.attachmentSizeBytes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get attachmentChecksum => $composableBuilder(
+    column: $table.attachmentChecksum,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10261,6 +10586,31 @@ class $$FundMovementsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get attachmentId => $composableBuilder(
+    column: $table.attachmentId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentFileName => $composableBuilder(
+    column: $table.attachmentFileName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentLocalPath => $composableBuilder(
+    column: $table.attachmentLocalPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get attachmentSizeBytes => $composableBuilder(
+    column: $table.attachmentSizeBytes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get attachmentChecksum => $composableBuilder(
+    column: $table.attachmentChecksum,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isSystemGenerated => $composableBuilder(
     column: $table.isSystemGenerated,
     builder: (column) => ColumnOrderings(column),
@@ -10314,6 +10664,31 @@ class $$FundMovementsTableAnnotationComposer
 
   GeneratedColumn<String> get holderOfficerId => $composableBuilder(
     column: $table.holderOfficerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get attachmentId => $composableBuilder(
+    column: $table.attachmentId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get attachmentFileName => $composableBuilder(
+    column: $table.attachmentFileName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get attachmentLocalPath => $composableBuilder(
+    column: $table.attachmentLocalPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get attachmentSizeBytes => $composableBuilder(
+    column: $table.attachmentSizeBytes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get attachmentChecksum => $composableBuilder(
+    column: $table.attachmentChecksum,
     builder: (column) => column,
   );
 
@@ -10371,6 +10746,11 @@ class $$FundMovementsTableTableManager
                 Value<String?> fromFundSourceId = const Value.absent(),
                 Value<String?> toFundSourceId = const Value.absent(),
                 Value<String?> holderOfficerId = const Value.absent(),
+                Value<String?> attachmentId = const Value.absent(),
+                Value<String?> attachmentFileName = const Value.absent(),
+                Value<String?> attachmentLocalPath = const Value.absent(),
+                Value<int?> attachmentSizeBytes = const Value.absent(),
+                Value<String?> attachmentChecksum = const Value.absent(),
                 Value<bool> isSystemGenerated = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => FundMovementsCompanion(
@@ -10385,6 +10765,11 @@ class $$FundMovementsTableTableManager
                 fromFundSourceId: fromFundSourceId,
                 toFundSourceId: toFundSourceId,
                 holderOfficerId: holderOfficerId,
+                attachmentId: attachmentId,
+                attachmentFileName: attachmentFileName,
+                attachmentLocalPath: attachmentLocalPath,
+                attachmentSizeBytes: attachmentSizeBytes,
+                attachmentChecksum: attachmentChecksum,
                 isSystemGenerated: isSystemGenerated,
                 rowid: rowid,
               ),
@@ -10401,6 +10786,11 @@ class $$FundMovementsTableTableManager
                 Value<String?> fromFundSourceId = const Value.absent(),
                 Value<String?> toFundSourceId = const Value.absent(),
                 Value<String?> holderOfficerId = const Value.absent(),
+                Value<String?> attachmentId = const Value.absent(),
+                Value<String?> attachmentFileName = const Value.absent(),
+                Value<String?> attachmentLocalPath = const Value.absent(),
+                Value<int?> attachmentSizeBytes = const Value.absent(),
+                Value<String?> attachmentChecksum = const Value.absent(),
                 required bool isSystemGenerated,
                 Value<int> rowid = const Value.absent(),
               }) => FundMovementsCompanion.insert(
@@ -10415,6 +10805,11 @@ class $$FundMovementsTableTableManager
                 fromFundSourceId: fromFundSourceId,
                 toFundSourceId: toFundSourceId,
                 holderOfficerId: holderOfficerId,
+                attachmentId: attachmentId,
+                attachmentFileName: attachmentFileName,
+                attachmentLocalPath: attachmentLocalPath,
+                attachmentSizeBytes: attachmentSizeBytes,
+                attachmentChecksum: attachmentChecksum,
                 isSystemGenerated: isSystemGenerated,
                 rowid: rowid,
               ),

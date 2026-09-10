@@ -208,6 +208,11 @@ extension FundMovementMapper on domain.FundMovement {
       fromFundSourceId: Value(fromFundSourceId),
       toFundSourceId: Value(toFundSourceId),
       holderOfficerId: Value(holderOfficerId),
+      attachmentId: Value(supportingAttachment?.id),
+      attachmentFileName: Value(supportingAttachment?.fileName),
+      attachmentLocalPath: Value(supportingAttachment?.localPath),
+      attachmentSizeBytes: Value(supportingAttachment?.sizeBytes),
+      attachmentChecksum: Value(supportingAttachment?.checksum),
       isSystemGenerated: isSystemGenerated,
     );
   }
@@ -227,6 +232,13 @@ extension FundMovementRecordMapper on FundMovementRecord {
       fromFundSourceId: fromFundSourceId,
       toFundSourceId: toFundSourceId,
       holderOfficerId: holderOfficerId,
+      supportingAttachment: _nullableAttachment(
+        id: attachmentId,
+        fileName: attachmentFileName,
+        localPath: attachmentLocalPath,
+        sizeBytes: attachmentSizeBytes,
+        checksum: attachmentChecksum,
+      ),
       isSystemGenerated: isSystemGenerated,
     );
   }

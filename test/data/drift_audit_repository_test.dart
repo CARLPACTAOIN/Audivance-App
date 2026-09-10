@@ -20,7 +20,7 @@ void main() {
   });
 
   test('opens schema and inserts and loads organization profile', () async {
-    expect(AuditDatabase.currentSchemaVersion, 4);
+    expect(AuditDatabase.currentSchemaVersion, 5);
 
     const organization = OrganizationProfile(
       id: 'org-1',
@@ -197,6 +197,34 @@ void main() {
     expect(deleteResult.isInvalid, isTrue);
     expect(await repository.listFundMovements(), hasLength(1));
   });
+
+  test(
+    'persists fund movement with supporting attachment and round-trips it',
+    () async {
+      final movement = FundMovement(
+        id: 'movement-1',
+        reference: 'FM-20260818-4F2A91C0',
+        type: FundMovementType.budgetAdjustment,
+        date: DateTime(2026, 8, 18),
+        amount: Money.php(500),
+        purpose: 'Budget adjustment',
+        remarks: 'Approved by adviser',
+        isSystemGenerated: true,
+        supportingAttachment: _attachment,
+      );
+
+      final result = await repository.saveFundMovement(movement: movement);
+      final loaded = await repository.listFundMovements();
+
+      expect(result.isValid, isTrue);
+      expect(loaded.single.supportingAttachment, isNotNull);
+      expect(loaded.single.supportingAttachment!.id, _attachment.id);
+      expect(loaded.single.supportingAttachment!.fileName, _attachment.fileName);
+      expect(loaded.single.supportingAttachment!.localPath, _attachment.localPath);
+      expect(loaded.single.supportingAttachment!.checksum, _attachment.checksum);
+      expect(loaded.single.supportingAttachment!.sizeBytes, _attachment.sizeBytes);
+    },
+  );
 
   test(
     'appends and reads audit logs through append-only repository API',

@@ -768,6 +768,25 @@ List<_AttachmentRecord> _buildAttachmentRecords(_ExportData data) {
       ),
     );
   }
+  for (final movement in data.movements) {
+    final attachment = movement.supportingAttachment;
+    if (attachment != null) {
+      final event = data.events
+          .where((event) => event.id == movement.eventId)
+          .firstOrNull;
+      final label = event != null && event.name.trim().isNotEmpty
+          ? '${event.name.trim()} - ${movement.reference}'
+          : movement.reference;
+      records.add(
+        _AttachmentRecord(
+          module: 'events',
+          recordId: movement.id,
+          attachment: attachment,
+          contextLabel: label,
+        ),
+      );
+    }
+  }
   return records;
 }
 
@@ -1652,6 +1671,7 @@ Map<String, Object?> _movementJson(FundMovement movement) => {
   'fromFundSourceId': movement.fromFundSourceId,
   'toFundSourceId': movement.toFundSourceId,
   'holderOfficerId': movement.holderOfficerId,
+  'supportingAttachment': _attachmentJson(movement.supportingAttachment),
   'isSystemGenerated': movement.isSystemGenerated,
 };
 

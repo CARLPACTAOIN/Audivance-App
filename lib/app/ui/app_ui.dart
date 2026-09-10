@@ -977,3 +977,187 @@ class _AppScaleOnTapState extends State<AppScaleOnTap>
     );
   }
 }
+
+/// Clean, responsive pagination control bar that adapts to screen width without overflow.
+class AppPaginationBar extends StatelessWidget {
+  const AppPaginationBar({
+    super.key,
+    required this.currentPage,
+    required this.totalPages,
+    required this.totalItems,
+    required this.pageSize,
+    required this.onPageChanged,
+    this.itemLabel = 'records',
+    this.prevKey,
+    this.nextKey,
+    this.pageSizeOptions,
+    this.onPageSizeChanged,
+  });
+
+  final int currentPage;
+  final int totalPages;
+  final int totalItems;
+  final int pageSize;
+  final ValueChanged<int> onPageChanged;
+  final String itemLabel;
+  final Key? prevKey;
+  final Key? nextKey;
+  final List<int>? pageSizeOptions;
+  final ValueChanged<int>? onPageSizeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    if (totalItems <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    final startItem = totalItems == 0 ? 0 : currentPage * pageSize + 1;
+    final endItem = math.min((currentPage + 1) * pageSize, totalItems);
+    final canPrev = currentPage > 0;
+    final canNext = currentPage < totalPages - 1;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSubtle.withValues(alpha: 0.6),
+        borderRadius: AppRadius.borderMd,
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        runAlignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: AppSpacing.md,
+        runSpacing: AppSpacing.sm,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Showing $startItem–$endItem of $totalItems $itemLabel',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+              if (pageSizeOptions != null &&
+                  pageSizeOptions!.isNotEmpty &&
+                  onPageSizeChanged != null) ...[
+                const SizedBox(width: AppSpacing.sm),
+                Text(
+                  '·',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                for (final size in pageSizeOptions!) ...[
+                  InkWell(
+                    onTap: size == pageSize
+                        ? null
+                        : () => onPageSizeChanged!(size),
+                    borderRadius: AppRadius.borderSm,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: size == pageSize
+                            ? AppColors.brandContainer
+                            : Colors.transparent,
+                        borderRadius: AppRadius.borderSm,
+                        border: Border.all(
+                          color: size == pageSize
+                              ? AppColors.brand.withValues(alpha: 0.5)
+                              : Colors.transparent,
+                        ),
+                      ),
+                      child: Text(
+                        '$size',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: size == pageSize
+                                  ? AppColors.brandLight
+                                  : AppColors.textMuted,
+                              fontWeight: size == pageSize
+                                  ? FontWeight.w700
+                                  : FontWeight.normal,
+                              fontSize: 11,
+                            ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Text(
+                  '/ page',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                      ),
+                ),
+              ],
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton.icon(
+                key: prevKey,
+                onPressed:
+                    canPrev ? () => onPageChanged(currentPage - 1) : null,
+                icon: const Icon(Icons.chevron_left, size: 16),
+                label: const Text('Previous'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  minimumSize: const Size(0, 32),
+                  textStyle: const TextStyle(fontSize: 12),
+                  backgroundColor: AppColors.surface,
+                  foregroundColor: AppColors.textPrimary,
+                  disabledForegroundColor: AppColors.textDisabled,
+                  side: const BorderSide(color: AppColors.borderSubtle),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                child: Text(
+                  '${currentPage + 1} of ${math.max(1, totalPages)}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+              OutlinedButton.icon(
+                key: nextKey,
+                onPressed:
+                    canNext ? () => onPageChanged(currentPage + 1) : null,
+                iconAlignment: IconAlignment.end,
+                icon: const Icon(Icons.chevron_right, size: 16),
+                label: const Text('Next'),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  minimumSize: const Size(0, 32),
+                  textStyle: const TextStyle(fontSize: 12),
+                  backgroundColor: AppColors.surface,
+                  foregroundColor: AppColors.textPrimary,
+                  disabledForegroundColor: AppColors.textDisabled,
+                  side: const BorderSide(color: AppColors.borderSubtle),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -216,6 +216,7 @@ class FundMovement {
     this.fromFundSourceId,
     this.toFundSourceId,
     this.holderOfficerId,
+    this.supportingAttachment,
   });
 
   final StableId id;
@@ -229,6 +230,7 @@ class FundMovement {
   final StableId? fromFundSourceId;
   final StableId? toFundSourceId;
   final StableId? holderOfficerId;
+  final AttachmentRef? supportingAttachment;
   final bool isSystemGenerated;
 }
 

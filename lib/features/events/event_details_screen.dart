@@ -11,6 +11,7 @@ import '../liquidation/liquidation_service.dart';
 import '../organization/organization_service.dart';
 import '../organization/widgets/officer_editor_dialog.dart';
 import '../treasury/treasury_formatters.dart';
+import '../treasury/treasury_service.dart';
 import 'event_dialogs.dart';
 import 'event_service.dart';
 
@@ -23,6 +24,7 @@ class EventDetailsScreen extends StatefulWidget {
     required this.attachmentPicker,
     required this.attachmentStorage,
     required this.organizationService,
+    this.treasuryService,
     this.asOf,
   });
 
@@ -32,7 +34,15 @@ class EventDetailsScreen extends StatefulWidget {
   final AttachmentPicker attachmentPicker;
   final AttachmentStorageService attachmentStorage;
   final OrganizationService organizationService;
+  final TreasuryService? treasuryService;
   final DateTime? asOf;
+
+  TreasuryService get effectiveTreasuryService =>
+      treasuryService ??
+      TreasuryService(
+        repository: service.repository,
+        idGenerator: service.idGenerator,
+      );
 
   @override
   State<EventDetailsScreen> createState() => _EventDetailsScreenState();
@@ -155,9 +165,11 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             child = _EventDetailsContent(
               key: const ValueKey('content'),
               data: data,
+              onEditEvent: () => _showEditEvent(data),
               onAdjustBudget: () => _showAdjustBudget(data),
               onReviewBudget: () => _showBudgetReview(data),
               onSubmitLiquidation: () => _showSubmitLiquidation(data),
+              onAddFundToOfficer: () => _showAddFundToOfficer(data),
               onMarkLiquidated: () => _markLiquidated(data),
               onPayReimbursement: _showPayReimbursement,
               onCreateOfficer: _showOfficerEditor,
@@ -169,6 +181,22 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     );
   }
 
+  Future<void> _showEditEvent(_EventDetailsData data) async {
+    final result = await showDialog<ValidationResult>(
+      context: context,
+      builder: (context) => EditEventDialog(
+        service: widget.service,
+        event: data.event,
+        attachmentPicker: widget.attachmentPicker,
+        attachmentStorage: widget.attachmentStorage,
+      ),
+    );
+    if (!mounted || result == null || result.isInvalid) {
+      return;
+    }
+    _refresh();
+  }
+
   Future<void> _showAdjustBudget(_EventDetailsData data) async {
     final result = await showDialog<ValidationResult>(
       context: context,
@@ -176,9 +204,29 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
         service: widget.service,
         event: data.event,
         sourceOptions: data.sourceOptions,
+        attachmentPicker: widget.attachmentPicker,
+        attachmentStorage: widget.attachmentStorage,
       ),
     );
     if (!mounted || result == null || result.isInvalid) {
+      return;
+    }
+    _refresh();
+  }
+
+  Future<void> _showAddFundToOfficer(_EventDetailsData data) async {
+    final result = await showDialog<StableId>(
+      context: context,
+      builder: (context) => AddFundToOfficerDialog(
+        treasuryService: widget.effectiveTreasuryService,
+        eventId: data.event.id,
+        eventName: data.event.name,
+        approvedBudgetBalance: data.event.approvedBudgetBalance,
+        approvedBudgetBalanceLabel: data.event.approvedBudgetBalanceLabel,
+        officers: data.officerOptions,
+      ),
+    );
+    if (!mounted || result == null) {
       return;
     }
     _refresh();
@@ -212,6 +260,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
         attachmentPicker: widget.attachmentPicker,
         attachmentStorage: widget.attachmentStorage,
         organizationService: widget.organizationService,
+        treasuryService: widget.effectiveTreasuryService,
       ),
     );
     if (!mounted || result == null || result.isInvalid) {
@@ -287,18 +336,22 @@ class _EventDetailsContent extends StatelessWidget {
   const _EventDetailsContent({
     super.key,
     required this.data,
+    required this.onEditEvent,
     required this.onAdjustBudget,
     required this.onReviewBudget,
     required this.onSubmitLiquidation,
+    required this.onAddFundToOfficer,
     required this.onMarkLiquidated,
     required this.onPayReimbursement,
     required this.onCreateOfficer,
   });
 
   final _EventDetailsData data;
+  final VoidCallback onEditEvent;
   final VoidCallback onAdjustBudget;
   final VoidCallback onReviewBudget;
   final VoidCallback onSubmitLiquidation;
+  final VoidCallback onAddFundToOfficer;
   final VoidCallback onMarkLiquidated;
   final ValueChanged<ReimbursementClaimView> onPayReimbursement;
   final VoidCallback onCreateOfficer;
@@ -319,7 +372,12 @@ class _EventDetailsContent extends StatelessWidget {
               ),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  AppSlideFadeIn(child: _EventHeaderCard(event: data.event)),
+                  AppSlideFadeIn(
+                    child: _EventHeaderCard(
+                      event: data.event,
+                      onEdit: onEditEvent,
+                    ),
+                  ),
                   const SizedBox(height: 14),
                   AppSlideFadeIn(
                     delay: AppMotion.staggerStep,
@@ -334,9 +392,11 @@ class _EventDetailsContent extends StatelessWidget {
                     child: _EventActionsBar(
                       event: data.event,
                       liquidationEvent: data.liquidationEvent,
+                      onEditDetails: onEditEvent,
                       onAdjustBudget: onAdjustBudget,
                       onReviewBudget: onReviewBudget,
                       onSubmitLiquidation: onSubmitLiquidation,
+                      onAddFundToOfficer: onAddFundToOfficer,
                       onMarkLiquidated: onMarkLiquidated,
                     ),
                   ),
@@ -368,9 +428,13 @@ class _EventDetailsContent extends StatelessWidget {
 }
 
 class _EventHeaderCard extends StatelessWidget {
-  const _EventHeaderCard({required this.event});
+  const _EventHeaderCard({
+    required this.event,
+    this.onEdit,
+  });
 
   final EventCardView event;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -411,12 +475,28 @@ class _EventHeaderCard extends StatelessWidget {
                   ),
                 ],
               ),
-              StatusBadge(
-                label: event.statusLabel,
-                tone: tone,
-                icon: event.status == AuditEventStatus.liquidated
-                    ? Icons.check_circle_outline
-                    : Icons.schedule,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StatusBadge(
+                    label: event.statusLabel,
+                    tone: tone,
+                    icon: event.status == AuditEventStatus.liquidated
+                        ? Icons.check_circle_outline
+                        : Icons.schedule,
+                  ),
+                  if (onEdit != null) ...[
+                    const SizedBox(width: AppSpacing.sm),
+                    IconButton(
+                      key: Key('eventEditButton${event.id}'),
+                      tooltip: event.canEdit
+                          ? 'Edit Event Details'
+                          : 'Liquidated events cannot be edited',
+                      icon: const Icon(Icons.edit_outlined, size: 20),
+                      onPressed: event.canEdit ? onEdit : null,
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
@@ -437,6 +517,12 @@ class _EventHeaderCard extends StatelessWidget {
                 label: 'Resolution',
                 value: event.resolutionNumber,
               ),
+              if (event.permitApprovalDate != null)
+                _MetaItem(
+                  icon: Icons.verified_outlined,
+                  label: 'Permit Date',
+                  value: formatDate(event.permitApprovalDate!),
+                ),
             ],
           ),
         ],
@@ -550,17 +636,21 @@ class _EventActionsBar extends StatelessWidget {
   const _EventActionsBar({
     required this.event,
     required this.liquidationEvent,
+    required this.onEditDetails,
     required this.onAdjustBudget,
     required this.onReviewBudget,
     required this.onSubmitLiquidation,
+    required this.onAddFundToOfficer,
     required this.onMarkLiquidated,
   });
 
   final EventCardView event;
   final LiquidationEventView? liquidationEvent;
+  final VoidCallback onEditDetails;
   final VoidCallback onAdjustBudget;
   final VoidCallback onReviewBudget;
   final VoidCallback onSubmitLiquidation;
+  final VoidCallback onAddFundToOfficer;
   final VoidCallback onMarkLiquidated;
 
   @override
@@ -568,6 +658,7 @@ class _EventActionsBar extends StatelessWidget {
     final canLiquidate =
         liquidationEvent != null && liquidationEvent!.canSubmitLiquidation;
     final isLiquidated = event.status == AuditEventStatus.liquidated;
+    final canAddFund = !isLiquidated && event.approvedBudgetBalance.isPositive;
 
     final liquidationBtn = SizedBox(
       height: 44,
@@ -576,6 +667,32 @@ class _EventActionsBar extends StatelessWidget {
         onPressed: canLiquidate ? onSubmitLiquidation : null,
         icon: const Icon(Icons.add_task, size: 18),
         label: const Text('Liquidate / Add Receipt'),
+      ),
+    );
+
+    final editDetailsBtn = SizedBox(
+      height: 44,
+      child: OutlinedButton.icon(
+        key: Key('eventEditDetailsButton${event.id}'),
+        onPressed: event.canEdit ? onEditDetails : null,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppColors.surfaceSubtle.withValues(alpha: 0.5),
+        ),
+        icon: const Icon(Icons.edit_outlined, size: 18),
+        label: const Text('Edit Details'),
+      ),
+    );
+
+    final addFundToOfficerBtn = SizedBox(
+      height: 44,
+      child: OutlinedButton.icon(
+        key: Key('eventAddFundToOfficerButton${event.id}'),
+        onPressed: canAddFund ? onAddFundToOfficer : null,
+        style: OutlinedButton.styleFrom(
+          backgroundColor: AppColors.surfaceSubtle.withValues(alpha: 0.5),
+        ),
+        icon: const Icon(Icons.payments_outlined, size: 18),
+        label: const Text('Add Fund to Officer'),
       ),
     );
 
@@ -646,7 +763,7 @@ class _EventActionsBar extends StatelessWidget {
           const SizedBox(height: AppSpacing.md),
           LayoutBuilder(
             builder: (context, constraints) {
-              final isWide = constraints.maxWidth >= 540;
+              final isWide = constraints.maxWidth >= 720;
               if (isWide) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -655,12 +772,20 @@ class _EventActionsBar extends StatelessWidget {
                     const SizedBox(height: AppSpacing.sm),
                     Row(
                       children: [
-                        Expanded(child: budgetReviewBtn),
-                        if (adjustBudgetBtn != null) ...[
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(child: adjustBudgetBtn),
-                        ],
+                        Expanded(child: editDetailsBtn),
                         const SizedBox(width: AppSpacing.sm),
+                        Expanded(child: addFundToOfficerBtn),
+                        const SizedBox(width: AppSpacing.sm),
+                        Expanded(child: budgetReviewBtn),
+                      ],
+                    ),
+                    const SizedBox(height: AppSpacing.sm),
+                    Row(
+                      children: [
+                        if (adjustBudgetBtn != null) ...[
+                          Expanded(child: adjustBudgetBtn),
+                          const SizedBox(width: AppSpacing.sm),
+                        ],
                         Expanded(child: markLiquidatedBtn),
                       ],
                     ),
@@ -672,6 +797,10 @@ class _EventActionsBar extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   liquidationBtn,
+                  const SizedBox(height: AppSpacing.sm),
+                  editDetailsBtn,
+                  const SizedBox(height: AppSpacing.sm),
+                  addFundToOfficerBtn,
                   const SizedBox(height: AppSpacing.sm),
                   budgetReviewBtn,
                   if (adjustBudgetBtn != null) ...[
@@ -690,7 +819,7 @@ class _EventActionsBar extends StatelessWidget {
   }
 }
 
-class _LiquidationSection extends StatelessWidget {
+class _LiquidationSection extends StatefulWidget {
   const _LiquidationSection({
     required this.receipts,
     required this.officerCount,
@@ -702,7 +831,25 @@ class _LiquidationSection extends StatelessWidget {
   final VoidCallback onCreateOfficer;
 
   @override
+  State<_LiquidationSection> createState() => _LiquidationSectionState();
+}
+
+class _LiquidationSectionState extends State<_LiquidationSection> {
+  int _currentPage = 0;
+  int _pageSize = 10;
+
+  @override
   Widget build(BuildContext context) {
+    final totalItems = widget.receipts.length;
+    final totalPages = (totalItems / _pageSize).ceil();
+    if (_currentPage >= totalPages && totalPages > 0) {
+      _currentPage = totalPages - 1;
+    }
+    final pagedReceipts = widget.receipts
+        .skip(_currentPage * _pageSize)
+        .take(_pageSize)
+        .toList(growable: false);
+
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -712,11 +859,11 @@ class _LiquidationSection extends StatelessWidget {
             title: 'Liquidation Receipts',
             trailing: StatusBadge(
               label:
-                  '${receipts.length} receipt${receipts.length == 1 ? '' : 's'}',
+                  '${widget.receipts.length} receipt${widget.receipts.length == 1 ? '' : 's'}',
               tone: InlineStatusTone.info,
             ),
           ),
-          if (officerCount == 0) ...[
+          if (widget.officerCount == 0) ...[
             const SizedBox(height: AppSpacing.md),
             InlineStatusPanel(
               tone: InlineStatusTone.warning,
@@ -725,7 +872,7 @@ class _LiquidationSection extends StatelessWidget {
                   'Add an officer to unlock receipt submission for this event.',
               action: FilledButton.icon(
                 key: const Key('eventAddOfficerPromptButton'),
-                onPressed: onCreateOfficer,
+                onPressed: widget.onCreateOfficer,
                 icon: const Icon(Icons.person_add_alt_1, size: 16),
                 label: const Text('Add Officer'),
                 style: FilledButton.styleFrom(
@@ -739,7 +886,7 @@ class _LiquidationSection extends StatelessWidget {
             ),
           ],
           const SizedBox(height: AppSpacing.md),
-          if (receipts.isEmpty)
+          if (widget.receipts.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: AppSpacing.xl),
               child: Center(
@@ -760,16 +907,41 @@ class _LiquidationSection extends StatelessWidget {
                 ),
               ),
             )
-          else
+          else ...[
             Column(
               children: [
-                for (var i = 0; i < receipts.length; i++)
+                for (var i = 0; i < pagedReceipts.length; i++)
                   _ReceiptRow(
-                    receipt: receipts[i],
-                    showDivider: i < receipts.length - 1,
+                    receipt: pagedReceipts[i],
+                    showDivider: i < pagedReceipts.length - 1,
                   ),
               ],
             ),
+            if (totalItems > _pageSize || totalPages > 1) ...[
+              const SizedBox(height: AppSpacing.md),
+              AppPaginationBar(
+                currentPage: _currentPage,
+                totalPages: totalPages,
+                totalItems: totalItems,
+                pageSize: _pageSize,
+                itemLabel: 'receipts',
+                prevKey: const Key('liquidationReceiptsPrevButton'),
+                nextKey: const Key('liquidationReceiptsNextButton'),
+                pageSizeOptions: const [10, 15],
+                onPageSizeChanged: (newSize) {
+                  setState(() {
+                    _pageSize = newSize;
+                    _currentPage = 0;
+                  });
+                },
+                onPageChanged: (newPage) {
+                  setState(() {
+                    _currentPage = newPage;
+                  });
+                },
+              ),
+            ],
+          ],
         ],
       ),
     );

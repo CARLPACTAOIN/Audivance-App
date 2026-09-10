@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Audivance needs camera access to capture and scan physical receipt attachments.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Audivance needs photo library access to select receipt images.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
