@@ -236,8 +236,8 @@ class EventService {
           'schoolYear': updatedEvent.schoolYear,
           'startDate': updatedEvent.startDate.toIso8601String(),
           'endDate': updatedEvent.endDate.toIso8601String(),
-          'permitApprovalDate':
-              updatedEvent.permitApprovalDate?.toIso8601String(),
+          'permitApprovalDate': updatedEvent.permitApprovalDate
+              ?.toIso8601String(),
           'resolutionNumber': updatedEvent.resolutionNumber,
           if (updatedEvent.resolutionAttachment != null)
             'resolutionAttachmentId': updatedEvent.resolutionAttachment!.id,

@@ -238,4 +238,95 @@ void main() {
       expect(find.byType(InteractiveViewer), findsNothing);
     },
   );
+
+  testWidgets(
+    'renders without overflow in narrow constraints (e.g. width 228.0)',
+    (tester) async {
+      final picker = _MockAttachmentPicker(cameraSupported: true);
+      final storage = _MockAttachmentStorageService();
+      AttachmentRef? cleared;
+
+      const imageAttachment = AttachmentRef(
+        id: 'att-receipt-narrow',
+        fileName: 'official_receipt_march_2026.jpg',
+        localPath: 'attachments/official_receipt_march_2026.jpg',
+        sizeBytes: 98450,
+        checksum: 'abcdef1234567890abcdef1234567890',
+      );
+
+      // 1. Narrow width without attachment (empty state at 228px)
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 228.0,
+                child: AttachmentSelector(
+                  label: 'Receipt attachment',
+                  owner: const AttachmentOwner(
+                    module: 'liquidation',
+                    purpose: 'receipt',
+                  ),
+                  picker: picker,
+                  storage: storage,
+                  selectedAttachment: null,
+                  onChanged: (_) {},
+                  selectButtonKey: const Key('receiptSelectButtonNarrow'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.byKey(const Key('receiptSelectButtonNarrow')),
+        findsOneWidget,
+      );
+      expect(find.text('No file selected.'), findsOneWidget);
+
+      // 2. Narrow width with image attachment (populated state with replace & clear at 228px)
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 228.0,
+                child: AttachmentSelector(
+                  label: 'Receipt attachment',
+                  owner: const AttachmentOwner(
+                    module: 'liquidation',
+                    purpose: 'receipt',
+                  ),
+                  picker: picker,
+                  storage: storage,
+                  selectedAttachment: imageAttachment,
+                  onChanged: (att) => cleared = att,
+                  selectButtonKey: const Key('receiptSelectButtonNarrow'),
+                  clearButtonKey: const Key('receiptClearButtonNarrow'),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('attachmentThumbnailTap')), findsOneWidget);
+      expect(find.text('Preview'), findsOneWidget);
+      expect(
+        find.byKey(const Key('receiptSelectButtonNarrow')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('receiptClearButtonNarrow')), findsOneWidget);
+
+      // Test tapping clear button in compact layout
+      await tester.tap(find.byKey(const Key('receiptClearButtonNarrow')));
+      await tester.pumpAndSettle();
+      expect(cleared, isNull);
+    },
+  );
 }

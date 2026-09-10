@@ -24,6 +24,8 @@ class Money implements Comparable<Money> {
 
   Money operator -(Money other) => Money.centavos(centavos - other.centavos);
 
+  Money operator *(int factor) => Money.centavos(centavos * factor);
+
   bool operator <(Money other) => centavos < other.centavos;
 
   bool operator <=(Money other) => centavos <= other.centavos;

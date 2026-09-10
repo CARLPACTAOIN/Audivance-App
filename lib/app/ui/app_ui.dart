@@ -1039,9 +1039,9 @@ class AppPaginationBar extends StatelessWidget {
               Text(
                 'Showing $startItem–$endItem of $totalItems $itemLabel',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
-                    ),
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
               if (pageSizeOptions != null &&
                   pageSizeOptions!.isNotEmpty &&
@@ -1049,9 +1049,8 @@ class AppPaginationBar extends StatelessWidget {
                 const SizedBox(width: AppSpacing.sm),
                 Text(
                   '·',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textMuted,
-                      ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textMuted),
                 ),
                 const SizedBox(width: AppSpacing.sm),
                 for (final size in pageSizeOptions!) ...[
@@ -1079,14 +1078,14 @@ class AppPaginationBar extends StatelessWidget {
                       child: Text(
                         '$size',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: size == pageSize
-                                  ? AppColors.brandLight
-                                  : AppColors.textMuted,
-                              fontWeight: size == pageSize
-                                  ? FontWeight.w700
-                                  : FontWeight.normal,
-                              fontSize: 11,
-                            ),
+                          color: size == pageSize
+                              ? AppColors.brandLight
+                              : AppColors.textMuted,
+                          fontWeight: size == pageSize
+                              ? FontWeight.w700
+                              : FontWeight.normal,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   ),
@@ -1094,10 +1093,8 @@ class AppPaginationBar extends StatelessWidget {
                 ],
                 Text(
                   '/ page',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textMuted,
-                        fontSize: 11,
-                      ),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textMuted, fontSize: 11),
                 ),
               ],
             ],
@@ -1107,8 +1104,9 @@ class AppPaginationBar extends StatelessWidget {
             children: [
               OutlinedButton.icon(
                 key: prevKey,
-                onPressed:
-                    canPrev ? () => onPageChanged(currentPage - 1) : null,
+                onPressed: canPrev
+                    ? () => onPageChanged(currentPage - 1)
+                    : null,
                 icon: const Icon(Icons.chevron_left, size: 16),
                 label: const Text('Previous'),
                 style: OutlinedButton.styleFrom(
@@ -1129,15 +1127,16 @@ class AppPaginationBar extends StatelessWidget {
                 child: Text(
                   '${currentPage + 1} of ${math.max(1, totalPages)}',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               OutlinedButton.icon(
                 key: nextKey,
-                onPressed:
-                    canNext ? () => onPageChanged(currentPage + 1) : null,
+                onPressed: canNext
+                    ? () => onPageChanged(currentPage + 1)
+                    : null,
                 iconAlignment: IconAlignment.end,
                 icon: const Icon(Icons.chevron_right, size: 16),
                 label: const Text('Next'),

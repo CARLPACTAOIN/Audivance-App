@@ -654,10 +654,7 @@ void main() {
     await tester.tap(find.byKey(const Key('eventLiquidationButtonevent-1')));
     await tester.pumpAndSettle();
     expect(find.text('Archived Treasurer'), findsNothing);
-    expect(
-      find.byKey(const Key('liquidationAddOfficerButton')),
-      findsNothing,
-    );
+    expect(find.byKey(const Key('liquidationAddOfficerButton')), findsNothing);
   });
 
   testWidgets('liquidation officer prompt opens shared officer form in place', (
@@ -963,28 +960,7 @@ void main() {
     await tester.pumpAndSettle();
   });
 
-  testWidgets(
-    'SubmitLiquidationDialog does not have Add Officer button',
-    (tester) async {
-      final harness = _WidgetHarness();
-      addTearDown(harness.close);
-      await harness.seedSetup();
-      await harness.seedCompletedEvent();
-      await harness.unlockService.configurePin('123456');
-
-      await tester.pumpWidget(harness.app());
-      await tester.pumpAndSettle();
-      await _openEvents(tester);
-      await _openLiquidationDialog(tester);
-
-      expect(
-        find.byKey(const Key('liquidationAddOfficerButton')),
-        findsNothing,
-      );
-    },
-  );
-
-  testWidgets('newly created Out-of-Pocket officer can be selected in liquidation', (
+  testWidgets('SubmitLiquidationDialog does not have Add Officer button', (
     tester,
   ) async {
     final harness = _WidgetHarness();
@@ -996,46 +972,64 @@ void main() {
     await tester.pumpWidget(harness.app());
     await tester.pumpAndSettle();
     await _openEvents(tester);
-    await _openEventDetails(tester, 'event-1');
+    await _openLiquidationDialog(tester);
 
-    // Add officer from event prompt
-    final promptButton = find.byKey(const Key('eventAddOfficerPromptButton'));
-    await tester.scrollUntilVisible(
-      promptButton,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await _tapVisible(tester, promptButton);
-    await tester.pumpAndSettle();
-
-    await _fillProfileOfficerForm(
-      tester,
-      name: 'Auto Selected Officer',
-      position: OfficerPosition.member,
-    );
-    await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
-    await tester.pumpAndSettle();
-
-    // Now open liquidation dialog and verify officer appears
-    final liqBtn = find.byKey(const Key('eventLiquidationButtonevent-1'));
-    await tester.scrollUntilVisible(
-      liqBtn,
-      300,
-      scrollable: find.byType(Scrollable).first,
-    );
-    await Scrollable.ensureVisible(tester.element(liqBtn), alignment: 0.35);
-    await tester.pumpAndSettle();
-    await tester.tap(liqBtn);
-    await tester.pumpAndSettle();
-    await _tapVisible(
-      tester,
-      find.byKey(const Key('liquidationFundingModeOptionoutOfPocket')),
-    );
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Auto Selected Officer'), findsOneWidget);
-    final officer = (await harness.repository.listOfficers()).single;
-    expect(officer.fullName, 'Auto Selected Officer');
+    expect(find.byKey(const Key('liquidationAddOfficerButton')), findsNothing);
   });
+
+  testWidgets(
+    'newly created Out-of-Pocket officer can be selected in liquidation',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedCompletedEvent();
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openEvents(tester);
+      await _openEventDetails(tester, 'event-1');
+
+      // Add officer from event prompt
+      final promptButton = find.byKey(const Key('eventAddOfficerPromptButton'));
+      await tester.scrollUntilVisible(
+        promptButton,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await _tapVisible(tester, promptButton);
+      await tester.pumpAndSettle();
+
+      await _fillProfileOfficerForm(
+        tester,
+        name: 'Auto Selected Officer',
+        position: OfficerPosition.member,
+      );
+      await tester.tap(find.byKey(const Key('profileOfficerSubmitButton')));
+      await tester.pumpAndSettle();
+
+      // Now open liquidation dialog and verify officer appears
+      final liqBtn = find.byKey(const Key('eventLiquidationButtonevent-1'));
+      await tester.scrollUntilVisible(
+        liqBtn,
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await Scrollable.ensureVisible(tester.element(liqBtn), alignment: 0.35);
+      await tester.pumpAndSettle();
+      await tester.tap(liqBtn);
+      await tester.pumpAndSettle();
+      await _tapVisible(
+        tester,
+        find.byKey(const Key('liquidationFundingModeOptionoutOfPocket')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Auto Selected Officer'), findsOneWidget);
+      final officer = (await harness.repository.listOfficers()).single;
+      expect(officer.fullName, 'Auto Selected Officer');
+    },
+  );
 
   testWidgets(
     'newly created Released Funds officer remains ineligible without custody',
@@ -2176,9 +2170,7 @@ void main() {
         const Key('addFundToOfficerAmountField'),
         '400',
       );
-      await tester.tap(
-        find.byKey(const Key('addFundToOfficerSubmitButton')),
-      );
+      await tester.tap(find.byKey(const Key('addFundToOfficerSubmitButton')));
       await tester.pumpAndSettle();
 
       // Verify fund release movement was created
@@ -2756,10 +2748,7 @@ void main() {
 
       expect(find.text('Showing 1–5 of 12 records'), findsOneWidget);
       expect(find.text('1 of 3'), findsOneWidget);
-      expect(
-        tester.widget<OutlinedButton>(prevBtn).onPressed,
-        isNull,
-      );
+      expect(tester.widget<OutlinedButton>(prevBtn).onPressed, isNull);
 
       await tester.tap(nextBtn);
       await tester.pumpAndSettle();
@@ -2772,10 +2761,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Showing 11–12 of 12 records'), findsOneWidget);
       expect(find.text('3 of 3'), findsOneWidget);
-      expect(
-        tester.widget<OutlinedButton>(nextBtn).onPressed,
-        isNull,
-      );
+      expect(tester.widget<OutlinedButton>(nextBtn).onPressed, isNull);
 
       await Scrollable.ensureVisible(tester.element(prevBtn), alignment: 0.5);
       await tester.pumpAndSettle();

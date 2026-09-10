@@ -428,10 +428,7 @@ class _EventDetailsContent extends StatelessWidget {
 }
 
 class _EventHeaderCard extends StatelessWidget {
-  const _EventHeaderCard({
-    required this.event,
-    this.onEdit,
-  });
+  const _EventHeaderCard({required this.event, this.onEdit});
 
   final EventCardView event;
   final VoidCallback? onEdit;

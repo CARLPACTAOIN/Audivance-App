@@ -1040,7 +1040,6 @@ pw.Widget _signatureCell({
   );
 }
 
-
 const _itemColumnWidths = {
   0: pw.FlexColumnWidth(0.72),
   1: pw.FlexColumnWidth(1.38),

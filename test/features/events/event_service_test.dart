@@ -329,7 +329,10 @@ void main() {
       expect(movements.single.toFundSourceId, isNull);
       expect(movements.single.remarks, 'Approved by adviser');
       expect(movements.single.supportingAttachment, isNotNull);
-      expect(movements.single.supportingAttachment!.fileName, _attachment.fileName);
+      expect(
+        movements.single.supportingAttachment!.fileName,
+        _attachment.fileName,
+      );
       expect(logs.single.action, 'events.budgetIncrease');
       expect(logs.single.amount, Money.php(500));
       expect(logs.single.metadata['resolutionAttachmentId'], _attachment.id);
@@ -749,65 +752,62 @@ void main() {
     },
   );
 
-  test(
-    'successfully updates non-financial details, preserves balance, and logs audit entry',
-    () async {
-      await _seedSetup(repository);
-      await _seedSource(repository, id: 'source-1', balance: Money.php(5000));
-      await _seedAdjustableEvent(repository);
+  test('successfully updates non-financial details, preserves balance, and logs audit entry', () async {
+    await _seedSetup(repository);
+    await _seedSource(repository, id: 'source-1', balance: Money.php(5000));
+    await _seedAdjustableEvent(repository);
 
-      const updatedAttachment = AttachmentRef(
-        id: 'attachment-2',
-        fileName: 'updated_resolution.pdf',
-        localPath: 'attachments/updated_resolution.pdf',
-      );
+    const updatedAttachment = AttachmentRef(
+      id: 'attachment-2',
+      fileName: 'updated_resolution.pdf',
+      localPath: 'attachments/updated_resolution.pdf',
+    );
 
-      final result = await service.updateEvent(
-        UpdateEventCommand(
-          eventId: 'event-1',
-          name: 'Updated Leadership Summit',
-          type: 'Activity',
-          semester: '2nd Semester',
-          schoolYear: '2027-2028',
-          startDate: DateTime(2026, 9, 1),
-          endDate: DateTime(2026, 9, 3),
-          permitApprovalDate: DateTime(2026, 8, 30),
-          resolutionNumber: 'RES-2026-999',
-          resolutionAttachment: updatedAttachment,
-        ),
-      );
+    final result = await service.updateEvent(
+      UpdateEventCommand(
+        eventId: 'event-1',
+        name: 'Updated Leadership Summit',
+        type: 'Activity',
+        semester: '2nd Semester',
+        schoolYear: '2027-2028',
+        startDate: DateTime(2026, 9, 1),
+        endDate: DateTime(2026, 9, 3),
+        permitApprovalDate: DateTime(2026, 8, 30),
+        resolutionNumber: 'RES-2026-999',
+        resolutionAttachment: updatedAttachment,
+      ),
+    );
 
-      expect(result.isValid, isTrue);
+    expect(result.isValid, isTrue);
 
-      final stored = (await repository.listAuditEvents()).firstWhere(
-        (e) => e.id == 'event-1',
-      );
-      expect(stored.name, 'Updated Leadership Summit');
-      expect(stored.type, 'Activity');
-      expect(stored.semester, '2nd Semester');
-      expect(stored.schoolYear, '2027-2028');
-      expect(stored.startDate, DateTime(2026, 9, 1));
-      expect(stored.endDate, DateTime(2026, 9, 3));
-      expect(stored.permitApprovalDate, DateTime(2026, 8, 30));
-      expect(stored.resolutionNumber, 'RES-2026-999');
-      expect(
-        stored.resolutionAttachment?.localPath,
-        'attachments/updated_resolution.pdf',
-      );
+    final stored = (await repository.listAuditEvents()).firstWhere(
+      (e) => e.id == 'event-1',
+    );
+    expect(stored.name, 'Updated Leadership Summit');
+    expect(stored.type, 'Activity');
+    expect(stored.semester, '2nd Semester');
+    expect(stored.schoolYear, '2027-2028');
+    expect(stored.startDate, DateTime(2026, 9, 1));
+    expect(stored.endDate, DateTime(2026, 9, 3));
+    expect(stored.permitApprovalDate, DateTime(2026, 8, 30));
+    expect(stored.resolutionNumber, 'RES-2026-999');
+    expect(
+      stored.resolutionAttachment?.localPath,
+      'attachments/updated_resolution.pdf',
+    );
 
-      // Financial balances MUST remain untouched
-      expect(stored.budget, Money.php(1000));
-      expect(stored.approvedBudgetBalance, Money.php(800));
+    // Financial balances MUST remain untouched
+    expect(stored.budget, Money.php(1000));
+    expect(stored.approvedBudgetBalance, Money.php(800));
 
-      // Audit log entry must be present
-      final logs = await repository.listAuditLogs();
-      final updateLog = logs.firstWhere((log) => log.action == 'events.update');
-      expect(updateLog.targetRecordId, 'event-1');
-      expect(updateLog.actor, 'local-account');
-      expect(updateLog.beforeSnapshot?['name'], 'Leadership Summit');
-      expect(updateLog.afterSnapshot?['name'], 'Updated Leadership Summit');
-    },
-  );
+    // Audit log entry must be present
+    final logs = await repository.listAuditLogs();
+    final updateLog = logs.firstWhere((log) => log.action == 'events.update');
+    expect(updateLog.targetRecordId, 'event-1');
+    expect(updateLog.actor, 'local-account');
+    expect(updateLog.beforeSnapshot?['name'], 'Leadership Summit');
+    expect(updateLog.afterSnapshot?['name'], 'Updated Leadership Summit');
+  });
 }
 
 CreateEventCommand _command({

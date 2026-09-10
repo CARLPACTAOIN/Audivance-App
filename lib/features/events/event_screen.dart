@@ -304,8 +304,7 @@ class _EventCardListState extends State<_EventCardList> {
         title: 'Event Records',
         child: _OverviewEmptyMessage(
           icon: Icons.event_busy_outlined,
-          text:
-              'Fund Treasury first, then create the first event with split funding.',
+          text: 'Fund Treasury first, then create the first event with split funding.',
         ),
       );
     }
@@ -325,8 +324,8 @@ class _EventCardListState extends State<_EventCardList> {
     final filteredEvents = _selectedTerm == null
         ? widget.events
         : widget.events
-            .where((e) => '${e.semester} · ${e.schoolYear}' == _selectedTerm)
-            .toList(growable: false);
+              .where((e) => '${e.semester} · ${e.schoolYear}' == _selectedTerm)
+              .toList(growable: false);
 
     final totalItems = filteredEvents.length;
     final totalPages = (totalItems / _pageSize).ceil();

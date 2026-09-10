@@ -73,6 +73,72 @@ class _AttachmentSelectorState extends State<AttachmentSelector> {
         : theme.colorScheme.error;
     final isImage = attachment != null && _isImageFile(attachment.fileName);
 
+    Widget buildLeading() {
+      if (isImage) {
+        return _AttachmentThumbnail(
+          attachment: attachment,
+          storage: widget.storage,
+          onTap: () => _showImagePreview(context, attachment),
+        );
+      }
+      return Icon(
+        attachment == null
+            ? Icons.attach_file
+            : (attachment.fileName.toLowerCase().endsWith('.pdf')
+                  ? Icons.picture_as_pdf_outlined
+                  : Icons.insert_drive_file_outlined),
+        color: attachment == null
+            ? const Color(0xFF64748B)
+            : (attachment.fileName.toLowerCase().endsWith('.pdf')
+                  ? const Color(0xFFEF4444)
+                  : const Color(0xFF38BDF8)),
+      );
+    }
+
+    Widget buildSelectButton() {
+      return OutlinedButton.icon(
+        key: widget.selectButtonKey,
+        onPressed: widget.isEnabled && !_isPicking
+            ? _handleSelectPressed
+            : null,
+        icon: _isPicking
+            ? const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                widget.allowCamera && widget.picker.supportsCamera
+                    ? Icons.add_a_photo_outlined
+                    : Icons.upload_file_outlined,
+              ),
+        label: Text(
+          attachment == null ? 'Select File' : 'Replace',
+          overflow: TextOverflow.ellipsis,
+        ),
+      );
+    }
+
+    Widget? buildClearButton() {
+      if (attachment == null) {
+        return null;
+      }
+      return IconButton(
+        key: widget.clearButtonKey,
+        tooltip: 'Remove selected file',
+        onPressed: widget.isEnabled && !_isPicking
+            ? () {
+                setState(() {
+                  _error = null;
+                });
+                widget.onChanged(null);
+              }
+            : null,
+        icon: const Icon(Icons.close),
+      );
+    }
+
+    final clearButton = buildClearButton();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -89,71 +155,38 @@ class _AttachmentSelectorState extends State<AttachmentSelector> {
             ),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (isImage)
-                    _AttachmentThumbnail(
-                      attachment: attachment,
-                      storage: widget.storage,
-                      onTap: () => _showImagePreview(context, attachment),
-                    )
-                  else
-                    Icon(
-                      attachment == null
-                          ? Icons.attach_file
-                          : (attachment.fileName.toLowerCase().endsWith('.pdf')
-                                ? Icons.picture_as_pdf_outlined
-                                : Icons.insert_drive_file_outlined),
-                      color: attachment == null
-                          ? const Color(0xFF64748B)
-                          : (attachment.fileName.toLowerCase().endsWith('.pdf')
-                                ? const Color(0xFFEF4444)
-                                : const Color(0xFF38BDF8)),
-                    ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _AttachmentSummary(
-                      attachment: attachment,
-                      isImage: isImage,
-                      onPreviewRequested: isImage
-                          ? () => _showImagePreview(context, attachment)
-                          : null,
-                    ),
+                  Row(
+                    crossAxisAlignment: attachment == null
+                        ? CrossAxisAlignment.center
+                        : CrossAxisAlignment.start,
+                    children: [
+                      buildLeading(),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _AttachmentSummary(
+                          attachment: attachment,
+                          isImage: isImage,
+                          onPreviewRequested: isImage
+                              ? () => _showImagePreview(context, attachment)
+                              : null,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    key: widget.selectButtonKey,
-                    onPressed: widget.isEnabled && !_isPicking
-                        ? _handleSelectPressed
-                        : null,
-                    icon: _isPicking
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : Icon(
-                            widget.allowCamera && widget.picker.supportsCamera
-                                ? Icons.add_a_photo_outlined
-                                : Icons.upload_file_outlined,
-                          ),
-                    label: Text(attachment == null ? 'Select File' : 'Replace'),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      buildSelectButton(),
+                      ?clearButton,
+                    ],
                   ),
-                  if (attachment != null) ...[
-                    const SizedBox(width: 4),
-                    IconButton(
-                      key: widget.clearButtonKey,
-                      tooltip: 'Remove selected file',
-                      onPressed: widget.isEnabled && !_isPicking
-                          ? () {
-                              setState(() {
-                                _error = null;
-                              });
-                              widget.onChanged(null);
-                            }
-                          : null,
-                      icon: const Icon(Icons.close),
-                    ),
-                  ],
                 ],
               ),
             ),
@@ -525,7 +558,12 @@ class _AttachmentSummary extends StatelessWidget {
   Widget build(BuildContext context) {
     final attachment = this.attachment;
     if (attachment == null) {
-      return const Text('No file selected.');
+      return Text(
+        'No file selected.',
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      );
     }
     final details = [
       attachment.localPath,

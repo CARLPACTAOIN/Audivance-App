@@ -219,10 +219,22 @@ void main() {
       expect(result.isValid, isTrue);
       expect(loaded.single.supportingAttachment, isNotNull);
       expect(loaded.single.supportingAttachment!.id, _attachment.id);
-      expect(loaded.single.supportingAttachment!.fileName, _attachment.fileName);
-      expect(loaded.single.supportingAttachment!.localPath, _attachment.localPath);
-      expect(loaded.single.supportingAttachment!.checksum, _attachment.checksum);
-      expect(loaded.single.supportingAttachment!.sizeBytes, _attachment.sizeBytes);
+      expect(
+        loaded.single.supportingAttachment!.fileName,
+        _attachment.fileName,
+      );
+      expect(
+        loaded.single.supportingAttachment!.localPath,
+        _attachment.localPath,
+      );
+      expect(
+        loaded.single.supportingAttachment!.checksum,
+        _attachment.checksum,
+      );
+      expect(
+        loaded.single.supportingAttachment!.sizeBytes,
+        _attachment.sizeBytes,
+      );
     },
   );
 

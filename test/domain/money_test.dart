@@ -9,6 +9,8 @@ void main() {
 
       expect(first + second, const Money.centavos(17300));
       expect(first - second, const Money.centavos(7800));
+      expect(first * 2, const Money.centavos(25100));
+      expect(second * 0, Money.zero);
     });
 
     test('compares amounts by centavos', () {

@@ -599,9 +599,8 @@ class _EditEventDialogState extends State<EditEventDialog> {
             children: [
               Text(
                 'Financial Safeguards',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(context).textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 6),
               Wrap(
@@ -625,9 +624,8 @@ class _EditEventDialogState extends State<EditEventDialog> {
               const SizedBox(height: 4),
               Text(
                 'Budget figures are protected by audit controls. To change allocations, use "Adjust Budget" on the event screen.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -935,7 +933,11 @@ class _AdjustBudgetDialogState extends State<AdjustBudgetDialog> {
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  decoration: const InputDecoration(labelText: 'Amount'),
+                  decoration: const InputDecoration(
+                    labelText: 'Adjustment amount',
+                    prefixText: '₱ ',
+                    hintText: '0.00',
+                  ),
                   validator: _moneyValidator,
                 ),
                 const SizedBox(height: 12),
@@ -964,7 +966,9 @@ class _AdjustBudgetDialogState extends State<AdjustBudgetDialog> {
                 ),
                 const SizedBox(height: 12),
                 FormField<AttachmentRef>(
-                  key: const Key('eventBudgetAdjustmentResolutionAttachmentField'),
+                  key: const Key(
+                    'eventBudgetAdjustmentResolutionAttachmentField',
+                  ),
                   validator: (_) => _resolutionAttachment == null
                       ? 'Select an approved resolution attachment.'
                       : null,
@@ -1346,6 +1350,29 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
     _officerId = _fundingMode == FundingMode.releasedFunds
         ? _firstFundedOfficerId(_officers)
         : (_officers.isEmpty ? null : _officers.first.id);
+    for (final line in _lines) {
+      _attachListeners(line);
+    }
+  }
+
+  void _attachListeners(_LiquidationLineInput line) {
+    line.quantityController.addListener(_onLineUpdated);
+    line.unitCostController.addListener(_onLineUpdated);
+  }
+
+  void _detachListeners(_LiquidationLineInput line) {
+    line.quantityController.removeListener(_onLineUpdated);
+    line.unitCostController.removeListener(_onLineUpdated);
+  }
+
+  void _onLineUpdated() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Money get _totalReceiptAmount {
+    return _lines.fold<Money>(Money.zero, (sum, line) => sum + line.subtotal);
   }
 
   @override
@@ -1355,6 +1382,7 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
     _evidenceController.dispose();
     _remarksController.dispose();
     for (final line in _lines) {
+      _detachListeners(line);
       line.dispose();
     }
     super.dispose();
@@ -1594,6 +1622,9 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                     canRemove: _lines.length > 1,
                     onRemove: () => _removeLine(index),
                   ),
+                const SizedBox(height: 8),
+                _buildSummaryCard(context),
+                const SizedBox(height: 16),
                 TextFormField(
                   key: const Key('liquidationRemarksField'),
                   controller: _remarksController,
@@ -1634,14 +1665,165 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
 
   void _addLine() {
     setState(() {
-      _lines.add(_LiquidationLineInput());
+      final line = _LiquidationLineInput();
+      _attachListeners(line);
+      _lines.add(line);
     });
   }
 
   void _removeLine(int index) {
     setState(() {
-      _lines.removeAt(index).dispose();
+      final line = _lines.removeAt(index);
+      _detachListeners(line);
+      line.dispose();
     });
+  }
+
+  Widget _buildSummaryCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final totalReceipt = _totalReceiptAmount;
+    final selectedOfficer = _officerById(_officers, _officerId);
+    final isReleasedFunds = _fundingMode == FundingMode.releasedFunds;
+    final heldCustody = selectedOfficer?.fundCustodyBalance ?? Money.zero;
+    final approvedBalance = widget.event.approvedBudgetBalance;
+
+    final exceedsHeldCustody =
+        isReleasedFunds &&
+        totalReceipt.isPositive &&
+        selectedOfficer != null &&
+        totalReceipt > heldCustody;
+
+    final exceedsApprovedBudget =
+        !isReleasedFunds &&
+        totalReceipt.isPositive &&
+        totalReceipt > approvedBalance;
+
+    final hasWarning = exceedsHeldCustody || exceedsApprovedBudget;
+    final warningColor = theme.colorScheme.error;
+
+    return Container(
+      key: const Key('liquidationSummaryCard'),
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: hasWarning
+            ? warningColor.withValues(alpha: 0.08)
+            : AppColors.surfaceSubtle,
+        borderRadius: AppRadius.borderMd,
+        border: Border.all(
+          color: hasWarning
+              ? warningColor.withValues(alpha: 0.35)
+              : AppColors.borderSubtle,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.calculate_outlined,
+                size: 18,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Receipt Summary',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Total: ${formatPhpMoney(totalReceipt)}',
+                key: const Key('liquidationGrandTotalText'),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: hasWarning ? warningColor : AppColors.brandLight,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                isReleasedFunds
+                    ? 'Officer held funds:'
+                    : 'Approved budget balance:',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Text(
+                isReleasedFunds
+                    ? (selectedOfficer?.fundCustodyBalanceLabel ?? '₱0.00')
+                    : widget.event.approvedBudgetBalanceLabel,
+                key: const Key('liquidationComparisonTargetText'),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          if (exceedsHeldCustody) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: warningColor,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Receipt total (${formatPhpMoney(totalReceipt)}) exceeds officer held custody (${selectedOfficer.fundCustodyBalanceLabel}). Reduce amount or switch to Out-of-Pocket for reimbursement.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: warningColor,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else if (exceedsApprovedBudget) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.info_outline,
+                  size: 16,
+                  color: AppColors.warning,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Receipt total (${formatPhpMoney(totalReceipt)}) exceeds approved budget balance (${widget.event.approvedBudgetBalanceLabel}). An event budget increase resolution will be needed.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.warning,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Future<void> _submit() async {
@@ -1858,7 +2040,8 @@ class _AddFundToOfficerDialogState extends State<AddFundToOfficerDialog> {
     _purposeController = TextEditingController(
       text: 'Fund release for ${widget.eventName}',
     );
-    _selectedOfficerId = widget.initialOfficerId ??
+    _selectedOfficerId =
+        widget.initialOfficerId ??
         (widget.officers.isNotEmpty ? widget.officers.first.id : null);
     _amountController.addListener(_refreshReview);
   }
@@ -1966,16 +2149,14 @@ class _AddFundToOfficerDialogState extends State<AddFundToOfficerDialog> {
               children: [
                 Text(
                   widget.eventName,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  style: Theme.of(context).textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Unutilized approved budget: ${widget.approvedBudgetBalanceLabel}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
+                  style: Theme.of(context).textTheme.bodyMedium
+                      ?.copyWith(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<StableId>(
@@ -2015,6 +2196,7 @@ class _AddFundToOfficerDialogState extends State<AddFundToOfficerDialog> {
                   ),
                   decoration: const InputDecoration(
                     labelText: 'Amount to release',
+                    prefixText: '₱ ',
                     hintText: '0.00',
                   ),
                   validator: _amountValidator,
@@ -2031,9 +2213,7 @@ class _AddFundToOfficerDialogState extends State<AddFundToOfficerDialog> {
                 TextFormField(
                   key: const Key('addFundToOfficerPurposeField'),
                   controller: _purposeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Purpose',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Purpose'),
                   validator: _requiredValidator,
                 ),
                 const SizedBox(height: 12),
@@ -2052,9 +2232,8 @@ class _AddFundToOfficerDialogState extends State<AddFundToOfficerDialog> {
                     children: [
                       Text(
                         'Fund Release Impact',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                        style: Theme.of(context).textTheme.bodySmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
                       Row(
@@ -2215,7 +2394,11 @@ class _AllocationRow extends StatelessWidget {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(labelText: 'Amount'),
+                decoration: const InputDecoration(
+                  labelText: 'Allocated amount',
+                  prefixText: '₱ ',
+                  hintText: '0.00',
+                ),
                 validator: _moneyValidator,
               ),
             ],
@@ -2232,6 +2415,15 @@ class _LiquidationLineInput {
     text: '1',
   );
   final TextEditingController unitCostController = TextEditingController();
+
+  Money get subtotal {
+    final qty = int.tryParse(quantityController.text.trim()) ?? 0;
+    final cost = parsePhpMoney(unitCostController.text.trim());
+    if (qty <= 0 || cost == null) {
+      return Money.zero;
+    }
+    return cost * qty;
+  }
 
   void dispose() {
     descriptionController.dispose();
@@ -2256,19 +2448,51 @@ class _LiquidationLineRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final subtotal = input.subtotal;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Card(
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Expanded(
-                    child: Text(
-                      'Line ${index + 1}',
-                      style: Theme.of(context).textTheme.titleMedium,
+                    child: Row(
+                      children: [
+                        Text(
+                          'Line ${index + 1}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          key: Key('liquidationLineSubtotal$index'),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.surfaceSubtle,
+                            borderRadius: AppRadius.borderSm,
+                            border: Border.all(color: AppColors.borderSubtle),
+                          ),
+                          child: Text(
+                            'Subtotal: ${formatPhpMoney(subtotal)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: subtotal.isPositive
+                                  ? AppColors.textPrimary
+                                  : AppColors.textMuted,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures(),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   IconButton(
@@ -2287,22 +2511,40 @@ class _LiquidationLineRow extends StatelessWidget {
                 validator: _requiredValidator,
               ),
               const SizedBox(height: 8),
-              TextFormField(
-                key: Key('liquidationLineQuantityField$index'),
-                controller: input.quantityController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Quantity'),
-                validator: _positiveIntValidator,
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                key: Key('liquidationLineUnitCostField$index'),
-                controller: input.unitCostController,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(labelText: 'Unit cost'),
-                validator: _moneyValidator,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      key: Key('liquidationLineQuantityField$index'),
+                      controller: input.quantityController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Quantity',
+                        hintText: '1',
+                      ),
+                      validator: _positiveIntValidator,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 3,
+                    child: TextFormField(
+                      key: Key('liquidationLineUnitCostField$index'),
+                      controller: input.unitCostController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Unit cost',
+                        prefixText: '₱ ',
+                        hintText: '0.00',
+                      ),
+                      validator: _moneyValidator,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

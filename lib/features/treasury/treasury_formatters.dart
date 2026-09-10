@@ -5,7 +5,7 @@ Money? parsePhpMoney(String input) {
   final normalized = input
       .trim()
       .replaceAll(',', '')
-      .replaceFirst(RegExp(r'^PHP\s+', caseSensitive: false), '');
+      .replaceFirst(RegExp(r'^(?:PHP\s*|₱\s*)', caseSensitive: false), '');
   if (normalized.isEmpty) {
     return null;
   }

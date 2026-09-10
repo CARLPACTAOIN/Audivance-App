@@ -879,8 +879,9 @@ class _ExportHistoryPanelState extends State<_ExportHistoryPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final latestBackup =
-        widget.backupHistory.isEmpty ? null : widget.backupHistory.first;
+    final latestBackup = widget.backupHistory.isEmpty
+        ? null
+        : widget.backupHistory.first;
     final totalItems = widget.exportHistory.length;
     final totalPages = (totalItems / _pageSize).ceil();
     if (_currentPage >= totalPages && totalPages > 0) {
@@ -899,8 +900,7 @@ class _ExportHistoryPanelState extends State<_ExportHistoryPanel> {
           if (latestBackup == null)
             const InlineStatusPanel(
               title: 'No backup recorded',
-              message:
-                  'Generate a same-day backup before COA export to avoid the reminder.',
+              message: 'Generate a same-day backup before COA export to avoid the reminder.',
               tone: InlineStatusTone.warning,
             )
           else

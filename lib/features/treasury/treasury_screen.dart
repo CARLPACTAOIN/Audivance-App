@@ -635,7 +635,11 @@ class _AddFundDialogState extends State<_AddFundDialog> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(labelText: 'Amount'),
+                decoration: const InputDecoration(
+                  labelText: 'Amount (PHP)',
+                  prefixText: '₱ ',
+                  hintText: '0.00',
+                ),
                 validator: _moneyValidator,
               ),
               const SizedBox(height: 12),
@@ -950,7 +954,11 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(labelText: 'Amount'),
+                decoration: const InputDecoration(
+                  labelText: 'Amount (PHP)',
+                  prefixText: '₱ ',
+                  hintText: '0.00',
+                ),
                 validator: _moneyValidator,
               ),
               const SizedBox(height: 12),
