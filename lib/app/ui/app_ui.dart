@@ -320,15 +320,17 @@ class MetadataChip extends StatelessWidget {
     required this.label,
     this.icon = Icons.info_outline,
     this.tooltip,
+    this.onTap,
   });
 
   final String label;
   final IconData icon;
   final String? tooltip;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    final chip = Container(
+    Widget content = Container(
       padding: const EdgeInsets.symmetric(
         horizontal: AppSpacing.sm + 2,
         vertical: AppSpacing.xs,
@@ -341,24 +343,42 @@ class MetadataChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: AppColors.textMuted),
+          Icon(
+            icon,
+            size: 15,
+            color: onTap != null ? AppColors.brandLight : AppColors.textMuted,
+          ),
           const SizedBox(width: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 240),
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
+              style: TextStyle(
+                color: onTap != null
+                    ? AppColors.brandLight
+                    : AppColors.textSecondary,
                 fontSize: 12.5,
-                fontWeight: FontWeight.w500,
+                fontWeight: onTap != null ? FontWeight.w600 : FontWeight.w500,
               ),
             ),
           ),
         ],
       ),
     );
-    return tooltip == null ? chip : Tooltip(message: tooltip!, child: chip);
+
+    if (onTap != null) {
+      content = Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: AppRadius.borderSm,
+          child: content,
+        ),
+      );
+    }
+
+    return tooltip == null ? content : Tooltip(message: tooltip!, child: content);
   }
 }
 

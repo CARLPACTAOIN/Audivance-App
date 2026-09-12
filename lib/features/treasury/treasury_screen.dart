@@ -759,21 +759,26 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
   final _purposeController = TextEditingController();
   final _remarksController = TextEditingController();
   FundMovementType _type = FundMovementType.fundRelease;
-  StableId? _fromFundSourceId;
+  StableId? _fromOfficerId;
+  StableId? _toOfficerId;
   StableId? _toFundSourceId;
   StableId? _eventId;
+  // For Fund Release (kept for compatibility)
   StableId? _officerId;
   String? _serviceError;
   String? _formError;
   var _isSubmitting = false;
+  Money _officerCustodyWarning = Money.zero;
 
   @override
   void initState() {
     super.initState();
-    _fromFundSourceId = widget.sources.isEmpty ? null : widget.sources.first.id;
-    _toFundSourceId = widget.sources.length > 1 ? widget.sources[1].id : null;
-    _eventId = widget.events.isEmpty ? null : widget.events.first.id;
+    _fromOfficerId =
+        widget.officers.isEmpty ? null : widget.officers.first.id;
+    _toOfficerId = widget.officers.length > 1 ? widget.officers[1].id : null;
     _officerId = widget.officers.isEmpty ? null : widget.officers.first.id;
+    _toFundSourceId = widget.sources.isEmpty ? null : widget.sources.first.id;
+    _eventId = widget.events.isEmpty ? null : widget.events.first.id;
   }
 
   @override
@@ -782,6 +787,22 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
     _purposeController.dispose();
     _remarksController.dispose();
     super.dispose();
+  }
+
+  Future<void> _refreshCustodyWarning() async {
+    if (_type == FundMovementType.returnRefund && _eventId != null) {
+      final custody =
+          await widget.service.totalOfficerCustodyForEvent(_eventId!);
+      if (mounted) {
+        setState(() {
+          _officerCustodyWarning = custody;
+        });
+      }
+    } else {
+      setState(() {
+        _officerCustodyWarning = Money.zero;
+      });
+    }
   }
 
   @override
@@ -837,11 +858,17 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
                       ),
                     )
                     .toList(growable: false),
-                onChanged: (value) => setState(() {
-                  _type = value ?? _type;
-                }),
+                onChanged: (value) {
+                  setState(() {
+                    _type = value ?? _type;
+                    _officerCustodyWarning = Money.zero;
+                  });
+                  _refreshCustodyWarning();
+                },
               ),
               const SizedBox(height: 12),
+
+              // ── FUND RELEASE ──────────────────────────────────────────────
               if (_type == FundMovementType.fundRelease) ...[
                 DropdownButtonFormField<StableId>(
                   key: const Key('manualMovementEventField'),
@@ -893,61 +920,210 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
                   }),
                 ),
                 const SizedBox(height: 12),
-              ] else ...[
-                if (_type == FundMovementType.transfer) ...[
-                  DropdownButtonFormField<StableId>(
-                    key: const Key('manualMovementFromSourceField'),
-                    initialValue: _fromFundSourceId,
-                    isExpanded: true,
-                    decoration: const InputDecoration(labelText: 'Source fund'),
-                    items: widget.sources
-                        .map(
-                          (source) => DropdownMenuItem(
-                            value: source.id,
-                            child: Text(
-                              source.label,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        )
-                        .toList(growable: false),
-                    validator: (value) =>
-                        value == null ? 'Select a source fund.' : null,
-                    onChanged: (value) => setState(() {
-                      _fromFundSourceId = value;
-                    }),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                DropdownButtonFormField<StableId?>(
-                  key: const Key('manualMovementToSourceField'),
-                  initialValue: _toFundSourceId,
+              ],
+
+              // ── OFFICER-TO-OFFICER TRANSFER ──────────────────────────────
+              if (_type == FundMovementType.transfer) ...[
+                DropdownButtonFormField<StableId>(
+                  key: const Key('manualMovementEventField'),
+                  initialValue: _eventId,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Target fund'),
-                  items: [
-                    const DropdownMenuItem<StableId?>(
-                      child: Text(
-                        'No target fund',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    for (final source in widget.sources)
-                      DropdownMenuItem<StableId?>(
-                        value: source.id,
-                        child: Text(
-                          source.label,
-                          overflow: TextOverflow.ellipsis,
+                  decoration: const InputDecoration(labelText: 'Event'),
+                  items: widget.events
+                      .map(
+                        (event) => DropdownMenuItem(
+                          value: event.id,
+                          child: Text(
+                            event.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ),
-                  ],
+                      )
+                      .toList(growable: false),
                   validator: (value) =>
-                      value == null ? 'Select a target fund.' : null,
+                      value == null ? 'Select an event.' : null,
                   onChanged: (value) => setState(() {
-                    _toFundSourceId = value;
+                    _eventId = value;
+                  }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<StableId>(
+                  key: const Key('manualMovementFromOfficerField'),
+                  initialValue: _fromOfficerId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'From officer'),
+                  items: widget.officers
+                      .map(
+                        (officer) => DropdownMenuItem(
+                          value: officer.id,
+                          child: Text(
+                            officer.hasCustody
+                                ? '${officer.fullName} (holds ${officer.custodyLabel})'
+                                : officer.fullName,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) =>
+                      value == null ? 'Select the from officer.' : null,
+                  onChanged: (value) => setState(() {
+                    _fromOfficerId = value;
+                  }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<StableId>(
+                  key: const Key('manualMovementToOfficerField'),
+                  initialValue: _toOfficerId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'To officer'),
+                  items: widget.officers
+                      .map(
+                        (officer) => DropdownMenuItem(
+                          value: officer.id,
+                          child: Text(
+                            officer.fullName,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) {
+                    if (value == null) return 'Select the to officer.';
+                    if (value == _fromOfficerId) {
+                      return 'From and To officers must be different.';
+                    }
+                    return null;
+                  },
+                  onChanged: (value) => setState(() {
+                    _toOfficerId = value;
                   }),
                 ),
                 const SizedBox(height: 12),
               ],
+
+              // ── RETURN TO EVENT BUDGET (Officer Return) ──────────────────
+              if (_type == FundMovementType.officerReturn) ...[
+                DropdownButtonFormField<StableId>(
+                  key: const Key('manualMovementEventField'),
+                  initialValue: _eventId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Event'),
+                  items: widget.events
+                      .map(
+                        (event) => DropdownMenuItem(
+                          value: event.id,
+                          child: Text(
+                            event.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) =>
+                      value == null ? 'Select an event.' : null,
+                  onChanged: (value) => setState(() {
+                    _eventId = value;
+                  }),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<StableId>(
+                  key: const Key('manualMovementOfficerField'),
+                  initialValue: _officerId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Officer returning funds',
+                  ),
+                  items: widget.officers
+                      .map(
+                        (officer) => DropdownMenuItem(
+                          value: officer.id,
+                          child: Text(
+                            officer.hasCustody
+                                ? '${officer.fullName} (holds ${officer.custodyLabel})'
+                                : officer.fullName,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) =>
+                      value == null ? 'Select an officer.' : null,
+                  onChanged: (value) => setState(() {
+                    _officerId = value;
+                  }),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // ── RETURN / REFUND TO TREASURY ──────────────────────────────
+              if (_type == FundMovementType.returnRefund) ...[
+                DropdownButtonFormField<StableId>(
+                  key: const Key('manualMovementEventField'),
+                  initialValue: _eventId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Event (source of refund)',
+                  ),
+                  items: widget.events
+                      .map(
+                        (event) => DropdownMenuItem(
+                          value: event.id,
+                          child: Text(
+                            '${event.name} (${event.approvedBudgetBalanceLabel})',
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) =>
+                      value == null ? 'Select the event being refunded.' : null,
+                  onChanged: (value) {
+                    setState(() {
+                      _eventId = value;
+                    });
+                    _refreshCustodyWarning();
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<StableId>(
+                  key: const Key('manualMovementToSourceField'),
+                  initialValue: _toFundSourceId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Return to treasury fund',
+                  ),
+                  items: widget.sources
+                      .map(
+                        (source) => DropdownMenuItem(
+                          value: source.id,
+                          child: Text(
+                            source.label,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) =>
+                      value == null ? 'Select a target treasury fund.' : null,
+                  onChanged: (value) => setState(() {
+                    _toFundSourceId = value;
+                  }),
+                ),
+                if (_officerCustodyWarning.isPositive) ...[
+                  const SizedBox(height: 12),
+                  InlineStatusPanel(
+                    title: 'Officers still hold custody funds',
+                    message:
+                        'Officers hold a total of ${formatPhpMoney(_officerCustodyWarning)} '
+                        'for this event. Return officer funds to the event budget first '
+                        '(use "Return to Event Budget" movement) before refunding to treasury.',
+                    tone: InlineStatusTone.warning,
+                  ),
+                ],
+                const SizedBox(height: 12),
+              ],
+
               TextFormField(
                 key: const Key('manualMovementAmountField'),
                 controller: _amountController,
@@ -995,6 +1171,14 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
       _serviceError = null;
       _formError = null;
     });
+
+    final StableId? holderOfficerId = switch (_type) {
+      FundMovementType.fundRelease => _officerId,
+      FundMovementType.transfer => _fromOfficerId,
+      FundMovementType.officerReturn => _officerId,
+      _ => null,
+    };
+
     final result = await widget.service.recordManualMovement(
       ManualFundMovementCommand(
         type: _type,
@@ -1002,18 +1186,12 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
         date: DateTime.now(),
         purpose: _purposeController.text,
         remarks: _remarksController.text,
-        fromFundSourceId: _type == FundMovementType.returnRefund
-            ? null
-            : _type == FundMovementType.fundRelease
-            ? null
-            : _fromFundSourceId,
-        toFundSourceId: _type == FundMovementType.fundRelease
-            ? null
-            : _toFundSourceId,
-        holderOfficerId: _type == FundMovementType.fundRelease
-            ? _officerId
-            : null,
-        eventId: _type == FundMovementType.fundRelease ? _eventId : null,
+        eventId: _eventId,
+        holderOfficerId: holderOfficerId,
+        toHolderOfficerId:
+            _type == FundMovementType.transfer ? _toOfficerId : null,
+        toFundSourceId:
+            _type == FundMovementType.returnRefund ? _toFundSourceId : null,
       ),
     );
     if (!mounted) {
@@ -1029,6 +1207,7 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
     Navigator.pop(context, result);
   }
 }
+
 
 class _EmptyPanelMessage extends StatelessWidget {
   const _EmptyPanelMessage({required this.icon, required this.text});

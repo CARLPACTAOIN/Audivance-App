@@ -161,6 +161,7 @@ class FundMovementRules {
     FundMovementType.fundRelease,
     FundMovementType.transfer,
     FundMovementType.returnRefund,
+    FundMovementType.officerReturn,
   };
 
   static bool isProtected(FundMovement movement) => movement.isSystemGenerated;
@@ -186,17 +187,31 @@ class FundMovementRules {
     }
     return ValidationResult.invalid(messages);
   }
+  /// Validates a mixed-funding split: released portion = min(custody, total),
+  /// out-of-pocket portion = max(0, total - custody).
+  static ({Money released, Money outOfPocket}) computeMixedSplit({
+    required Money receiptTotal,
+    required Money officerCustody,
+  }) {
+    final released = officerCustody.isPositive
+        ? (officerCustody > receiptTotal ? receiptTotal : officerCustody)
+        : Money.zero;
+    final oop = Money.centavos(receiptTotal.centavos - released.centavos);
+    return (released: released, outOfPocket: oop);
+  }
 }
 
 class LiquidationRules {
   const LiquidationRules._();
 
   static bool createsReimbursementClaim(FundingMode fundingMode) {
-    return fundingMode == FundingMode.outOfPocket;
+    return fundingMode == FundingMode.outOfPocket ||
+        fundingMode == FundingMode.mixed;
   }
 
   static bool createsLiquidationSubmittedMovement(FundingMode fundingMode) {
-    return fundingMode == FundingMode.releasedFunds;
+    return fundingMode == FundingMode.releasedFunds ||
+        fundingMode == FundingMode.mixed;
   }
 }
 

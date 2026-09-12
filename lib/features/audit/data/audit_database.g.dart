@@ -3430,6 +3430,18 @@ class $FundMovementsTable extends FundMovements
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _toHolderOfficerIdMeta = const VerificationMeta(
+    'toHolderOfficerId',
+  );
+  @override
+  late final GeneratedColumn<String> toHolderOfficerId =
+      GeneratedColumn<String>(
+        'to_holder_officer_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _attachmentIdMeta = const VerificationMeta(
     'attachmentId',
   );
@@ -3511,6 +3523,7 @@ class $FundMovementsTable extends FundMovements
     fromFundSourceId,
     toFundSourceId,
     holderOfficerId,
+    toHolderOfficerId,
     attachmentId,
     attachmentFileName,
     attachmentLocalPath,
@@ -3614,6 +3627,15 @@ class $FundMovementsTable extends FundMovements
         holderOfficerId.isAcceptableOrUnknown(
           data['holder_officer_id']!,
           _holderOfficerIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('to_holder_officer_id')) {
+      context.handle(
+        _toHolderOfficerIdMeta,
+        toHolderOfficerId.isAcceptableOrUnknown(
+          data['to_holder_officer_id']!,
+          _toHolderOfficerIdMeta,
         ),
       );
     }
@@ -3726,6 +3748,10 @@ class $FundMovementsTable extends FundMovements
         DriftSqlType.string,
         data['${effectivePrefix}holder_officer_id'],
       ),
+      toHolderOfficerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}to_holder_officer_id'],
+      ),
       attachmentId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}attachment_id'],
@@ -3772,6 +3798,9 @@ class FundMovementRecord extends DataClass
   final String? fromFundSourceId;
   final String? toFundSourceId;
   final String? holderOfficerId;
+
+  /// For officer-to-officer transfers: the receiving officer.
+  final String? toHolderOfficerId;
   final String? attachmentId;
   final String? attachmentFileName;
   final String? attachmentLocalPath;
@@ -3790,6 +3819,7 @@ class FundMovementRecord extends DataClass
     this.fromFundSourceId,
     this.toFundSourceId,
     this.holderOfficerId,
+    this.toHolderOfficerId,
     this.attachmentId,
     this.attachmentFileName,
     this.attachmentLocalPath,
@@ -3820,6 +3850,9 @@ class FundMovementRecord extends DataClass
     }
     if (!nullToAbsent || holderOfficerId != null) {
       map['holder_officer_id'] = Variable<String>(holderOfficerId);
+    }
+    if (!nullToAbsent || toHolderOfficerId != null) {
+      map['to_holder_officer_id'] = Variable<String>(toHolderOfficerId);
     }
     if (!nullToAbsent || attachmentId != null) {
       map['attachment_id'] = Variable<String>(attachmentId);
@@ -3863,6 +3896,9 @@ class FundMovementRecord extends DataClass
       holderOfficerId: holderOfficerId == null && nullToAbsent
           ? const Value.absent()
           : Value(holderOfficerId),
+      toHolderOfficerId: toHolderOfficerId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(toHolderOfficerId),
       attachmentId: attachmentId == null && nullToAbsent
           ? const Value.absent()
           : Value(attachmentId),
@@ -3899,6 +3935,9 @@ class FundMovementRecord extends DataClass
       fromFundSourceId: serializer.fromJson<String?>(json['fromFundSourceId']),
       toFundSourceId: serializer.fromJson<String?>(json['toFundSourceId']),
       holderOfficerId: serializer.fromJson<String?>(json['holderOfficerId']),
+      toHolderOfficerId: serializer.fromJson<String?>(
+        json['toHolderOfficerId'],
+      ),
       attachmentId: serializer.fromJson<String?>(json['attachmentId']),
       attachmentFileName: serializer.fromJson<String?>(
         json['attachmentFileName'],
@@ -3930,6 +3969,7 @@ class FundMovementRecord extends DataClass
       'fromFundSourceId': serializer.toJson<String?>(fromFundSourceId),
       'toFundSourceId': serializer.toJson<String?>(toFundSourceId),
       'holderOfficerId': serializer.toJson<String?>(holderOfficerId),
+      'toHolderOfficerId': serializer.toJson<String?>(toHolderOfficerId),
       'attachmentId': serializer.toJson<String?>(attachmentId),
       'attachmentFileName': serializer.toJson<String?>(attachmentFileName),
       'attachmentLocalPath': serializer.toJson<String?>(attachmentLocalPath),
@@ -3951,6 +3991,7 @@ class FundMovementRecord extends DataClass
     Value<String?> fromFundSourceId = const Value.absent(),
     Value<String?> toFundSourceId = const Value.absent(),
     Value<String?> holderOfficerId = const Value.absent(),
+    Value<String?> toHolderOfficerId = const Value.absent(),
     Value<String?> attachmentId = const Value.absent(),
     Value<String?> attachmentFileName = const Value.absent(),
     Value<String?> attachmentLocalPath = const Value.absent(),
@@ -3975,6 +4016,9 @@ class FundMovementRecord extends DataClass
     holderOfficerId: holderOfficerId.present
         ? holderOfficerId.value
         : this.holderOfficerId,
+    toHolderOfficerId: toHolderOfficerId.present
+        ? toHolderOfficerId.value
+        : this.toHolderOfficerId,
     attachmentId: attachmentId.present ? attachmentId.value : this.attachmentId,
     attachmentFileName: attachmentFileName.present
         ? attachmentFileName.value
@@ -4011,6 +4055,9 @@ class FundMovementRecord extends DataClass
       holderOfficerId: data.holderOfficerId.present
           ? data.holderOfficerId.value
           : this.holderOfficerId,
+      toHolderOfficerId: data.toHolderOfficerId.present
+          ? data.toHolderOfficerId.value
+          : this.toHolderOfficerId,
       attachmentId: data.attachmentId.present
           ? data.attachmentId.value
           : this.attachmentId,
@@ -4046,6 +4093,7 @@ class FundMovementRecord extends DataClass
           ..write('fromFundSourceId: $fromFundSourceId, ')
           ..write('toFundSourceId: $toFundSourceId, ')
           ..write('holderOfficerId: $holderOfficerId, ')
+          ..write('toHolderOfficerId: $toHolderOfficerId, ')
           ..write('attachmentId: $attachmentId, ')
           ..write('attachmentFileName: $attachmentFileName, ')
           ..write('attachmentLocalPath: $attachmentLocalPath, ')
@@ -4069,6 +4117,7 @@ class FundMovementRecord extends DataClass
     fromFundSourceId,
     toFundSourceId,
     holderOfficerId,
+    toHolderOfficerId,
     attachmentId,
     attachmentFileName,
     attachmentLocalPath,
@@ -4091,6 +4140,7 @@ class FundMovementRecord extends DataClass
           other.fromFundSourceId == this.fromFundSourceId &&
           other.toFundSourceId == this.toFundSourceId &&
           other.holderOfficerId == this.holderOfficerId &&
+          other.toHolderOfficerId == this.toHolderOfficerId &&
           other.attachmentId == this.attachmentId &&
           other.attachmentFileName == this.attachmentFileName &&
           other.attachmentLocalPath == this.attachmentLocalPath &&
@@ -4111,6 +4161,7 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
   final Value<String?> fromFundSourceId;
   final Value<String?> toFundSourceId;
   final Value<String?> holderOfficerId;
+  final Value<String?> toHolderOfficerId;
   final Value<String?> attachmentId;
   final Value<String?> attachmentFileName;
   final Value<String?> attachmentLocalPath;
@@ -4130,6 +4181,7 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     this.fromFundSourceId = const Value.absent(),
     this.toFundSourceId = const Value.absent(),
     this.holderOfficerId = const Value.absent(),
+    this.toHolderOfficerId = const Value.absent(),
     this.attachmentId = const Value.absent(),
     this.attachmentFileName = const Value.absent(),
     this.attachmentLocalPath = const Value.absent(),
@@ -4150,6 +4202,7 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     this.fromFundSourceId = const Value.absent(),
     this.toFundSourceId = const Value.absent(),
     this.holderOfficerId = const Value.absent(),
+    this.toHolderOfficerId = const Value.absent(),
     this.attachmentId = const Value.absent(),
     this.attachmentFileName = const Value.absent(),
     this.attachmentLocalPath = const Value.absent(),
@@ -4176,6 +4229,7 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     Expression<String>? fromFundSourceId,
     Expression<String>? toFundSourceId,
     Expression<String>? holderOfficerId,
+    Expression<String>? toHolderOfficerId,
     Expression<String>? attachmentId,
     Expression<String>? attachmentFileName,
     Expression<String>? attachmentLocalPath,
@@ -4196,6 +4250,7 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
       if (fromFundSourceId != null) 'from_fund_source_id': fromFundSourceId,
       if (toFundSourceId != null) 'to_fund_source_id': toFundSourceId,
       if (holderOfficerId != null) 'holder_officer_id': holderOfficerId,
+      if (toHolderOfficerId != null) 'to_holder_officer_id': toHolderOfficerId,
       if (attachmentId != null) 'attachment_id': attachmentId,
       if (attachmentFileName != null)
         'attachment_file_name': attachmentFileName,
@@ -4221,6 +4276,7 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     Value<String?>? fromFundSourceId,
     Value<String?>? toFundSourceId,
     Value<String?>? holderOfficerId,
+    Value<String?>? toHolderOfficerId,
     Value<String?>? attachmentId,
     Value<String?>? attachmentFileName,
     Value<String?>? attachmentLocalPath,
@@ -4241,6 +4297,7 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
       fromFundSourceId: fromFundSourceId ?? this.fromFundSourceId,
       toFundSourceId: toFundSourceId ?? this.toFundSourceId,
       holderOfficerId: holderOfficerId ?? this.holderOfficerId,
+      toHolderOfficerId: toHolderOfficerId ?? this.toHolderOfficerId,
       attachmentId: attachmentId ?? this.attachmentId,
       attachmentFileName: attachmentFileName ?? this.attachmentFileName,
       attachmentLocalPath: attachmentLocalPath ?? this.attachmentLocalPath,
@@ -4287,6 +4344,9 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     if (holderOfficerId.present) {
       map['holder_officer_id'] = Variable<String>(holderOfficerId.value);
     }
+    if (toHolderOfficerId.present) {
+      map['to_holder_officer_id'] = Variable<String>(toHolderOfficerId.value);
+    }
     if (attachmentId.present) {
       map['attachment_id'] = Variable<String>(attachmentId.value);
     }
@@ -4327,6 +4387,7 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
           ..write('fromFundSourceId: $fromFundSourceId, ')
           ..write('toFundSourceId: $toFundSourceId, ')
           ..write('holderOfficerId: $holderOfficerId, ')
+          ..write('toHolderOfficerId: $toHolderOfficerId, ')
           ..write('attachmentId: $attachmentId, ')
           ..write('attachmentFileName: $attachmentFileName, ')
           ..write('attachmentLocalPath: $attachmentLocalPath, ')
@@ -4483,6 +4544,26 @@ class $LiquidationReceiptsTable extends LiquidationReceipts
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _releasedFundsCentavosMeta =
+      const VerificationMeta('releasedFundsCentavos');
+  @override
+  late final GeneratedColumn<int> releasedFundsCentavos = GeneratedColumn<int>(
+    'released_funds_centavos',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _outOfPocketCentavosMeta =
+      const VerificationMeta('outOfPocketCentavos');
+  @override
+  late final GeneratedColumn<int> outOfPocketCentavos = GeneratedColumn<int>(
+    'out_of_pocket_centavos',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4498,6 +4579,8 @@ class $LiquidationReceiptsTable extends LiquidationReceipts
     attachmentLocalPath,
     attachmentSizeBytes,
     attachmentChecksum,
+    releasedFundsCentavos,
+    outOfPocketCentavos,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4638,6 +4721,24 @@ class $LiquidationReceiptsTable extends LiquidationReceipts
         ),
       );
     }
+    if (data.containsKey('released_funds_centavos')) {
+      context.handle(
+        _releasedFundsCentavosMeta,
+        releasedFundsCentavos.isAcceptableOrUnknown(
+          data['released_funds_centavos']!,
+          _releasedFundsCentavosMeta,
+        ),
+      );
+    }
+    if (data.containsKey('out_of_pocket_centavos')) {
+      context.handle(
+        _outOfPocketCentavosMeta,
+        outOfPocketCentavos.isAcceptableOrUnknown(
+          data['out_of_pocket_centavos']!,
+          _outOfPocketCentavosMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4702,6 +4803,14 @@ class $LiquidationReceiptsTable extends LiquidationReceipts
         DriftSqlType.string,
         data['${effectivePrefix}attachment_checksum'],
       ),
+      releasedFundsCentavos: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}released_funds_centavos'],
+      ),
+      outOfPocketCentavos: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}out_of_pocket_centavos'],
+      ),
     );
   }
 
@@ -4726,6 +4835,12 @@ class LiquidationReceiptRecord extends DataClass
   final String attachmentLocalPath;
   final int? attachmentSizeBytes;
   final String? attachmentChecksum;
+
+  /// For mixed funding: the portion from officer custody (centavos).
+  final int? releasedFundsCentavos;
+
+  /// For mixed funding: the out-of-pocket portion (centavos).
+  final int? outOfPocketCentavos;
   const LiquidationReceiptRecord({
     required this.id,
     required this.eventId,
@@ -4740,6 +4855,8 @@ class LiquidationReceiptRecord extends DataClass
     required this.attachmentLocalPath,
     this.attachmentSizeBytes,
     this.attachmentChecksum,
+    this.releasedFundsCentavos,
+    this.outOfPocketCentavos,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4760,6 +4877,12 @@ class LiquidationReceiptRecord extends DataClass
     }
     if (!nullToAbsent || attachmentChecksum != null) {
       map['attachment_checksum'] = Variable<String>(attachmentChecksum);
+    }
+    if (!nullToAbsent || releasedFundsCentavos != null) {
+      map['released_funds_centavos'] = Variable<int>(releasedFundsCentavos);
+    }
+    if (!nullToAbsent || outOfPocketCentavos != null) {
+      map['out_of_pocket_centavos'] = Variable<int>(outOfPocketCentavos);
     }
     return map;
   }
@@ -4783,6 +4906,12 @@ class LiquidationReceiptRecord extends DataClass
       attachmentChecksum: attachmentChecksum == null && nullToAbsent
           ? const Value.absent()
           : Value(attachmentChecksum),
+      releasedFundsCentavos: releasedFundsCentavos == null && nullToAbsent
+          ? const Value.absent()
+          : Value(releasedFundsCentavos),
+      outOfPocketCentavos: outOfPocketCentavos == null && nullToAbsent
+          ? const Value.absent()
+          : Value(outOfPocketCentavos),
     );
   }
 
@@ -4815,6 +4944,12 @@ class LiquidationReceiptRecord extends DataClass
       attachmentChecksum: serializer.fromJson<String?>(
         json['attachmentChecksum'],
       ),
+      releasedFundsCentavos: serializer.fromJson<int?>(
+        json['releasedFundsCentavos'],
+      ),
+      outOfPocketCentavos: serializer.fromJson<int?>(
+        json['outOfPocketCentavos'],
+      ),
     );
   }
   @override
@@ -4834,6 +4969,8 @@ class LiquidationReceiptRecord extends DataClass
       'attachmentLocalPath': serializer.toJson<String>(attachmentLocalPath),
       'attachmentSizeBytes': serializer.toJson<int?>(attachmentSizeBytes),
       'attachmentChecksum': serializer.toJson<String?>(attachmentChecksum),
+      'releasedFundsCentavos': serializer.toJson<int?>(releasedFundsCentavos),
+      'outOfPocketCentavos': serializer.toJson<int?>(outOfPocketCentavos),
     };
   }
 
@@ -4851,6 +4988,8 @@ class LiquidationReceiptRecord extends DataClass
     String? attachmentLocalPath,
     Value<int?> attachmentSizeBytes = const Value.absent(),
     Value<String?> attachmentChecksum = const Value.absent(),
+    Value<int?> releasedFundsCentavos = const Value.absent(),
+    Value<int?> outOfPocketCentavos = const Value.absent(),
   }) => LiquidationReceiptRecord(
     id: id ?? this.id,
     eventId: eventId ?? this.eventId,
@@ -4869,6 +5008,12 @@ class LiquidationReceiptRecord extends DataClass
     attachmentChecksum: attachmentChecksum.present
         ? attachmentChecksum.value
         : this.attachmentChecksum,
+    releasedFundsCentavos: releasedFundsCentavos.present
+        ? releasedFundsCentavos.value
+        : this.releasedFundsCentavos,
+    outOfPocketCentavos: outOfPocketCentavos.present
+        ? outOfPocketCentavos.value
+        : this.outOfPocketCentavos,
   );
   LiquidationReceiptRecord copyWithCompanion(
     LiquidationReceiptsCompanion data,
@@ -4907,6 +5052,12 @@ class LiquidationReceiptRecord extends DataClass
       attachmentChecksum: data.attachmentChecksum.present
           ? data.attachmentChecksum.value
           : this.attachmentChecksum,
+      releasedFundsCentavos: data.releasedFundsCentavos.present
+          ? data.releasedFundsCentavos.value
+          : this.releasedFundsCentavos,
+      outOfPocketCentavos: data.outOfPocketCentavos.present
+          ? data.outOfPocketCentavos.value
+          : this.outOfPocketCentavos,
     );
   }
 
@@ -4925,7 +5076,9 @@ class LiquidationReceiptRecord extends DataClass
           ..write('attachmentFileName: $attachmentFileName, ')
           ..write('attachmentLocalPath: $attachmentLocalPath, ')
           ..write('attachmentSizeBytes: $attachmentSizeBytes, ')
-          ..write('attachmentChecksum: $attachmentChecksum')
+          ..write('attachmentChecksum: $attachmentChecksum, ')
+          ..write('releasedFundsCentavos: $releasedFundsCentavos, ')
+          ..write('outOfPocketCentavos: $outOfPocketCentavos')
           ..write(')'))
         .toString();
   }
@@ -4945,6 +5098,8 @@ class LiquidationReceiptRecord extends DataClass
     attachmentLocalPath,
     attachmentSizeBytes,
     attachmentChecksum,
+    releasedFundsCentavos,
+    outOfPocketCentavos,
   );
   @override
   bool operator ==(Object other) =>
@@ -4962,7 +5117,9 @@ class LiquidationReceiptRecord extends DataClass
           other.attachmentFileName == this.attachmentFileName &&
           other.attachmentLocalPath == this.attachmentLocalPath &&
           other.attachmentSizeBytes == this.attachmentSizeBytes &&
-          other.attachmentChecksum == this.attachmentChecksum);
+          other.attachmentChecksum == this.attachmentChecksum &&
+          other.releasedFundsCentavos == this.releasedFundsCentavos &&
+          other.outOfPocketCentavos == this.outOfPocketCentavos);
 }
 
 class LiquidationReceiptsCompanion
@@ -4980,6 +5137,8 @@ class LiquidationReceiptsCompanion
   final Value<String> attachmentLocalPath;
   final Value<int?> attachmentSizeBytes;
   final Value<String?> attachmentChecksum;
+  final Value<int?> releasedFundsCentavos;
+  final Value<int?> outOfPocketCentavos;
   final Value<int> rowid;
   const LiquidationReceiptsCompanion({
     this.id = const Value.absent(),
@@ -4995,6 +5154,8 @@ class LiquidationReceiptsCompanion
     this.attachmentLocalPath = const Value.absent(),
     this.attachmentSizeBytes = const Value.absent(),
     this.attachmentChecksum = const Value.absent(),
+    this.releasedFundsCentavos = const Value.absent(),
+    this.outOfPocketCentavos = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   LiquidationReceiptsCompanion.insert({
@@ -5011,6 +5172,8 @@ class LiquidationReceiptsCompanion
     required String attachmentLocalPath,
     this.attachmentSizeBytes = const Value.absent(),
     this.attachmentChecksum = const Value.absent(),
+    this.releasedFundsCentavos = const Value.absent(),
+    this.outOfPocketCentavos = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        eventId = Value(eventId),
@@ -5037,6 +5200,8 @@ class LiquidationReceiptsCompanion
     Expression<String>? attachmentLocalPath,
     Expression<int>? attachmentSizeBytes,
     Expression<String>? attachmentChecksum,
+    Expression<int>? releasedFundsCentavos,
+    Expression<int>? outOfPocketCentavos,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5057,6 +5222,10 @@ class LiquidationReceiptsCompanion
       if (attachmentSizeBytes != null)
         'attachment_size_bytes': attachmentSizeBytes,
       if (attachmentChecksum != null) 'attachment_checksum': attachmentChecksum,
+      if (releasedFundsCentavos != null)
+        'released_funds_centavos': releasedFundsCentavos,
+      if (outOfPocketCentavos != null)
+        'out_of_pocket_centavos': outOfPocketCentavos,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5075,6 +5244,8 @@ class LiquidationReceiptsCompanion
     Value<String>? attachmentLocalPath,
     Value<int?>? attachmentSizeBytes,
     Value<String?>? attachmentChecksum,
+    Value<int?>? releasedFundsCentavos,
+    Value<int?>? outOfPocketCentavos,
     Value<int>? rowid,
   }) {
     return LiquidationReceiptsCompanion(
@@ -5091,6 +5262,9 @@ class LiquidationReceiptsCompanion
       attachmentLocalPath: attachmentLocalPath ?? this.attachmentLocalPath,
       attachmentSizeBytes: attachmentSizeBytes ?? this.attachmentSizeBytes,
       attachmentChecksum: attachmentChecksum ?? this.attachmentChecksum,
+      releasedFundsCentavos:
+          releasedFundsCentavos ?? this.releasedFundsCentavos,
+      outOfPocketCentavos: outOfPocketCentavos ?? this.outOfPocketCentavos,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5141,6 +5315,14 @@ class LiquidationReceiptsCompanion
     if (attachmentChecksum.present) {
       map['attachment_checksum'] = Variable<String>(attachmentChecksum.value);
     }
+    if (releasedFundsCentavos.present) {
+      map['released_funds_centavos'] = Variable<int>(
+        releasedFundsCentavos.value,
+      );
+    }
+    if (outOfPocketCentavos.present) {
+      map['out_of_pocket_centavos'] = Variable<int>(outOfPocketCentavos.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5163,6 +5345,8 @@ class LiquidationReceiptsCompanion
           ..write('attachmentLocalPath: $attachmentLocalPath, ')
           ..write('attachmentSizeBytes: $attachmentSizeBytes, ')
           ..write('attachmentChecksum: $attachmentChecksum, ')
+          ..write('releasedFundsCentavos: $releasedFundsCentavos, ')
+          ..write('outOfPocketCentavos: $outOfPocketCentavos, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -10397,6 +10581,7 @@ typedef $$FundMovementsTableCreateCompanionBuilder =
       Value<String?> fromFundSourceId,
       Value<String?> toFundSourceId,
       Value<String?> holderOfficerId,
+      Value<String?> toHolderOfficerId,
       Value<String?> attachmentId,
       Value<String?> attachmentFileName,
       Value<String?> attachmentLocalPath,
@@ -10418,6 +10603,7 @@ typedef $$FundMovementsTableUpdateCompanionBuilder =
       Value<String?> fromFundSourceId,
       Value<String?> toFundSourceId,
       Value<String?> holderOfficerId,
+      Value<String?> toHolderOfficerId,
       Value<String?> attachmentId,
       Value<String?> attachmentFileName,
       Value<String?> attachmentLocalPath,
@@ -10488,6 +10674,11 @@ class $$FundMovementsTableFilterComposer
 
   ColumnFilters<String> get holderOfficerId => $composableBuilder(
     column: $table.holderOfficerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get toHolderOfficerId => $composableBuilder(
+    column: $table.toHolderOfficerId,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -10586,6 +10777,11 @@ class $$FundMovementsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get toHolderOfficerId => $composableBuilder(
+    column: $table.toHolderOfficerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get attachmentId => $composableBuilder(
     column: $table.attachmentId,
     builder: (column) => ColumnOrderings(column),
@@ -10664,6 +10860,11 @@ class $$FundMovementsTableAnnotationComposer
 
   GeneratedColumn<String> get holderOfficerId => $composableBuilder(
     column: $table.holderOfficerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get toHolderOfficerId => $composableBuilder(
+    column: $table.toHolderOfficerId,
     builder: (column) => column,
   );
 
@@ -10746,6 +10947,7 @@ class $$FundMovementsTableTableManager
                 Value<String?> fromFundSourceId = const Value.absent(),
                 Value<String?> toFundSourceId = const Value.absent(),
                 Value<String?> holderOfficerId = const Value.absent(),
+                Value<String?> toHolderOfficerId = const Value.absent(),
                 Value<String?> attachmentId = const Value.absent(),
                 Value<String?> attachmentFileName = const Value.absent(),
                 Value<String?> attachmentLocalPath = const Value.absent(),
@@ -10765,6 +10967,7 @@ class $$FundMovementsTableTableManager
                 fromFundSourceId: fromFundSourceId,
                 toFundSourceId: toFundSourceId,
                 holderOfficerId: holderOfficerId,
+                toHolderOfficerId: toHolderOfficerId,
                 attachmentId: attachmentId,
                 attachmentFileName: attachmentFileName,
                 attachmentLocalPath: attachmentLocalPath,
@@ -10786,6 +10989,7 @@ class $$FundMovementsTableTableManager
                 Value<String?> fromFundSourceId = const Value.absent(),
                 Value<String?> toFundSourceId = const Value.absent(),
                 Value<String?> holderOfficerId = const Value.absent(),
+                Value<String?> toHolderOfficerId = const Value.absent(),
                 Value<String?> attachmentId = const Value.absent(),
                 Value<String?> attachmentFileName = const Value.absent(),
                 Value<String?> attachmentLocalPath = const Value.absent(),
@@ -10805,6 +11009,7 @@ class $$FundMovementsTableTableManager
                 fromFundSourceId: fromFundSourceId,
                 toFundSourceId: toFundSourceId,
                 holderOfficerId: holderOfficerId,
+                toHolderOfficerId: toHolderOfficerId,
                 attachmentId: attachmentId,
                 attachmentFileName: attachmentFileName,
                 attachmentLocalPath: attachmentLocalPath,
@@ -10857,6 +11062,8 @@ typedef $$LiquidationReceiptsTableCreateCompanionBuilder =
       required String attachmentLocalPath,
       Value<int?> attachmentSizeBytes,
       Value<String?> attachmentChecksum,
+      Value<int?> releasedFundsCentavos,
+      Value<int?> outOfPocketCentavos,
       Value<int> rowid,
     });
 typedef $$LiquidationReceiptsTableUpdateCompanionBuilder =
@@ -10874,6 +11081,8 @@ typedef $$LiquidationReceiptsTableUpdateCompanionBuilder =
       Value<String> attachmentLocalPath,
       Value<int?> attachmentSizeBytes,
       Value<String?> attachmentChecksum,
+      Value<int?> releasedFundsCentavos,
+      Value<int?> outOfPocketCentavos,
       Value<int> rowid,
     });
 
@@ -10948,6 +11157,16 @@ class $$LiquidationReceiptsTableFilterComposer
 
   ColumnFilters<String> get attachmentChecksum => $composableBuilder(
     column: $table.attachmentChecksum,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get releasedFundsCentavos => $composableBuilder(
+    column: $table.releasedFundsCentavos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get outOfPocketCentavos => $composableBuilder(
+    column: $table.outOfPocketCentavos,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -11025,6 +11244,16 @@ class $$LiquidationReceiptsTableOrderingComposer
     column: $table.attachmentChecksum,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get releasedFundsCentavos => $composableBuilder(
+    column: $table.releasedFundsCentavos,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get outOfPocketCentavos => $composableBuilder(
+    column: $table.outOfPocketCentavos,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$LiquidationReceiptsTableAnnotationComposer
@@ -11094,6 +11323,16 @@ class $$LiquidationReceiptsTableAnnotationComposer
     column: $table.attachmentChecksum,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get releasedFundsCentavos => $composableBuilder(
+    column: $table.releasedFundsCentavos,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get outOfPocketCentavos => $composableBuilder(
+    column: $table.outOfPocketCentavos,
+    builder: (column) => column,
+  );
 }
 
 class $$LiquidationReceiptsTableTableManager
@@ -11152,6 +11391,8 @@ class $$LiquidationReceiptsTableTableManager
                 Value<String> attachmentLocalPath = const Value.absent(),
                 Value<int?> attachmentSizeBytes = const Value.absent(),
                 Value<String?> attachmentChecksum = const Value.absent(),
+                Value<int?> releasedFundsCentavos = const Value.absent(),
+                Value<int?> outOfPocketCentavos = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LiquidationReceiptsCompanion(
                 id: id,
@@ -11167,6 +11408,8 @@ class $$LiquidationReceiptsTableTableManager
                 attachmentLocalPath: attachmentLocalPath,
                 attachmentSizeBytes: attachmentSizeBytes,
                 attachmentChecksum: attachmentChecksum,
+                releasedFundsCentavos: releasedFundsCentavos,
+                outOfPocketCentavos: outOfPocketCentavos,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -11184,6 +11427,8 @@ class $$LiquidationReceiptsTableTableManager
                 required String attachmentLocalPath,
                 Value<int?> attachmentSizeBytes = const Value.absent(),
                 Value<String?> attachmentChecksum = const Value.absent(),
+                Value<int?> releasedFundsCentavos = const Value.absent(),
+                Value<int?> outOfPocketCentavos = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LiquidationReceiptsCompanion.insert(
                 id: id,
@@ -11199,6 +11444,8 @@ class $$LiquidationReceiptsTableTableManager
                 attachmentLocalPath: attachmentLocalPath,
                 attachmentSizeBytes: attachmentSizeBytes,
                 attachmentChecksum: attachmentChecksum,
+                releasedFundsCentavos: releasedFundsCentavos,
+                outOfPocketCentavos: outOfPocketCentavos,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

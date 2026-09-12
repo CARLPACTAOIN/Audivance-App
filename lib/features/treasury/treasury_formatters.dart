@@ -70,10 +70,11 @@ String fundMovementTypeLabel(FundMovementType type) {
     FundMovementType.budgetAllocation => 'Budget Allocation',
     FundMovementType.budgetAdjustment => 'Budget Adjustment',
     FundMovementType.fundRelease => 'Fund Release',
-    FundMovementType.transfer => 'Transfer',
-    FundMovementType.returnRefund => 'Return / Refund',
+    FundMovementType.transfer => 'Officer-to-Officer Transfer',
+    FundMovementType.returnRefund => 'Return / Refund to Treasury',
     FundMovementType.liquidationSubmitted => 'Liquidation Submitted',
     FundMovementType.reimbursementPayment => 'Reimbursement Payment',
+    FundMovementType.officerReturn => 'Return to Event Budget',
   };
 }
 

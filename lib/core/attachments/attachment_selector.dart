@@ -75,7 +75,7 @@ class _AttachmentSelectorState extends State<AttachmentSelector> {
 
     Widget buildLeading() {
       if (isImage) {
-        return _AttachmentThumbnail(
+        return AttachmentThumbnail(
           attachment: attachment,
           storage: widget.storage,
           onTap: () => _showImagePreview(context, attachment),
@@ -264,90 +264,10 @@ class _AttachmentSelectorState extends State<AttachmentSelector> {
   }
 
   void _showImagePreview(BuildContext context, AttachmentRef attachment) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return Dialog(
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 24,
-          ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 700, maxHeight: 800),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.receipt_long_outlined, size: 20),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          attachment.fileName,
-                          style: Theme.of(dialogContext).textTheme.titleSmall,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      IconButton(
-                        key: const Key('attachmentPreviewCloseButton'),
-                        icon: const Icon(Icons.close),
-                        tooltip: 'Close preview',
-                        onPressed: () => Navigator.of(dialogContext).pop(),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: Container(
-                    color: Colors.black,
-                    width: double.infinity,
-                    child: FutureBuilder<Uint8List>(
-                      future: widget.storage.readBytes(attachment),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                        if (snapshot.hasError ||
-                            !snapshot.hasData ||
-                            snapshot.data!.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              'Could not display image preview.',
-                              style: TextStyle(color: Colors.white70),
-                            ),
-                          );
-                        }
-                        return InteractiveViewer(
-                          minScale: 0.5,
-                          maxScale: 4.0,
-                          child: Center(
-                            child: Image.memory(
-                              snapshot.data!,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, _, _) => const Center(
-                                child: Text(
-                                  'Could not decode image.',
-                                  style: TextStyle(color: Colors.white70),
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+    showAttachmentImagePreview(
+      context,
+      attachment: attachment,
+      storage: widget.storage,
     );
   }
 }
@@ -455,16 +375,23 @@ class _AttachmentSourceSheet extends StatelessWidget {
   }
 }
 
-class _AttachmentThumbnail extends StatelessWidget {
-  const _AttachmentThumbnail({
+class AttachmentThumbnail extends StatelessWidget {
+  const AttachmentThumbnail({
+    super.key,
     required this.attachment,
     required this.storage,
     required this.onTap,
+    this.size = 48,
+    this.inkWellKey = const Key('attachmentThumbnailTap'),
+    this.tooltipMessage = 'Tap to view full receipt',
   });
 
   final AttachmentRef attachment;
   final AttachmentStorageService storage;
   final VoidCallback onTap;
+  final double size;
+  final Key? inkWellKey;
+  final String tooltipMessage;
 
   @override
   Widget build(BuildContext context) {
@@ -472,9 +399,9 @@ class _AttachmentThumbnail extends StatelessWidget {
       future: storage.readBytes(attachment),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox.square(
-            dimension: 48,
-            child: Center(
+          return SizedBox.square(
+            dimension: size,
+            child: const Center(
               child: SizedBox.square(
                 dimension: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),
@@ -483,21 +410,24 @@ class _AttachmentThumbnail extends StatelessWidget {
           );
         }
         if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Icon(
-            Icons.broken_image_outlined,
-            color: Color(0xFF64748B),
+          return SizedBox.square(
+            dimension: size,
+            child: const Icon(
+              Icons.broken_image_outlined,
+              color: Color(0xFF64748B),
+            ),
           );
         }
         final bytes = snapshot.data!;
         return Tooltip(
-          message: 'Tap to view full receipt',
+          message: tooltipMessage,
           child: InkWell(
-            key: const Key('attachmentThumbnailTap'),
+            key: inkWellKey,
             onTap: onTap,
             borderRadius: BorderRadius.circular(6),
             child: Container(
-              width: 48,
-              height: 48,
+              width: size,
+              height: size,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
@@ -539,6 +469,114 @@ class _AttachmentThumbnail extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+void showAttachmentImagePreview(
+  BuildContext context, {
+  required AttachmentRef attachment,
+  required AttachmentStorageService storage,
+}) {
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AttachmentImagePreviewDialog(
+      attachment: attachment,
+      storage: storage,
+    ),
+  );
+}
+
+class AttachmentImagePreviewDialog extends StatelessWidget {
+  const AttachmentImagePreviewDialog({
+    super.key,
+    required this.attachment,
+    required this.storage,
+  });
+
+  final AttachmentRef attachment;
+  final AttachmentStorageService storage;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 24,
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 800),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              child: Row(
+                children: [
+                  const Icon(Icons.receipt_long_outlined, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      attachment.fileName,
+                      style: Theme.of(context).textTheme.titleSmall,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    key: const Key('attachmentPreviewCloseButton'),
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Close preview',
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: Container(
+                color: Colors.black,
+                width: double.infinity,
+                child: FutureBuilder<Uint8List>(
+                  future: storage.readBytes(attachment),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(),
+                      );
+                    }
+                    if (snapshot.hasError ||
+                        !snapshot.hasData ||
+                        snapshot.data!.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          'Could not display image preview.',
+                          style: TextStyle(color: Colors.white70),
+                        ),
+                      );
+                    }
+                    return InteractiveViewer(
+                      minScale: 0.5,
+                      maxScale: 4.0,
+                      child: Center(
+                        child: Image.memory(
+                          snapshot.data!,
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, _, _) => const Center(
+                            child: Text(
+                              'Could not decode image.',
+                              style: TextStyle(color: Colors.white70),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

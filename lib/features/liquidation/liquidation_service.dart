@@ -102,6 +102,7 @@ class LiquidationService {
                   officerById[receipt.accountableOfficerId]?.fullName ??
                   'Unknown officer',
               total: receiptTotals[receipt.id] ?? Money.zero,
+              attachment: receipt.attachment,
             ),
           )
           .toList(growable: false),
@@ -197,6 +198,45 @@ class LiquidationService {
     }
 
     final receiptId = idGenerator.nextId('receipt');
+
+    // Compute the funding split for this receipt.
+    final total = _sumMoney(
+      command.lines.map(
+        (line) => Money.centavos(line.unitCost.centavos * line.quantity),
+      ),
+    );
+    final FundingMode resolvedFundingMode;
+    final Money releasedPortion;
+    final Money oopPortion;
+
+    if (command.fundingMode == FundingMode.releasedFunds) {
+      if (officerCustodyBalance >= total) {
+        // Full coverage from custody.
+        resolvedFundingMode = FundingMode.releasedFunds;
+        releasedPortion = total;
+        oopPortion = Money.zero;
+      } else if (officerCustodyBalance.isPositive) {
+        // Partial coverage: auto-split into released + out-of-pocket.
+        final split = FundMovementRules.computeMixedSplit(
+          receiptTotal: total,
+          officerCustody: officerCustodyBalance,
+        );
+        resolvedFundingMode = FundingMode.mixed;
+        releasedPortion = split.released;
+        oopPortion = split.outOfPocket;
+      } else {
+        // No custody at all: fully out-of-pocket.
+        resolvedFundingMode = FundingMode.outOfPocket;
+        releasedPortion = Money.zero;
+        oopPortion = total;
+      }
+    } else {
+      // Pure out-of-pocket (user's explicit choice).
+      resolvedFundingMode = FundingMode.outOfPocket;
+      releasedPortion = Money.zero;
+      oopPortion = total;
+    }
+
     final receipt = LiquidationReceipt(
       id: receiptId,
       eventId: command.eventId,
@@ -204,9 +244,15 @@ class LiquidationService {
       date: command.date,
       evidenceNumber: command.evidenceNumber.trim(),
       receiptType: command.receiptType,
-      fundingMode: command.fundingMode,
+      fundingMode: resolvedFundingMode,
       accountableOfficerId: command.accountableOfficerId,
       attachment: command.attachment!,
+      releasedFundsAmount: resolvedFundingMode == FundingMode.mixed
+          ? releasedPortion
+          : null,
+      outOfPocketAmount: resolvedFundingMode == FundingMode.mixed
+          ? oopPortion
+          : null,
     );
     final lines = command.lines
         .map(
@@ -219,23 +265,24 @@ class LiquidationService {
           ),
         )
         .toList(growable: false);
-    final total = _sumMoney(lines.map((line) => line.total));
 
     await repository.saveLiquidationReceipt(receipt);
     for (final line in lines) {
       await repository.saveLiquidationLine(line);
     }
 
-    if (LiquidationRules.createsLiquidationSubmittedMovement(
-      command.fundingMode,
-    )) {
+    if (LiquidationRules.createsLiquidationSubmittedMovement(resolvedFundingMode)) {
+      // For mixed: record only the released portion.
+      final liquidationAmount = resolvedFundingMode == FundingMode.mixed
+          ? releasedPortion
+          : total;
       final movementId = idGenerator.nextId('movement');
       final movement = FundMovement(
         id: movementId,
         reference: _movementReference(command.date, movementId),
         type: FundMovementType.liquidationSubmitted,
         date: command.date,
-        amount: total,
+        amount: liquidationAmount,
         purpose: 'Liquidation submitted: ${event!.name}',
         remarks: command.remarks?.trim().isEmpty ?? true
             ? null
@@ -252,20 +299,39 @@ class LiquidationService {
       }
     }
 
-    if (LiquidationRules.createsReimbursementClaim(command.fundingMode)) {
-      for (final line in lines) {
+    if (LiquidationRules.createsReimbursementClaim(resolvedFundingMode)) {
+      // For mixed: create a single claim for the out-of-pocket portion.
+      if (resolvedFundingMode == FundingMode.mixed) {
+        // Single aggregated claim for the OOP portion.
         final claimResult = await repository.saveReimbursementClaim(
           ReimbursementClaim(
             id: idGenerator.nextId('claim'),
             eventId: command.eventId,
             officerId: command.accountableOfficerId,
-            amount: line.total,
+            amount: oopPortion,
             status: ReimbursementStatus.pending,
-            sourceLiquidationLineId: line.id,
+            sourceLiquidationLineId: lines.first.id,
           ),
         );
         if (claimResult.isInvalid) {
           return claimResult;
+        }
+      } else {
+        // Pure out-of-pocket: one claim per line (existing behavior).
+        for (final line in lines) {
+          final claimResult = await repository.saveReimbursementClaim(
+            ReimbursementClaim(
+              id: idGenerator.nextId('claim'),
+              eventId: command.eventId,
+              officerId: command.accountableOfficerId,
+              amount: line.total,
+              status: ReimbursementStatus.pending,
+              sourceLiquidationLineId: line.id,
+            ),
+          );
+          if (claimResult.isInvalid) {
+            return claimResult;
+          }
         }
       }
     }
@@ -277,12 +343,17 @@ class LiquidationService {
       reference: receipt.evidenceNumber,
       metadata: {
         'eventId': command.eventId,
-        'fundingMode': command.fundingMode.name,
+        'fundingMode': resolvedFundingMode.name,
         'lineCount': lines.length,
+        if (resolvedFundingMode == FundingMode.mixed) ...{
+          'releasedFundsAmount': releasedPortion.centavos,
+          'outOfPocketAmount': oopPortion.centavos,
+        },
       },
     );
     return const ValidationResult.valid();
   }
+
 
   Future<ValidationResult> payReimbursement(
     PayReimbursementCommand command,
@@ -451,18 +522,11 @@ class LiquidationService {
       }
     }
 
-    final total = _sumMoney(
-      command.lines.map(
-        (line) => Money.centavos(line.unitCost.centavos * line.quantity),
-      ),
-    );
-    if (event != null &&
-        command.fundingMode == FundingMode.releasedFunds &&
-        total > officerCustodyBalance) {
-      messages.add(
-        'Released-funds liquidation is blocked because the selected accountable officer has insufficient held funds.',
-      );
-    }
+    // Allow released-funds mode even when officer custody is insufficient:
+    // submitLiquidation auto-splits into mixed/outOfPocket as needed.
+    // Only block if custody is zero AND mode is releasedFunds explicitly
+    // (in that case, submitLiquidation will auto-switch to outOfPocket anyway,
+    //  so no hard error needed here).
     return ValidationResult.invalid(messages);
   }
 
@@ -600,6 +664,7 @@ class LiquidationReceiptView {
     required this.fundingMode,
     required this.accountableOfficerName,
     required this.total,
+    this.attachment,
   });
 
   final StableId id;
@@ -612,6 +677,7 @@ class LiquidationReceiptView {
   final FundingMode fundingMode;
   final String accountableOfficerName;
   final Money total;
+  final AttachmentRef? attachment;
 
   String get dateLabel => formatDate(date);
   String get totalLabel => formatPhpMoney(total);
@@ -675,24 +741,32 @@ Money _officerCustodyBalance({
 }) {
   var balance = Money.zero;
   for (final movement in movements) {
-    if (movement.holderOfficerId != officerId) {
-      continue;
-    }
     if (eventId != null && movement.eventId != eventId) {
       continue;
     }
-    switch (movement.type) {
-      case FundMovementType.fundRelease:
-        balance += movement.amount;
-      case FundMovementType.liquidationSubmitted:
-      case FundMovementType.returnRefund:
-        balance -= movement.amount;
-      case FundMovementType.addFund:
-      case FundMovementType.budgetAllocation:
-      case FundMovementType.budgetAdjustment:
-      case FundMovementType.transfer:
-      case FundMovementType.reimbursementPayment:
-        break;
+    // Check if this officer is the primary holder.
+    if (movement.holderOfficerId == officerId) {
+      switch (movement.type) {
+        case FundMovementType.fundRelease:
+          balance += movement.amount;
+        case FundMovementType.liquidationSubmitted:
+        case FundMovementType.returnRefund:
+        case FundMovementType.officerReturn:
+          balance -= movement.amount;
+        case FundMovementType.transfer:
+          // Sending officer loses custody.
+          balance -= movement.amount;
+        case FundMovementType.addFund:
+        case FundMovementType.budgetAllocation:
+        case FundMovementType.budgetAdjustment:
+        case FundMovementType.reimbursementPayment:
+          break;
+      }
+    }
+    // Check if this officer is the transfer recipient.
+    if (movement.type == FundMovementType.transfer &&
+        movement.toHolderOfficerId == officerId) {
+      balance += movement.amount;
     }
   }
   return balance;
@@ -712,6 +786,7 @@ String fundingModeDisplayLabel(FundingMode mode) {
   return switch (mode) {
     FundingMode.releasedFunds => 'Released Funds',
     FundingMode.outOfPocket => 'Out of Pocket',
+    FundingMode.mixed => 'Mixed (Auto-split)',
   };
 }
 

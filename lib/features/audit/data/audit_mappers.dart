@@ -208,6 +208,7 @@ extension FundMovementMapper on domain.FundMovement {
       fromFundSourceId: Value(fromFundSourceId),
       toFundSourceId: Value(toFundSourceId),
       holderOfficerId: Value(holderOfficerId),
+      toHolderOfficerId: Value(toHolderOfficerId),
       attachmentId: Value(supportingAttachment?.id),
       attachmentFileName: Value(supportingAttachment?.fileName),
       attachmentLocalPath: Value(supportingAttachment?.localPath),
@@ -232,6 +233,7 @@ extension FundMovementRecordMapper on FundMovementRecord {
       fromFundSourceId: fromFundSourceId,
       toFundSourceId: toFundSourceId,
       holderOfficerId: holderOfficerId,
+      toHolderOfficerId: toHolderOfficerId,
       supportingAttachment: _nullableAttachment(
         id: attachmentId,
         fileName: attachmentFileName,
@@ -260,6 +262,8 @@ extension LiquidationReceiptMapper on domain.LiquidationReceipt {
       attachmentLocalPath: attachment.localPath,
       attachmentSizeBytes: Value(attachment.sizeBytes),
       attachmentChecksum: Value(attachment.checksum),
+      releasedFundsCentavos: Value(releasedFundsAmount?.centavos),
+      outOfPocketCentavos: Value(outOfPocketAmount?.centavos),
     );
   }
 }
@@ -282,6 +286,12 @@ extension LiquidationReceiptRecordMapper on LiquidationReceiptRecord {
         sizeBytes: attachmentSizeBytes,
         checksum: attachmentChecksum,
       ),
+      releasedFundsAmount: releasedFundsCentavos == null
+          ? null
+          : Money.centavos(releasedFundsCentavos!),
+      outOfPocketAmount: outOfPocketCentavos == null
+          ? null
+          : Money.centavos(outOfPocketCentavos!),
     );
   }
 }

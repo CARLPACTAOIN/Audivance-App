@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/ui/app_ui.dart';
 import '../../core/attachments/attachment_picker.dart';
+import '../../core/attachments/attachment_selector.dart';
 import '../../core/attachments/attachment_storage_service.dart';
 import '../../core/domain/identity.dart';
 import '../../core/domain/money.dart';
@@ -165,6 +166,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
             child = _EventDetailsContent(
               key: const ValueKey('content'),
               data: data,
+              attachmentStorage: widget.attachmentStorage,
               onEditEvent: () => _showEditEvent(data),
               onAdjustBudget: () => _showAdjustBudget(data),
               onReviewBudget: () => _showBudgetReview(data),
@@ -336,6 +338,7 @@ class _EventDetailsContent extends StatelessWidget {
   const _EventDetailsContent({
     super.key,
     required this.data,
+    required this.attachmentStorage,
     required this.onEditEvent,
     required this.onAdjustBudget,
     required this.onReviewBudget,
@@ -347,6 +350,7 @@ class _EventDetailsContent extends StatelessWidget {
   });
 
   final _EventDetailsData data;
+  final AttachmentStorageService attachmentStorage;
   final VoidCallback onEditEvent;
   final VoidCallback onAdjustBudget;
   final VoidCallback onReviewBudget;
@@ -405,6 +409,7 @@ class _EventDetailsContent extends StatelessWidget {
                     delay: AppMotion.staggerStep * 3,
                     child: _LiquidationSection(
                       receipts: data.receipts,
+                      attachmentStorage: attachmentStorage,
                       officerCount: data.officerOptions.length,
                       onCreateOfficer: onCreateOfficer,
                     ),
@@ -819,11 +824,13 @@ class _EventActionsBar extends StatelessWidget {
 class _LiquidationSection extends StatefulWidget {
   const _LiquidationSection({
     required this.receipts,
+    required this.attachmentStorage,
     required this.officerCount,
     required this.onCreateOfficer,
   });
 
   final List<LiquidationReceiptView> receipts;
+  final AttachmentStorageService attachmentStorage;
   final int officerCount;
   final VoidCallback onCreateOfficer;
 
@@ -910,6 +917,7 @@ class _LiquidationSectionState extends State<_LiquidationSection> {
                 for (var i = 0; i < pagedReceipts.length; i++)
                   _ReceiptRow(
                     receipt: pagedReceipts[i],
+                    attachmentStorage: widget.attachmentStorage,
                     showDivider: i < pagedReceipts.length - 1,
                   ),
               ],
@@ -946,19 +954,63 @@ class _LiquidationSectionState extends State<_LiquidationSection> {
 }
 
 class _ReceiptRow extends StatelessWidget {
-  const _ReceiptRow({required this.receipt, required this.showDivider});
+  const _ReceiptRow({
+    required this.receipt,
+    required this.attachmentStorage,
+    required this.showDivider,
+  });
 
   final LiquidationReceiptView receipt;
+  final AttachmentStorageService attachmentStorage;
   final bool showDivider;
 
   @override
   Widget build(BuildContext context) {
-    return ExpandableListRow(
-      leading: const Icon(
+    Widget leadingWidget;
+    final attachment = receipt.attachment;
+    if (attachment != null && attachment.isImage) {
+      leadingWidget = AttachmentThumbnail(
+        key: Key('receiptThumbnail_${receipt.id}'),
+        attachment: attachment,
+        storage: attachmentStorage,
+        size: 40,
+        inkWellKey: Key('receiptThumbnailTap_${receipt.id}'),
+        tooltipMessage:
+            'Tap to inspect receipt photo (Ref #${receipt.evidenceNumber})',
+        onTap: () => showAttachmentImagePreview(
+          context,
+          attachment: attachment,
+          storage: attachmentStorage,
+        ),
+      );
+    } else if (attachment != null) {
+      leadingWidget = Container(
+        key: Key('receiptDocumentIcon_${receipt.id}'),
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceSubtle,
+          borderRadius: AppRadius.borderSm,
+          border: Border.all(color: AppColors.borderSubtle),
+        ),
+        child: const Center(
+          child: Icon(
+            Icons.description_outlined,
+            color: Color(0xFF10B981),
+            size: 20,
+          ),
+        ),
+      );
+    } else {
+      leadingWidget = const Icon(
         Icons.receipt_long,
         color: Color(0xFF10B981),
         size: 18,
-      ),
+      );
+    }
+
+    return ExpandableListRow(
+      leading: leadingWidget,
       title: Text(
         receipt.payeeOrMerchant,
         maxLines: 1,
@@ -999,6 +1051,26 @@ class _ReceiptRow extends StatelessWidget {
             icon: Icons.tag,
             label: 'Evidence #${receipt.evidenceNumber}',
           ),
+          if (attachment != null)
+            MetadataChip(
+              key: Key('receiptAttachmentChip_${receipt.id}'),
+              icon: attachment.isImage
+                  ? Icons.photo_outlined
+                  : Icons.attach_file,
+              label: attachment.isImage
+                  ? 'Receipt: ${attachment.fileName} (Inspect)'
+                  : 'Attachment: ${attachment.fileName}',
+              tooltip: attachment.isImage
+                  ? 'Tap to inspect full receipt photo'
+                  : attachment.fileName,
+              onTap: attachment.isImage
+                  ? () => showAttachmentImagePreview(
+                        context,
+                        attachment: attachment,
+                        storage: attachmentStorage,
+                      )
+                  : null,
+            ),
         ],
       ),
       showDivider: showDivider,

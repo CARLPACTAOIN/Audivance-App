@@ -14,4 +14,12 @@ class AttachmentRef {
   final String localPath;
   final int? sizeBytes;
   final String? checksum;
+
+  bool get isImage {
+    final lower = fileName.toLowerCase();
+    return lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.png') ||
+        lower.endsWith('.webp');
+  }
 }

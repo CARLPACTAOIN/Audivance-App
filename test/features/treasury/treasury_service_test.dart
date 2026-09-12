@@ -173,33 +173,78 @@ void main() {
     },
   );
 
-  test('valid transfer decreases source and increases target', () async {
-    await _seedSource(repository, id: 'source-1', balance: Money.php(5000));
-    await _seedSource(repository, id: 'source-2', balance: Money.php(1000));
+  test('valid officer-to-officer transfer records movement with from and to officers', () async {
+    await _seedOfficers(repository);
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(5000));
+    // Release 2000 to officer-1
+    await service.recordManualMovement(
+      ManualFundMovementCommand(
+        type: FundMovementType.fundRelease,
+        amount: Money.php(2000),
+        date: DateTime(2026, 8, 18),
+        purpose: 'Initial cash release',
+        eventId: 'event-1',
+        holderOfficerId: 'officer-1',
+      ),
+    );
 
+    // Transfer 1500 from officer-1 to officer-2
     final result = await service.recordManualMovement(
       ManualFundMovementCommand(
         type: FundMovementType.transfer,
         amount: Money.php(1500),
         date: DateTime(2026, 8, 18),
-        purpose: 'Transfer to sponsor fund',
-        fromFundSourceId: 'source-1',
-        toFundSourceId: 'source-2',
+        purpose: 'Officer fund transfer',
+        eventId: 'event-1',
+        holderOfficerId: 'officer-1',
+        toHolderOfficerId: 'officer-2',
       ),
     );
 
-    final sources = {
-      for (final source in await repository.listTreasuryFundSources())
-        source.id: source,
-    };
-
     expect(result.isValid, isTrue);
-    expect(sources['source-1']!.balance, Money.php(3500));
-    expect(sources['source-2']!.balance, Money.php(2500));
+    final movements = await repository.listFundMovements();
+    final transfer = movements.firstWhere((m) => m.type == FundMovementType.transfer);
+    expect(transfer.holderOfficerId, 'officer-1');
+    expect(transfer.toHolderOfficerId, 'officer-2');
+    expect(transfer.amount, Money.php(1500));
+    expect(transfer.eventId, 'event-1');
   });
 
-  test('valid return or refund increases target source', () async {
+  test('valid officer return moves custody back to event approved budget', () async {
+    await _seedOfficer(repository);
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(3000));
+    // Release 2000 to officer-1 (approvedBudgetBalance becomes 1000)
+    await service.recordManualMovement(
+      ManualFundMovementCommand(
+        type: FundMovementType.fundRelease,
+        amount: Money.php(2000),
+        date: DateTime(2026, 8, 18),
+        purpose: 'Release to officer',
+        eventId: 'event-1',
+        holderOfficerId: 'officer-1',
+      ),
+    );
+
+    // Officer returns 500 to event budget
+    final result = await service.recordManualMovement(
+      ManualFundMovementCommand(
+        type: FundMovementType.officerReturn,
+        amount: Money.php(500),
+        date: DateTime(2026, 8, 18),
+        purpose: 'Returning unused custody',
+        eventId: 'event-1',
+        holderOfficerId: 'officer-1',
+      ),
+    );
+
+    expect(result.isValid, isTrue);
+    final event = (await repository.listAuditEvents()).single;
+    expect(event.approvedBudgetBalance, Money.php(1500));
+  });
+
+  test('valid return or refund decreases event approved budget and increases target source', () async {
     await _seedSource(repository, id: 'source-1', balance: Money.php(5000));
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
 
     final result = await service.recordManualMovement(
       ManualFundMovementCommand(
@@ -207,14 +252,17 @@ void main() {
         amount: Money.php(750),
         date: DateTime(2026, 8, 18),
         purpose: 'Returned excess event funds',
+        eventId: 'event-1',
         toFundSourceId: 'source-1',
       ),
     );
 
     final source = (await repository.listTreasuryFundSources()).single;
+    final event = (await repository.listAuditEvents()).single;
 
     expect(result.isValid, isTrue);
     expect(source.balance, Money.php(5750));
+    expect(event.approvedBudgetBalance, Money.php(250));
   });
 
   test('ledger rows sort newest first and preserve system flag', () async {
@@ -321,6 +369,23 @@ Future<void> _seedOfficer(DriftAuditRepository repository) {
     const Officer(
       id: 'officer-1',
       fullName: 'Ari Santos',
+      position: OfficerPosition.member,
+      committee: Committee.finance,
+    ),
+  ]);
+}
+
+Future<void> _seedOfficers(DriftAuditRepository repository) {
+  return repository.saveOfficers([
+    const Officer(
+      id: 'officer-1',
+      fullName: 'Ari Santos',
+      position: OfficerPosition.member,
+      committee: Committee.finance,
+    ),
+    const Officer(
+      id: 'officer-2',
+      fullName: 'Bea Reyes',
       position: OfficerPosition.member,
       committee: Committee.finance,
     ),

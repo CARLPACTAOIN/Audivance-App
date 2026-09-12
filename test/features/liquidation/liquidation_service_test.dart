@@ -89,7 +89,7 @@ void main() {
     expect(badLine.summary, contains('unit cost must be greater than zero'));
   });
 
-  test('rejects released-funds liquidation when officer held funds are insufficient', () async {
+  test('auto-splits released-funds liquidation into mixed funding when officer held funds are insufficient', () async {
     await _seedOfficer(repository);
     await _seedEvent(repository, approvedBudgetBalance: Money.php(900));
     await _seedFundRelease(repository, amount: Money.php(100));
@@ -106,11 +106,21 @@ void main() {
       ),
     );
 
-    expect(result.isInvalid, isTrue);
-    expect(
-      result.summary,
-      contains('accountable officer has insufficient held funds'),
+    expect(result.isValid, isTrue);
+    final receipts = await repository.listLiquidationReceipts();
+    final claims = await repository.listReimbursementClaims();
+    final movements = await repository.listFundMovements();
+
+    expect(receipts.single.fundingMode, FundingMode.mixed);
+    expect(receipts.single.releasedFundsAmount, Money.php(100));
+    expect(receipts.single.outOfPocketAmount, Money.php(100));
+    expect(claims.single.amount, Money.php(100));
+    expect(claims.single.status, ReimbursementStatus.pending);
+
+    final liquidationMovements = movements.where(
+      (m) => m.type == FundMovementType.liquidationSubmitted,
     );
+    expect(liquidationMovements.single.amount, Money.php(100));
   });
 
   test('valid released-funds liquidation persists receipt, lines, protected movement, audit log, and reduces officer custody only', () async {

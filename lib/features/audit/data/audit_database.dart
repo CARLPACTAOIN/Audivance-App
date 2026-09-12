@@ -103,6 +103,8 @@ class FundMovements extends Table {
   TextColumn get fromFundSourceId => text().nullable()();
   TextColumn get toFundSourceId => text().nullable()();
   TextColumn get holderOfficerId => text().nullable()();
+  /// For officer-to-officer transfers: the receiving officer.
+  TextColumn get toHolderOfficerId => text().nullable()();
   TextColumn get attachmentId => text().nullable()();
   TextColumn get attachmentFileName => text().nullable()();
   TextColumn get attachmentLocalPath => text().nullable()();
@@ -129,6 +131,10 @@ class LiquidationReceipts extends Table {
   TextColumn get attachmentLocalPath => text()();
   IntColumn get attachmentSizeBytes => integer().nullable()();
   TextColumn get attachmentChecksum => text().nullable()();
+  /// For mixed funding: the portion from officer custody (centavos).
+  IntColumn get releasedFundsCentavos => integer().nullable()();
+  /// For mixed funding: the out-of-pocket portion (centavos).
+  IntColumn get outOfPocketCentavos => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -251,7 +257,7 @@ class BackupHistoryEntries extends Table {
 class AuditDatabase extends _$AuditDatabase {
   AuditDatabase(super.executor);
 
-  static const currentSchemaVersion = 5;
+  static const currentSchemaVersion = 6;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -288,6 +294,20 @@ class AuditDatabase extends _$AuditDatabase {
           await migrator.addColumn(
             fundMovements,
             fundMovements.attachmentChecksum,
+          );
+        }
+        if (from < 6) {
+          await migrator.addColumn(
+            fundMovements,
+            fundMovements.toHolderOfficerId,
+          );
+          await migrator.addColumn(
+            liquidationReceipts,
+            liquidationReceipts.releasedFundsCentavos,
+          );
+          await migrator.addColumn(
+            liquidationReceipts,
+            liquidationReceipts.outOfPocketCentavos,
           );
         }
       },

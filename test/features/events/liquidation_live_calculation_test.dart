@@ -184,4 +184,45 @@ void main() {
       expect(find.text('Approved budget balance:'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'does not overflow summary card even in compact mobile screen width',
+    (tester) async {
+      tester.view.physicalSize = const Size(360, 640);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.byKey(const Key('liquidationSummaryCard')), findsOneWidget);
+
+      // Add quantity and unit cost to trigger line subtotals, grand total, and custody warning
+      final qtyFinder = find.byKey(
+        const Key('liquidationLineQuantityField0'),
+      );
+      final costFinder = find.byKey(
+        const Key('liquidationLineUnitCostField0'),
+      );
+      await tester.ensureVisible(qtyFinder);
+      await tester.enterText(qtyFinder, '10');
+      await tester.ensureVisible(costFinder);
+      await tester.enterText(costFinder, '125.50');
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final grandTotalFinder = find.byKey(const Key('liquidationGrandTotalText'));
+      await tester.ensureVisible(grandTotalFinder);
+      expect(grandTotalFinder, findsOneWidget);
+      expect(find.textContaining('1,255'), findsWidgets);
+      expect(
+        find.textContaining('exceeds officer held custody'),
+        findsOneWidget,
+      );
+    },
+  );
 }

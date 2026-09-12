@@ -1391,6 +1391,10 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: 16.0,
+        vertical: 24.0,
+      ),
       title: Text('Liquidate ${widget.event.name}'),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
@@ -1464,7 +1468,10 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: FundingMode.values
+                    children: [
+                      FundingMode.releasedFunds,
+                      FundingMode.outOfPocket,
+                    ]
                         .map(
                           (mode) => ChoiceChip(
                             key: Key(
@@ -1476,16 +1483,7 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                               setState(() {
                                 _fundingMode = mode;
                                 if (_fundingMode == FundingMode.releasedFunds) {
-                                  final selected = _officerById(
-                                    _officers,
-                                    _officerId,
-                                  );
-                                  if (selected == null ||
-                                      !selected.hasFundCustody) {
-                                    _officerId = _firstFundedOfficerId(
-                                      _officers,
-                                    );
-                                  }
+                                  _officerId = _firstFundedOfficerId(_officers);
                                 } else {
                                   _officerId ??= _officers.isEmpty
                                       ? null
@@ -1520,7 +1518,7 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                                 officer.hasFundCustody,
                             child: Text(
                               _fundingMode == FundingMode.releasedFunds
-                                  ? '${officer.fullName} - held ${officer.fundCustodyBalanceLabel}'
+                                  ? '${officer.fullName} — holds ${officer.fundCustodyBalanceLabel}'
                                   : officer.fullName,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1546,6 +1544,38 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                     },
                   ),
                 ),
+                // Mixed-funding split preview panel.
+                if (_fundingMode == FundingMode.releasedFunds) ...[
+                  Builder(
+                    builder: (context) {
+                      final selectedOfficer = _officerById(_officers, _officerId);
+                      final custody = selectedOfficer?.fundCustodyBalance ?? Money.zero;
+                      final receiptTotal = _totalReceiptAmount;
+                      if (!receiptTotal.isPositive || custody >= receiptTotal) {
+                        return const SizedBox.shrink();
+                      }
+                      final released = custody.isPositive ? custody : Money.zero;
+                      final oop = Money.centavos(
+                        receiptTotal.centavos - released.centavos,
+                      );
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: AppSpacing.sm),
+                          InlineStatusPanel(
+                            tone: InlineStatusTone.info,
+                            title: 'Auto-split funding',
+                            message: 'Officer custody (${formatPhpMoney(custody)}) is less than '
+                                'the receipt total (${formatPhpMoney(receiptTotal)}). '
+                                'This will be recorded as:\n'
+                                '  • Released from custody: ${formatPhpMoney(released)}\n'
+                                '  • Out-of-pocket (reimbursable): ${formatPhpMoney(oop)}',
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
                 if (_officerGuidance != null) ...[
                   const SizedBox(height: AppSpacing.sm),
                   InlineStatusPanel(
@@ -1703,7 +1733,10 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
 
     return Container(
       key: const Key('liquidationSummaryCard'),
-      padding: const EdgeInsets.all(AppSpacing.md),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
       decoration: BoxDecoration(
         color: hasWarning
             ? warningColor.withValues(alpha: 0.08)
@@ -1718,22 +1751,30 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
-              const Icon(
-                Icons.calculate_outlined,
-                size: 18,
-                color: AppColors.textSecondary,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.calculate_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Receipt Summary',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 8),
-              Text(
-                'Receipt Summary',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const Spacer(),
               Text(
                 'Total: ${formatPhpMoney(totalReceipt)}',
                 key: const Key('liquidationGrandTotalText'),
@@ -1748,8 +1789,11 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
           const SizedBox(height: 8),
           const Divider(height: 1),
           const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
             children: [
               Text(
                 isReleasedFunds
@@ -2460,13 +2504,15 @@ class _LiquidationLineRow extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: Row(
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 4,
                       children: [
                         Text(
                           'Line ${index + 1}',
                           style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        const SizedBox(width: 8),
                         Container(
                           key: Key('liquidationLineSubtotal$index'),
                           padding: const EdgeInsets.symmetric(
@@ -2759,11 +2805,13 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 4,
       children: [
-        Expanded(
-          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
-        ),
+        Text(title, style: Theme.of(context).textTheme.titleMedium),
         action,
       ],
     );

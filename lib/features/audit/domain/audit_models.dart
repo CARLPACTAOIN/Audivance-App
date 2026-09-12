@@ -25,6 +25,8 @@ enum FundMovementType {
   returnRefund,
   liquidationSubmitted,
   reimbursementPayment,
+  /// Officer returns unused custody funds back to an event's Approved Budget.
+  officerReturn,
 }
 
 enum ReceiptType {
@@ -35,7 +37,7 @@ enum ReceiptType {
   salesInvoice,
 }
 
-enum FundingMode { releasedFunds, outOfPocket }
+enum FundingMode { releasedFunds, outOfPocket, mixed }
 
 enum ReimbursementStatus { pending, paid }
 
@@ -216,6 +218,8 @@ class FundMovement {
     this.fromFundSourceId,
     this.toFundSourceId,
     this.holderOfficerId,
+    /// For officer-to-officer transfers: the officer receiving the funds.
+    this.toHolderOfficerId,
     this.supportingAttachment,
   });
 
@@ -230,6 +234,8 @@ class FundMovement {
   final StableId? fromFundSourceId;
   final StableId? toFundSourceId;
   final StableId? holderOfficerId;
+  /// For officer-to-officer transfers: the officer receiving the funds.
+  final StableId? toHolderOfficerId;
   final AttachmentRef? supportingAttachment;
   final bool isSystemGenerated;
 }
@@ -245,6 +251,8 @@ class LiquidationReceipt {
     required this.fundingMode,
     required this.accountableOfficerId,
     required this.attachment,
+    this.releasedFundsAmount,
+    this.outOfPocketAmount,
   });
 
   final StableId id;
@@ -256,6 +264,10 @@ class LiquidationReceipt {
   final FundingMode fundingMode;
   final StableId accountableOfficerId;
   final AttachmentRef attachment;
+  /// For mixed funding: the portion covered from officer custody.
+  final Money? releasedFundsAmount;
+  /// For mixed funding: the portion paid out-of-pocket (reimbursable).
+  final Money? outOfPocketAmount;
 }
 
 class LiquidationLine {

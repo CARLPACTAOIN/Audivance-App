@@ -88,6 +88,10 @@ class TreasuryService {
             (officer) => TreasuryOfficerOption(
               id: officer.id,
               fullName: officer.fullName,
+              custodyBalance: _officerCustodyBalance(
+                movements: movements,
+                officerId: officer.id,
+              ),
             ),
           )
           .toList(growable: false),
@@ -166,18 +170,40 @@ class TreasuryService {
 
     final sources = await repository.listTreasuryFundSources();
     final events = await repository.listAuditEvents();
-    final byId = {for (final source in sources) source.id: source};
-    final eventById = {for (final event in events) event.id: event};
-    final fromSource = command.fromFundSourceId == null
-        ? null
-        : byId[command.fromFundSourceId];
+    final movements = await repository.listFundMovements();
+    final bySourceId = {for (final s in sources) s.id: s};
+    final byEventId = {for (final e in events) e.id: e};
+
     final toSource = command.toFundSourceId == null
         ? null
-        : byId[command.toFundSourceId];
-    final event = command.eventId == null ? null : eventById[command.eventId];
-    final availableBalance = command.type == FundMovementType.fundRelease
-        ? event?.approvedBudgetBalance ?? Money.zero
-        : fromSource?.balance ?? command.amount;
+        : bySourceId[command.toFundSourceId];
+    final event = command.eventId == null ? null : byEventId[command.eventId];
+
+    // Determine available balance for the balance-check pass.
+    final Money availableBalance;
+    switch (command.type) {
+      case FundMovementType.fundRelease:
+        availableBalance = event?.approvedBudgetBalance ?? Money.zero;
+      case FundMovementType.transfer:
+        // Officer-to-officer: check from-officer custody for this event.
+        availableBalance = _officerCustodyBalance(
+          movements: movements,
+          officerId: command.holderOfficerId,
+          eventId: command.eventId,
+        );
+      case FundMovementType.returnRefund:
+        // Return/Refund: deduct from event Approved Budget.
+        availableBalance = event?.approvedBudgetBalance ?? Money.zero;
+      case FundMovementType.officerReturn:
+        // Officer return: check officer custody for this event.
+        availableBalance = _officerCustodyBalance(
+          movements: movements,
+          officerId: command.holderOfficerId,
+          eventId: command.eventId,
+        );
+      default:
+        availableBalance = Money.zero;
+    }
 
     final movementValidation = FundMovementRules.validateManualMovement(
       type: command.type,
@@ -199,10 +225,12 @@ class TreasuryService {
       remarks: command.remarks?.trim().isEmpty ?? true
           ? null
           : command.remarks!.trim(),
-      fromFundSourceId: command.fromFundSourceId,
-      toFundSourceId: command.toFundSourceId,
-      holderOfficerId: command.holderOfficerId,
       eventId: command.eventId,
+      holderOfficerId: command.holderOfficerId,
+      toHolderOfficerId: command.toHolderOfficerId,
+      toFundSourceId: command.type == FundMovementType.returnRefund
+          ? command.toFundSourceId
+          : null,
       isSystemGenerated: false,
     );
     final movementResult = await repository.saveFundMovement(
@@ -213,63 +241,84 @@ class TreasuryService {
       return movementResult;
     }
 
-    if (event != null && command.type == FundMovementType.fundRelease) {
+    // --- Balance effects per movement type ---
+
+    if (command.type == FundMovementType.fundRelease && event != null) {
+      // Fund Release: deduct from event Approved Budget.
       await repository.updateAuditEvent(
-        AuditEvent(
-          id: event.id,
-          name: event.name,
-          type: event.type,
-          semester: event.semester,
-          schoolYear: event.schoolYear,
-          startDate: event.startDate,
-          endDate: event.endDate,
-          permitApprovalDate: event.permitApprovalDate,
-          resolutionNumber: event.resolutionNumber,
-          budget: event.budget,
-          approvedBudgetBalance: event.approvedBudgetBalance - command.amount,
-          resolutionAttachment: event.resolutionAttachment,
-          isLiquidated: event.isLiquidated,
-        ),
-      );
-    }
-    if (fromSource != null && command.type != FundMovementType.fundRelease) {
-      await repository.updateTreasuryFundSource(
-        TreasuryFundSource(
-          id: fromSource.id,
-          type: fromSource.type,
-          label: fromSource.label,
-          balance: fromSource.balance - command.amount,
-          supportingAttachment: fromSource.supportingAttachment,
-        ),
-      );
-    }
-    if (toSource != null) {
-      await repository.updateTreasuryFundSource(
-        TreasuryFundSource(
-          id: toSource.id,
-          type: toSource.type,
-          label: toSource.label,
-          balance: toSource.balance + command.amount,
-          supportingAttachment: toSource.supportingAttachment,
-        ),
+        _copyEvent(event, approvedBudgetBalance: event.approvedBudgetBalance - command.amount),
       );
     }
 
+    if (command.type == FundMovementType.officerReturn && event != null) {
+      // Officer Return: return unused custody back to event Approved Budget.
+      await repository.updateAuditEvent(
+        _copyEvent(event, approvedBudgetBalance: event.approvedBudgetBalance + command.amount),
+      );
+    }
+
+    if (command.type == FundMovementType.returnRefund && event != null) {
+      // Return/Refund to Treasury: deduct from event Approved Budget.
+      await repository.updateAuditEvent(
+        _copyEvent(event, approvedBudgetBalance: event.approvedBudgetBalance - command.amount),
+      );
+      // Credit the treasury source fund.
+      if (toSource != null) {
+        await repository.updateTreasuryFundSource(
+          TreasuryFundSource(
+            id: toSource.id,
+            type: toSource.type,
+            label: toSource.label,
+            balance: toSource.balance + command.amount,
+            supportingAttachment: toSource.supportingAttachment,
+          ),
+        );
+      }
+    }
+
+    // Officer-to-officer transfer has no treasury or event balance effect;
+    // custody is tracked through movement history (_officerCustodyBalance).
+
+    final auditMetadata = <String, Object?>{
+      'movementType': movement.type.name,
+      'eventId': movement.eventId?.toString(),
+      'holderOfficerId': movement.holderOfficerId?.toString(),
+      'toHolderOfficerId': movement.toHolderOfficerId?.toString(),
+      'toFundSourceId': movement.toFundSourceId?.toString(),
+    };
+
     await _appendAuditLog(
-      action: 'treasury.manual_movement',
+      action: switch (command.type) {
+        FundMovementType.transfer => 'treasury.officer_transfer',
+        FundMovementType.officerReturn => 'treasury.officer_return_to_budget',
+        FundMovementType.returnRefund => 'treasury.return_refund_to_source',
+        _ => 'treasury.manual_movement',
+      },
       targetRecordId: movement.id,
       amount: command.amount,
       reference: movement.reference,
-      metadata: {
-        'movementType': movement.type.name,
-        'fromFundSourceId': movement.fromFundSourceId,
-        'toFundSourceId': movement.toFundSourceId,
-        'eventId': movement.eventId,
-        'holderOfficerId': movement.holderOfficerId,
-      },
+      metadata: auditMetadata,
     );
     return const ValidationResult.valid();
   }
+
+  /// Returns the total outstanding officer custody across all movements
+  /// for the given event. Used to surface a warning before Return/Refund.
+  Future<Money> totalOfficerCustodyForEvent(StableId eventId) async {
+    final movements = await repository.listFundMovements();
+    final officers = await repository.listOfficers();
+    var total = Money.zero;
+    for (final officer in officers) {
+      if (officer.isArchived) continue;
+      total += _officerCustodyBalance(
+        movements: movements,
+        officerId: officer.id,
+        eventId: eventId,
+      );
+    }
+    return total;
+  }
+
 
   Future<TreasuryFundSource?> _sourceForAddFund(StableId? id) async {
     if (id == null) {
@@ -300,7 +349,7 @@ class TreasuryService {
     final messages = <String>[];
     if (!FundMovementRules.manualTypes.contains(command.type)) {
       messages.add(
-        'Manual fund movements are limited to Fund Release, Transfer, and Return / Refund.',
+        'Manual fund movements are limited to Fund Release, Officer-to-Officer Transfer, Return to Event Budget, and Return / Refund to Treasury.',
       );
     }
     if (command.purpose.trim().isEmpty) {
@@ -316,7 +365,6 @@ class TreasuryService {
         .where((officer) => !officer.isArchived)
         .map((officer) => officer.id)
         .toSet();
-    final fromId = command.fromFundSourceId;
     final toId = command.toFundSourceId;
 
     switch (command.type) {
@@ -328,18 +376,36 @@ class TreasuryService {
           messages.add('Fund Release requires a fund custodian officer.');
         }
       case FundMovementType.transfer:
-        if (fromId == null) {
-          messages.add('Transfer requires a source fund.');
+        // Officer-to-officer transfer.
+        if (command.holderOfficerId == null) {
+          messages.add('Transfer requires a From officer.');
         }
-        if (toId == null) {
-          messages.add('Transfer requires a target fund.');
+        if (command.toHolderOfficerId == null) {
+          messages.add('Transfer requires a To officer.');
         }
-        if (fromId != null && fromId == toId) {
-          messages.add('Transfer source and target funds must be different.');
+        if (command.holderOfficerId != null &&
+            command.toHolderOfficerId != null &&
+            command.holderOfficerId == command.toHolderOfficerId) {
+          messages.add('Transfer From and To officers must be different.');
+        }
+        if (command.eventId == null) {
+          messages.add('Transfer requires an event.');
         }
       case FundMovementType.returnRefund:
+        // Return/Refund to Treasury: requires event source and target fund.
+        if (command.eventId == null) {
+          messages.add('Return / Refund requires the event being refunded.');
+        }
         if (toId == null) {
-          messages.add('Return / Refund requires a target fund.');
+          messages.add('Return / Refund requires a target treasury fund.');
+        }
+      case FundMovementType.officerReturn:
+        // Officer returns custody back to event Approved Budget.
+        if (command.holderOfficerId == null) {
+          messages.add('Return to Event Budget requires an officer.');
+        }
+        if (command.eventId == null) {
+          messages.add('Return to Event Budget requires an event.');
         }
       case FundMovementType.addFund:
       case FundMovementType.budgetAllocation:
@@ -349,9 +415,6 @@ class TreasuryService {
         break;
     }
 
-    if (fromId != null && !sourceIds.contains(fromId)) {
-      messages.add('Selected source fund does not exist.');
-    }
     if (toId != null && !sourceIds.contains(toId)) {
       messages.add('Selected target fund does not exist.');
     }
@@ -360,7 +423,11 @@ class TreasuryService {
     }
     if (command.holderOfficerId != null &&
         !officerIds.contains(command.holderOfficerId)) {
-      messages.add('Selected fund custodian officer does not exist.');
+      messages.add('Selected From officer does not exist.');
+    }
+    if (command.toHolderOfficerId != null &&
+        !officerIds.contains(command.toHolderOfficerId)) {
+      messages.add('Selected To officer does not exist.');
     }
 
     return ValidationResult.invalid(messages);
@@ -418,6 +485,7 @@ class ManualFundMovementCommand {
     this.fromFundSourceId,
     this.toFundSourceId,
     this.holderOfficerId,
+    this.toHolderOfficerId,
     this.eventId,
   });
 
@@ -426,9 +494,14 @@ class ManualFundMovementCommand {
   final DateTime date;
   final String purpose;
   final String? remarks;
+  /// For Return/Refund: not used (kept for potential future use).
   final StableId? fromFundSourceId;
+  /// For Return/Refund: target treasury source. For Transfer: not used.
   final StableId? toFundSourceId;
+  /// For Fund Release, Transfer (from), Officer Return: the officer holding.
   final StableId? holderOfficerId;
+  /// For Transfer only: the receiving officer.
+  final StableId? toHolderOfficerId;
   final StableId? eventId;
 }
 
@@ -485,10 +558,19 @@ class TreasuryEventOption {
 }
 
 class TreasuryOfficerOption {
-  const TreasuryOfficerOption({required this.id, required this.fullName});
+  const TreasuryOfficerOption({
+    required this.id,
+    required this.fullName,
+    this.custodyBalance = Money.zero,
+  });
 
   final StableId id;
   final String fullName;
+  /// Across all events — used to flag officers with outstanding custody.
+  final Money custodyBalance;
+
+  bool get hasCustody => custodyBalance.isPositive;
+  String get custodyLabel => formatPhpMoney(custodyBalance);
 }
 
 class TreasuryLedgerRow {
@@ -533,4 +615,63 @@ String _movementReference(DateTime date, StableId seed) {
   final d = date.day.toString().padLeft(2, '0');
   final hash = seed.hashCode.toUnsigned(32).toRadixString(16).toUpperCase();
   return 'FM-$y$m$d-${hash.padLeft(8, '0').substring(0, 8)}';
+}
+
+/// Computes net officer custody balance from fund movements.
+/// Optionally scoped to a single event.
+Money _officerCustodyBalance({
+  required List<FundMovement> movements,
+  required StableId? officerId,
+  StableId? eventId,
+}) {
+  if (officerId == null) return Money.zero;
+  var balance = Money.zero;
+  for (final movement in movements) {
+    if (movement.holderOfficerId != officerId) continue;
+    if (eventId != null && movement.eventId != eventId) continue;
+    switch (movement.type) {
+      case FundMovementType.fundRelease:
+        balance += movement.amount;
+      case FundMovementType.liquidationSubmitted:
+      case FundMovementType.returnRefund:
+      case FundMovementType.officerReturn:
+        balance -= movement.amount;
+      case FundMovementType.transfer:
+        // Sending officer loses custody.
+        balance -= movement.amount;
+      case FundMovementType.addFund:
+      case FundMovementType.budgetAllocation:
+      case FundMovementType.budgetAdjustment:
+      case FundMovementType.reimbursementPayment:
+        break;
+    }
+    // Receiving officer gains custody from a transfer.
+    if (movement.type == FundMovementType.transfer &&
+        movement.toHolderOfficerId == officerId) {
+      balance += movement.amount;
+    }
+  }
+  return balance;
+}
+
+AuditEvent _copyEvent(
+  AuditEvent event, {
+  Money? approvedBudgetBalance,
+  bool? isLiquidated,
+}) {
+  return AuditEvent(
+    id: event.id,
+    name: event.name,
+    type: event.type,
+    semester: event.semester,
+    schoolYear: event.schoolYear,
+    startDate: event.startDate,
+    endDate: event.endDate,
+    permitApprovalDate: event.permitApprovalDate,
+    resolutionNumber: event.resolutionNumber,
+    budget: event.budget,
+    approvedBudgetBalance: approvedBudgetBalance ?? event.approvedBudgetBalance,
+    resolutionAttachment: event.resolutionAttachment,
+    isLiquidated: isLiquidated ?? event.isLiquidated,
+  );
 }

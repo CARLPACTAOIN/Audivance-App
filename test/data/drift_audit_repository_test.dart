@@ -20,7 +20,7 @@ void main() {
   });
 
   test('opens schema and inserts and loads organization profile', () async {
-    expect(AuditDatabase.currentSchemaVersion, 5);
+    expect(AuditDatabase.currentSchemaVersion, 6);
 
     const organization = OrganizationProfile(
       id: 'org-1',
