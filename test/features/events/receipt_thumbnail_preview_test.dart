@@ -38,15 +38,73 @@ class _FakeAttachmentStorageService implements AttachmentStorageService {
   Future<Uint8List> readBytes(AttachmentRef attachment) async {
     // Return minimal valid 1x1 transparent PNG bytes so Image.memory decodes cleanly
     return Uint8List.fromList(const [
-      0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
-      0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
-      0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
-      0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
-      0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41,
-      0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
-      0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00,
-      0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
-      0x42, 0x60, 0x82,
+      0x89,
+      0x50,
+      0x4E,
+      0x47,
+      0x0D,
+      0x0A,
+      0x1A,
+      0x0A,
+      0x00,
+      0x00,
+      0x00,
+      0x0D,
+      0x49,
+      0x48,
+      0x44,
+      0x52,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x00,
+      0x01,
+      0x08,
+      0x06,
+      0x00,
+      0x00,
+      0x00,
+      0x1F,
+      0x15,
+      0xC4,
+      0x89,
+      0x00,
+      0x00,
+      0x00,
+      0x0A,
+      0x49,
+      0x44,
+      0x41,
+      0x54,
+      0x78,
+      0x9C,
+      0x63,
+      0x00,
+      0x01,
+      0x00,
+      0x00,
+      0x05,
+      0x00,
+      0x01,
+      0x0D,
+      0x0A,
+      0x2D,
+      0xB4,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x49,
+      0x45,
+      0x4E,
+      0x44,
+      0xAE,
+      0x42,
+      0x60,
+      0x82,
     ]);
   }
 
@@ -71,10 +129,7 @@ class _FakeEventService implements EventService {
 
   @override
   Future<EventWorkspaceSnapshot> loadSnapshot({required DateTime asOf}) async {
-    return EventWorkspaceSnapshot(
-      events: [event],
-      sourceOptions: const [],
-    );
+    return EventWorkspaceSnapshot(events: [event], sourceOptions: const []);
   }
 
   @override
@@ -103,10 +158,7 @@ class _FakeEventService implements EventService {
 }
 
 class _FakeLiquidationService implements LiquidationService {
-  _FakeLiquidationService({
-    required this.event,
-    required this.receipts,
-  });
+  _FakeLiquidationService({required this.event, required this.receipts});
 
   final LiquidationEventView event;
   final List<LiquidationReceiptView> receipts;
@@ -178,6 +230,7 @@ void main() {
       fundingMode: FundingMode.releasedFunds,
       accountableOfficerName: 'Alex Treasurer',
       total: const Money.centavos(45000),
+      isVoided: false,
       attachment: imageAttachment,
     ),
     LiquidationReceiptView(
@@ -191,6 +244,7 @@ void main() {
       fundingMode: FundingMode.outOfPocket,
       accountableOfficerName: 'Alex Treasurer',
       total: const Money.centavos(120000),
+      isVoided: false,
       attachment: pdfAttachment,
     ),
   ];
@@ -244,10 +298,7 @@ void main() {
       );
 
       await tester.pumpWidget(
-        buildSubject(
-          storage: storage,
-          liquidationService: liquidationService,
-        ),
+        buildSubject(storage: storage, liquidationService: liquidationService),
       );
       await tester.pumpAndSettle();
 
@@ -281,7 +332,10 @@ void main() {
       expect(find.byType(AttachmentImagePreviewDialog), findsOneWidget);
       expect(find.text('grocery_receipt.png'), findsOneWidget);
       expect(find.byType(InteractiveViewer), findsOneWidget);
-      expect(find.byKey(const Key('attachmentPreviewCloseButton')), findsOneWidget);
+      expect(
+        find.byKey(const Key('attachmentPreviewCloseButton')),
+        findsOneWidget,
+      );
 
       // Close the preview modal
       await tester.tap(find.byKey(const Key('attachmentPreviewCloseButton')));

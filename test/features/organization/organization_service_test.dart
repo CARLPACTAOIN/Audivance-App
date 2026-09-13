@@ -310,6 +310,107 @@ void main() {
       contains('missing-officers'),
     );
   });
+
+  test(
+    'prevents archiving an officer who still holds funds in custody',
+    () async {
+      await service.saveOfficer(
+        const SaveOfficerCommand(
+          fullName: 'Ari Santos',
+          position: OfficerPosition.member,
+        ),
+      );
+      final officer = (await repository.listOfficers()).single;
+
+      // Seed fund release to Ari Santos
+      await repository.saveFundMovement(
+        movement: FundMovement(
+          id: 'mov-custody-1',
+          reference: 'REL-001',
+          type: FundMovementType.fundRelease,
+          date: DateTime(2026, 8, 18),
+          amount: Money.php(500),
+          holderOfficerId: officer.id,
+          purpose: 'Supplies',
+          isSystemGenerated: false,
+        ),
+      );
+
+      final snapshot = await service.loadSnapshot();
+      final row = snapshot.activeOfficers.firstWhere((o) => o.id == officer.id);
+      expect(row.hasCustody, isTrue);
+      expect(row.custodyBalance, Money.php(500));
+
+      final archiveAttempt = await service.setOfficerArchived(
+        officerId: officer.id,
+        isArchived: true,
+      );
+
+      expect(archiveAttempt.isInvalid, isTrue);
+      expect(
+        archiveAttempt.summary,
+        contains('because they still hold PHP 500.00 in fund custody'),
+      );
+
+      final officersStillActive = await repository.listOfficers();
+      expect(officersStillActive.single.isArchived, isFalse);
+    },
+  );
+
+  test(
+    'allows archiving officer after custody balance is returned or cleared',
+    () async {
+      await service.saveOfficer(
+        const SaveOfficerCommand(
+          fullName: 'Ari Santos',
+          position: OfficerPosition.member,
+        ),
+      );
+      final officer = (await repository.listOfficers()).single;
+
+      // Seed fund release to Ari Santos
+      await repository.saveFundMovement(
+        movement: FundMovement(
+          id: 'mov-custody-1',
+          reference: 'REL-001',
+          type: FundMovementType.fundRelease,
+          date: DateTime(2026, 8, 18),
+          amount: Money.php(500),
+          holderOfficerId: officer.id,
+          purpose: 'Supplies',
+          isSystemGenerated: false,
+        ),
+      );
+
+      // Return funds back
+      await repository.saveFundMovement(
+        movement: FundMovement(
+          id: 'mov-return-1',
+          reference: 'RET-001',
+          type: FundMovementType.officerReturn,
+          date: DateTime(2026, 8, 19),
+          amount: Money.php(500),
+          holderOfficerId: officer.id,
+          purpose: 'Return unused supplies fund',
+          isSystemGenerated: false,
+        ),
+      );
+
+      final snapshot = await service.loadSnapshot();
+      final row = snapshot.activeOfficers.firstWhere((o) => o.id == officer.id);
+      expect(row.hasCustody, isFalse);
+      expect(row.custodyBalance, Money.zero);
+
+      final archiveResult = await service.setOfficerArchived(
+        officerId: officer.id,
+        isArchived: true,
+      );
+
+      expect(archiveResult.isValid, isTrue);
+      final officersAfterArchive = await repository.listOfficers();
+      expect(officersAfterArchive.single.isArchived, isTrue);
+    },
+  );
 }
 
 Future<void> _seedOrganization(DriftAuditRepository repository) {

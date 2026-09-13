@@ -2,6 +2,7 @@ import 'package:audivance/core/domain/attachment_ref.dart';
 import 'package:audivance/core/domain/money.dart';
 import 'package:audivance/features/audit/domain/audit_models.dart';
 import 'package:audivance/features/audit/domain/audit_rules.dart';
+import 'package:audivance/features/liquidation/domain/receipt_edit_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -200,6 +201,102 @@ void main() {
       expect(result.isInvalid, isTrue);
       expect(result.summary, contains('must be assigned to a committee'));
     });
+
+    test('calculateOfficerCustodyBalance tracks releases, transfers, liquidations, and returns', () {
+      final movements = [
+        FundMovement(
+          id: 'mov-1',
+          reference: 'REL-1',
+          type: FundMovementType.fundRelease,
+          date: DateTime(2026, 8, 1),
+          amount: Money.php(1000),
+          holderOfficerId: 'officer-1',
+          purpose: 'Release',
+          isSystemGenerated: true,
+        ),
+        FundMovement(
+          id: 'mov-2',
+          reference: 'TR-1',
+          type: FundMovementType.transfer,
+          date: DateTime(2026, 8, 2),
+          amount: Money.php(300),
+          holderOfficerId: 'officer-1',
+          toHolderOfficerId: 'officer-2',
+          purpose: 'Transfer',
+          isSystemGenerated: true,
+        ),
+        FundMovement(
+          id: 'mov-3',
+          reference: 'LIQ-1',
+          type: FundMovementType.liquidationSubmitted,
+          date: DateTime(2026, 8, 3),
+          amount: Money.php(400),
+          holderOfficerId: 'officer-1',
+          purpose: 'Liquidation',
+          isSystemGenerated: true,
+        ),
+        FundMovement(
+          id: 'mov-4',
+          reference: 'RET-1',
+          type: FundMovementType.officerReturn,
+          date: DateTime(2026, 8, 4),
+          amount: Money.php(200),
+          holderOfficerId: 'officer-1',
+          purpose: 'Return',
+          isSystemGenerated: true,
+        ),
+      ];
+
+      expect(
+        OfficerRules.calculateOfficerCustodyBalance(
+          officerId: 'officer-1',
+          movements: movements,
+        ),
+        Money.php(100),
+      );
+
+      expect(
+        OfficerRules.calculateOfficerCustodyBalance(
+          officerId: 'officer-2',
+          movements: movements,
+        ),
+        Money.php(300),
+      );
+    });
+
+    test('validateArchiveOfficer rejects archiving when custody balance is positive', () {
+      final result = OfficerRules.validateArchiveOfficer(
+        officer: const Officer(
+          id: 'officer-1',
+          fullName: 'Ari Santos',
+          position: OfficerPosition.member,
+        ),
+        custodyBalance: Money.php(150),
+      );
+
+      expect(result.isInvalid, isTrue);
+      expect(
+        result.summary,
+        contains('because they still hold PHP 150.00 in fund custody'),
+      );
+      expect(result.summary, contains('150.00'));
+    });
+
+    test(
+      'validateArchiveOfficer permits archiving when custody balance is zero',
+      () {
+        final result = OfficerRules.validateArchiveOfficer(
+          officer: const Officer(
+            id: 'officer-1',
+            fullName: 'Ari Santos',
+            position: OfficerPosition.member,
+          ),
+          custodyBalance: Money.zero,
+        );
+
+        expect(result.isValid, isTrue);
+      },
+    );
   });
 
   group('LiquidationRules', () {
@@ -218,6 +315,402 @@ void main() {
         );
       },
     );
+
+    group('classifyEdit', () {
+      final baseReceipt = _receipt();
+      final baseLines = [
+        _line(id: 'line-1', quantity: 2, unitCost: Money.php(50)),
+      ];
+
+      test('classifies non-financial field changes as metadata', () {
+        final modifiedReceipt = _receipt(
+          payee: 'New Merchant Name',
+          evidenceNumber: 'OR-999',
+          type: ReceiptType.salesInvoice,
+          remarks: 'Updated remarks',
+          attachment: const AttachmentRef(
+            id: 'att-2',
+            fileName: 'new.pdf',
+            localPath: 'attachments/new.pdf',
+            checksum: 'chk-2',
+          ),
+        );
+        final modifiedLines = [
+          _line(
+            id: 'line-1',
+            description: 'Updated Supplies description',
+            quantity: 2,
+            unitCost: Money.php(50),
+          ),
+        ];
+
+        final result = LiquidationRules.classifyEdit(
+          before: baseReceipt,
+          beforeLines: baseLines,
+          after: modifiedReceipt,
+          afterLines: modifiedLines,
+        );
+
+        expect(result, equals(ReceiptEditClassification.metadata));
+      });
+
+      test(
+        'classifies date, officer, or funding mode changes as financial',
+        () {
+          expect(
+            LiquidationRules.classifyEdit(
+              before: baseReceipt,
+              beforeLines: baseLines,
+              after: _receipt(date: DateTime(2026, 8, 15)),
+              afterLines: baseLines,
+            ),
+            equals(ReceiptEditClassification.financial),
+          );
+
+          expect(
+            LiquidationRules.classifyEdit(
+              before: baseReceipt,
+              beforeLines: baseLines,
+              after: _receipt(officerId: 'officer-2'),
+              afterLines: baseLines,
+            ),
+            equals(ReceiptEditClassification.financial),
+          );
+
+          expect(
+            LiquidationRules.classifyEdit(
+              before: baseReceipt,
+              beforeLines: baseLines,
+              after: _receipt(fundingMode: FundingMode.outOfPocket),
+              afterLines: baseLines,
+            ),
+            equals(ReceiptEditClassification.financial),
+          );
+        },
+      );
+
+      test(
+        'classifies line changes (count, quantity, unitCost) as financial',
+        () {
+          // Line quantity change
+          expect(
+            LiquidationRules.classifyEdit(
+              before: baseReceipt,
+              beforeLines: baseLines,
+              after: baseReceipt,
+              afterLines: [
+                _line(id: 'line-1', quantity: 3, unitCost: Money.php(50)),
+              ],
+            ),
+            equals(ReceiptEditClassification.financial),
+          );
+
+          // Line unit cost change
+          expect(
+            LiquidationRules.classifyEdit(
+              before: baseReceipt,
+              beforeLines: baseLines,
+              after: baseReceipt,
+              afterLines: [
+                _line(id: 'line-1', quantity: 2, unitCost: Money.php(60)),
+              ],
+            ),
+            equals(ReceiptEditClassification.financial),
+          );
+
+          // Added line
+          expect(
+            LiquidationRules.classifyEdit(
+              before: baseReceipt,
+              beforeLines: baseLines,
+              after: baseReceipt,
+              afterLines: [
+                ...baseLines,
+                _line(id: 'line-2', quantity: 1, unitCost: Money.php(20)),
+              ],
+            ),
+            equals(ReceiptEditClassification.financial),
+          );
+        },
+      );
+    });
+
+    group('validateEdit', () {
+      final receipt = _receipt();
+      final lines = [_line(id: 'line-1')];
+
+      test(
+        'permits metadata edits even if event is liquidated or claims are paid',
+        () {
+          final liquidatedEvent = _event(isLiquidated: true);
+          final paidClaim = const ReimbursementClaim(
+            id: 'claim-1',
+            eventId: 'event-1',
+            officerId: 'officer-1',
+            amount: Money.centavos(20000),
+            status: ReimbursementStatus.paid,
+            sourceLiquidationLineId: 'line-1',
+          );
+
+          final result = LiquidationRules.validateEdit(
+            classification: ReceiptEditClassification.metadata,
+            receipt: receipt,
+            event: liquidatedEvent,
+            allClaims: [paidClaim],
+            receiptLines: lines,
+          );
+
+          expect(result.isValid, isTrue);
+        },
+      );
+
+      test('blocks financial edit if event is liquidated', () {
+        final liquidatedEvent = _event(isLiquidated: true);
+
+        final result = LiquidationRules.validateEdit(
+          classification: ReceiptEditClassification.financial,
+          receipt: receipt,
+          event: liquidatedEvent,
+          allClaims: const [],
+          receiptLines: lines,
+        );
+
+        expect(result.isInvalid, isTrue);
+        expect(result.summary, contains('already been liquidated'));
+      });
+
+      test('blocks financial edit if related claim is paid', () {
+        final ongoingEvent = _event(isLiquidated: false);
+        final paidClaim = const ReimbursementClaim(
+          id: 'claim-1',
+          eventId: 'event-1',
+          officerId: 'officer-1',
+          amount: Money.centavos(20000),
+          status: ReimbursementStatus.paid,
+          sourceLiquidationLineId: 'line-1',
+        );
+
+        final result = LiquidationRules.validateEdit(
+          classification: ReceiptEditClassification.financial,
+          receipt: receipt,
+          event: ongoingEvent,
+          allClaims: [paidClaim],
+          receiptLines: lines,
+        );
+
+        expect(result.isInvalid, isTrue);
+        expect(result.summary, contains('claim has already been paid'));
+      });
+
+      test(
+        'permits financial edit if event is active and claims are pending',
+        () {
+          final ongoingEvent = _event(isLiquidated: false);
+          final pendingClaim = const ReimbursementClaim(
+            id: 'claim-1',
+            eventId: 'event-1',
+            officerId: 'officer-1',
+            amount: Money.centavos(20000),
+            status: ReimbursementStatus.pending,
+            sourceLiquidationLineId: 'line-1',
+          );
+
+          final result = LiquidationRules.validateEdit(
+            classification: ReceiptEditClassification.financial,
+            receipt: receipt,
+            event: ongoingEvent,
+            allClaims: [pendingClaim],
+            receiptLines: lines,
+          );
+
+          expect(result.isValid, isTrue);
+        },
+      );
+    });
+
+    group('validateVoid', () {
+      final receipt = _receipt();
+      final lines = [_line(id: 'line-1')];
+
+      test('blocks voiding an already voided receipt', () {
+        final voidedReceipt = _receipt(isVoided: true);
+
+        final result = LiquidationRules.validateVoid(
+          receipt: voidedReceipt,
+          event: _event(),
+          allClaims: const [],
+          receiptLines: lines,
+        );
+
+        expect(result.isInvalid, isTrue);
+        expect(result.summary, contains('already been voided'));
+      });
+
+      test('blocks void if event is liquidated or claim is paid', () {
+        final liquidatedEvent = _event(isLiquidated: true);
+        final paidClaim = const ReimbursementClaim(
+          id: 'claim-1',
+          eventId: 'event-1',
+          officerId: 'officer-1',
+          amount: Money.centavos(20000),
+          status: ReimbursementStatus.paid,
+          sourceLiquidationLineId: 'line-1',
+        );
+
+        expect(
+          LiquidationRules.validateVoid(
+            receipt: receipt,
+            event: liquidatedEvent,
+            allClaims: const [],
+            receiptLines: lines,
+          ).isInvalid,
+          isTrue,
+        );
+
+        expect(
+          LiquidationRules.validateVoid(
+            receipt: receipt,
+            event: _event(),
+            allClaims: [paidClaim],
+            receiptLines: lines,
+          ).isInvalid,
+          isTrue,
+        );
+      });
+
+      test(
+        'permits void when receipt is active, event ongoing, and no paid claim',
+        () {
+          final result = LiquidationRules.validateVoid(
+            receipt: receipt,
+            event: _event(),
+            allClaims: const [],
+            receiptLines: lines,
+          );
+
+          expect(result.isValid, isTrue);
+        },
+      );
+    });
+
+    group('detectDuplicates', () {
+      final proposed = _receipt(
+        id: 'rec-proposed',
+        eventId: 'event-1',
+        evidenceNumber: 'OR-100',
+        payee: 'Target Store',
+        date: DateTime(2026, 8, 10),
+        attachment: const AttachmentRef(
+          id: 'att-proposed',
+          fileName: 'rec.pdf',
+          localPath: 'attachments/rec.pdf',
+          checksum: 'hash-abc',
+        ),
+      );
+      final proposedTotal = Money.php(200);
+
+      test(
+        'warns when evidence number matches another receipt in same event',
+        () {
+          final existing = _receipt(
+            id: 'rec-existing',
+            eventId: 'event-1',
+            evidenceNumber: 'OR-100',
+            payee: 'Different Store',
+          );
+
+          final warnings = LiquidationRules.detectDuplicates(
+            proposed: proposed,
+            proposedTotal: proposedTotal,
+            existingReceipts: [existing],
+            receiptTotals: {existing.id: Money.php(500)},
+          );
+
+          expect(warnings, hasLength(1));
+          expect(
+            warnings.first,
+            contains('Evidence number "OR-100" already exists'),
+          );
+        },
+      );
+
+      test('warns when payee, date, and total match', () {
+        final existing = _receipt(
+          id: 'rec-existing',
+          eventId: 'event-2', // different event, but same payee/date/total
+          evidenceNumber: 'OR-999',
+          payee: 'Target Store',
+          date: DateTime(2026, 8, 10, 15, 30),
+        );
+
+        final warnings = LiquidationRules.detectDuplicates(
+          proposed: proposed,
+          proposedTotal: proposedTotal,
+          existingReceipts: [existing],
+          receiptTotals: {existing.id: proposedTotal},
+        );
+
+        expect(warnings, hasLength(1));
+        expect(
+          warnings.first,
+          contains('same merchant, date, and total already exists'),
+        );
+      });
+
+      test('warns when attachment checksum matches', () {
+        final existing = _receipt(
+          id: 'rec-existing',
+          eventId: 'event-2',
+          evidenceNumber: 'OR-999',
+          payee: 'Different Store',
+          attachment: const AttachmentRef(
+            id: 'att-existing',
+            fileName: 'old.pdf',
+            localPath: 'attachments/old.pdf',
+            checksum: 'hash-abc',
+          ),
+        );
+
+        final warnings = LiquidationRules.detectDuplicates(
+          proposed: proposed,
+          proposedTotal: proposedTotal,
+          existingReceipts: [existing],
+          receiptTotals: {existing.id: Money.php(500)},
+        );
+
+        expect(warnings, hasLength(1));
+        expect(
+          warnings.first,
+          contains('attachment appears to be a duplicate'),
+        );
+      });
+
+      test('ignores voided receipts and ignores proposed receipt itself', () {
+        final sameReceipt = _receipt(
+          id: 'rec-proposed',
+          eventId: 'event-1',
+          evidenceNumber: 'OR-100',
+        );
+        final voidedReceipt = _receipt(
+          id: 'rec-voided',
+          eventId: 'event-1',
+          evidenceNumber: 'OR-100',
+          isVoided: true,
+        );
+
+        final warnings = LiquidationRules.detectDuplicates(
+          proposed: proposed,
+          proposedTotal: proposedTotal,
+          existingReceipts: [sameReceipt, voidedReceipt],
+          receiptTotals: {
+            sameReceipt.id: proposedTotal,
+            voidedReceipt.id: proposedTotal,
+          },
+        );
+
+        expect(warnings, isEmpty);
+      });
+    });
   });
 
   group('ReimbursementRules', () {
@@ -268,5 +761,53 @@ AuditEvent _event({
     approvedBudgetBalance: budget,
     resolutionAttachment: attachment,
     isLiquidated: isLiquidated,
+  );
+}
+
+LiquidationReceipt _receipt({
+  String id = 'receipt-1',
+  String eventId = 'event-1',
+  String officerId = 'officer-1',
+  DateTime? date,
+  String payee = 'Store A',
+  String evidenceNumber = 'OR-100',
+  ReceiptType type = ReceiptType.officialReceipt,
+  FundingMode fundingMode = FundingMode.releasedFunds,
+  AttachmentRef? attachment = _attachment,
+  String? remarks,
+  bool isVoided = false,
+  DateTime? voidedAt,
+  String? voidReason,
+}) {
+  return LiquidationReceipt(
+    id: id,
+    eventId: eventId,
+    payeeOrMerchant: payee,
+    date: date ?? DateTime(2026, 8, 10),
+    evidenceNumber: evidenceNumber,
+    receiptType: type,
+    fundingMode: fundingMode,
+    accountableOfficerId: officerId,
+    attachment: attachment ?? _attachment,
+    remarks: remarks,
+    isVoided: isVoided,
+    voidedAt: voidedAt,
+    voidReason: voidReason,
+  );
+}
+
+LiquidationLine _line({
+  String id = 'line-1',
+  String receiptId = 'receipt-1',
+  String description = 'Supplies',
+  int quantity = 2,
+  Money unitCost = const Money.centavos(10000),
+}) {
+  return LiquidationLine(
+    id: id,
+    receiptId: receiptId,
+    description: description,
+    quantity: quantity,
+    unitCost: unitCost,
   );
 }

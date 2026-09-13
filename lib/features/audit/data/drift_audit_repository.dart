@@ -251,8 +251,24 @@ class DriftAuditRepository implements AuditRepository {
   }
 
   @override
+  Future<void> updateLiquidationReceipt(domain.LiquidationReceipt receipt) {
+    return _database
+        .into(_database.liquidationReceipts)
+        .insertOnConflictUpdate(receipt.toCompanion());
+  }
+
+  @override
   Future<List<domain.LiquidationReceipt>> listLiquidationReceipts() async {
     final rows = await _database.select(_database.liquidationReceipts).get();
+    return rows.map((row) => row.toDomain()).toList(growable: false);
+  }
+
+  @override
+  Future<List<domain.LiquidationReceipt>>
+  listActiveLiquidationReceipts() async {
+    final rows = await (_database.select(
+      _database.liquidationReceipts,
+    )..where((table) => table.isVoided.equals(false))).get();
     return rows.map((row) => row.toDomain()).toList(growable: false);
   }
 
@@ -261,6 +277,20 @@ class DriftAuditRepository implements AuditRepository {
     return _database
         .into(_database.liquidationLines)
         .insertOnConflictUpdate(line.toCompanion());
+  }
+
+  @override
+  Future<void> updateLiquidationLine(domain.LiquidationLine line) {
+    return _database
+        .into(_database.liquidationLines)
+        .insertOnConflictUpdate(line.toCompanion());
+  }
+
+  @override
+  Future<void> deleteLiquidationLine(StableId id) {
+    return (_database.delete(
+      _database.liquidationLines,
+    )..where((table) => table.id.equals(id))).go();
   }
 
   @override
@@ -282,6 +312,13 @@ class DriftAuditRepository implements AuditRepository {
         .into(_database.reimbursementClaims)
         .insertOnConflictUpdate(claim.toCompanion());
     return const ValidationResult.valid();
+  }
+
+  @override
+  Future<void> updateReimbursementClaim(domain.ReimbursementClaim claim) {
+    return _database
+        .into(_database.reimbursementClaims)
+        .insertOnConflictUpdate(claim.toCompanion());
   }
 
   @override
@@ -323,6 +360,23 @@ class DriftAuditRepository implements AuditRepository {
   @override
   Future<List<domain.AuditLogEntry>> listAuditLogs() async {
     final rows = await _database.select(_database.auditLogEntries).get();
+    return rows.map((row) => row.toDomain()).toList(growable: false);
+  }
+
+  @override
+  Future<List<domain.AuditLogEntry>> listAuditLogsForReceipt(
+    StableId receiptId,
+  ) async {
+    final rows =
+        await (_database.select(_database.auditLogEntries)
+              ..where((table) => table.targetRecordId.equals(receiptId))
+              ..orderBy([
+                (table) => OrderingTerm(
+                  expression: table.occurredAt,
+                  mode: OrderingMode.asc,
+                ),
+              ]))
+            .get();
     return rows.map((row) => row.toDomain()).toList(growable: false);
   }
 
@@ -389,5 +443,148 @@ class DriftAuditRepository implements AuditRepository {
       amount: movement.amount,
       availableBalance: availableBalance ?? movement.amount,
     );
+  }
+
+  // -- Atomic aggregate operations -----------------------------------------
+
+  @override
+  Future<ValidationResult> postReceiptAtomically({
+    required domain.LiquidationReceipt receipt,
+    required List<domain.LiquidationLine> lines,
+    domain.FundMovement? submittedMovement,
+    List<domain.ReimbursementClaim> claims = const [],
+    required domain.AuditLogEntry auditLog,
+  }) async {
+    try {
+      await _database.transaction(() async {
+        await _database
+            .into(_database.liquidationReceipts)
+            .insertOnConflictUpdate(receipt.toCompanion());
+        for (final line in lines) {
+          await _database
+              .into(_database.liquidationLines)
+              .insertOnConflictUpdate(line.toCompanion());
+        }
+        if (submittedMovement != null) {
+          await _database
+              .into(_database.fundMovements)
+              .insertOnConflictUpdate(submittedMovement.toCompanion());
+        }
+        for (final claim in claims) {
+          await _database
+              .into(_database.reimbursementClaims)
+              .insertOnConflictUpdate(claim.toCompanion());
+        }
+        await _database
+            .into(_database.auditLogEntries)
+            .insert(auditLog.toCompanion());
+      });
+    } catch (e) {
+      return ValidationResult.failure(
+        'Failed to post receipt: ${e.toString()}',
+      );
+    }
+    return const ValidationResult.valid();
+  }
+
+  @override
+  Future<ValidationResult> editReceiptAtomically({
+    required domain.LiquidationReceipt updatedReceipt,
+    required List<domain.LiquidationLine> updatedLines,
+    List<StableId> lineIdsToDelete = const [],
+    domain.FundMovement? reversalMovement,
+    domain.FundMovement? newSubmittedMovement,
+    List<domain.ReimbursementClaim> claimsToSupersede = const [],
+    List<domain.ReimbursementClaim> replacementClaims = const [],
+    required domain.AuditLogEntry auditLog,
+  }) async {
+    try {
+      await _database.transaction(() async {
+        // Update receipt in place.
+        await _database
+            .into(_database.liquidationReceipts)
+            .insertOnConflictUpdate(updatedReceipt.toCompanion());
+        // Upsert updated lines.
+        for (final line in updatedLines) {
+          await _database
+              .into(_database.liquidationLines)
+              .insertOnConflictUpdate(line.toCompanion());
+        }
+        // Delete removed lines.
+        for (final lineId in lineIdsToDelete) {
+          await (_database.delete(
+            _database.liquidationLines,
+          )..where((table) => table.id.equals(lineId))).go();
+        }
+        // Financial movements.
+        if (reversalMovement != null) {
+          await _database
+              .into(_database.fundMovements)
+              .insertOnConflictUpdate(reversalMovement.toCompanion());
+        }
+        if (newSubmittedMovement != null) {
+          await _database
+              .into(_database.fundMovements)
+              .insertOnConflictUpdate(newSubmittedMovement.toCompanion());
+        }
+        // Supersede old claims.
+        for (final claim in claimsToSupersede) {
+          await _database
+              .into(_database.reimbursementClaims)
+              .insertOnConflictUpdate(claim.toCompanion());
+        }
+        // Insert replacement claims.
+        for (final claim in replacementClaims) {
+          await _database
+              .into(_database.reimbursementClaims)
+              .insertOnConflictUpdate(claim.toCompanion());
+        }
+        await _database
+            .into(_database.auditLogEntries)
+            .insert(auditLog.toCompanion());
+      });
+    } catch (e) {
+      return ValidationResult.failure(
+        'Failed to edit receipt: ${e.toString()}',
+      );
+    }
+    return const ValidationResult.valid();
+  }
+
+  @override
+  Future<ValidationResult> voidReceiptAtomically({
+    required domain.LiquidationReceipt voidedReceipt,
+    domain.FundMovement? reversalMovement,
+    List<domain.ReimbursementClaim> claimsToSupersede = const [],
+    required domain.AuditLogEntry auditLog,
+  }) async {
+    try {
+      await _database.transaction(() async {
+        // Mark receipt voided.
+        await _database
+            .into(_database.liquidationReceipts)
+            .insertOnConflictUpdate(voidedReceipt.toCompanion());
+        // Insert reversal movement if the original had released funds.
+        if (reversalMovement != null) {
+          await _database
+              .into(_database.fundMovements)
+              .insertOnConflictUpdate(reversalMovement.toCompanion());
+        }
+        // Supersede pending claims.
+        for (final claim in claimsToSupersede) {
+          await _database
+              .into(_database.reimbursementClaims)
+              .insertOnConflictUpdate(claim.toCompanion());
+        }
+        await _database
+            .into(_database.auditLogEntries)
+            .insert(auditLog.toCompanion());
+      });
+    } catch (e) {
+      return ValidationResult.failure(
+        'Failed to void receipt: ${e.toString()}',
+      );
+    }
+    return const ValidationResult.valid();
   }
 }

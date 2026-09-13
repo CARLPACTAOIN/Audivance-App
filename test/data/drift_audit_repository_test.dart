@@ -20,7 +20,7 @@ void main() {
   });
 
   test('opens schema and inserts and loads organization profile', () async {
-    expect(AuditDatabase.currentSchemaVersion, 6);
+    expect(AuditDatabase.currentSchemaVersion, 7);
 
     const organization = OrganizationProfile(
       id: 'org-1',
@@ -381,6 +381,125 @@ void main() {
     expect(history.first.destinationUri, 'file:///new-backup.zip');
     expect(history.last.status, BackupHistoryStatus.failed);
     expect(history.last.errorMessage, 'Disk full');
+  });
+
+  test('postReceiptAtomically, editReceiptAtomically, and voidReceiptAtomically execute transactions cleanly', () async {
+    final receipt = LiquidationReceipt(
+      id: 'rec-1',
+      eventId: 'event-1',
+      payeeOrMerchant: 'Merchant A',
+      date: DateTime(2026, 8, 18),
+      evidenceNumber: 'OR-001',
+      receiptType: ReceiptType.officialReceipt,
+      fundingMode: FundingMode.releasedFunds,
+      accountableOfficerId: 'officer-1',
+      attachment: _attachment,
+    );
+    const line = LiquidationLine(
+      id: 'line-1',
+      receiptId: 'rec-1',
+      description: 'Paper',
+      quantity: 5,
+      unitCost: Money.centavos(2000),
+    );
+    final movement = FundMovement(
+      id: 'fm-1',
+      reference: 'FM-REF-1',
+      type: FundMovementType.liquidationSubmitted,
+      date: DateTime(2026, 8, 18),
+      amount: Money.centavos(10000),
+      purpose: 'Submitted liquidation',
+      eventId: 'event-1',
+      holderOfficerId: 'officer-1',
+      isSystemGenerated: true,
+      sourceLiquidationReceiptId: 'rec-1',
+    );
+    final log = AuditLogEntry(
+      id: 'log-1',
+      action: 'liquidation.post',
+      actor: 'auditor',
+      occurredAt: DateTime(2026, 8, 18),
+      targetRecordId: 'rec-1',
+      amount: Money.centavos(10000),
+      reference: 'OR-001',
+      metadata: const {},
+    );
+
+    // 1. Post atomically
+    final postResult = await repository.postReceiptAtomically(
+      receipt: receipt,
+      lines: [line],
+      submittedMovement: movement,
+      auditLog: log,
+    );
+    expect(postResult.isValid, isTrue);
+
+    expect(await repository.listLiquidationReceipts(), hasLength(1));
+    expect(await repository.listLiquidationLines(), hasLength(1));
+    expect(await repository.listFundMovements(), hasLength(1));
+    expect(await repository.listAuditLogs(), hasLength(1));
+
+    // 2. Edit atomically
+    final updatedReceipt = LiquidationReceipt(
+      id: 'rec-1',
+      eventId: 'event-1',
+      payeeOrMerchant: 'Merchant B',
+      date: DateTime(2026, 8, 18),
+      evidenceNumber: 'OR-001',
+      receiptType: ReceiptType.officialReceipt,
+      fundingMode: FundingMode.releasedFunds,
+      accountableOfficerId: 'officer-1',
+      attachment: _attachment,
+    );
+    final editResult = await repository.editReceiptAtomically(
+      updatedReceipt: updatedReceipt,
+      updatedLines: [line],
+      auditLog: AuditLogEntry(
+        id: 'log-2',
+        action: 'liquidation.edit',
+        actor: 'auditor',
+        occurredAt: DateTime(2026, 8, 18, 1),
+        targetRecordId: 'rec-1',
+        amount: Money.centavos(10000),
+        reference: 'OR-001',
+        metadata: const {'classification': 'metadata'},
+      ),
+    );
+    expect(editResult.isValid, isTrue);
+    final loadedReceipt = (await repository.listLiquidationReceipts()).single;
+    expect(loadedReceipt.payeeOrMerchant, 'Merchant B');
+
+    // 3. Void atomically
+    final voidedReceipt = LiquidationReceipt(
+      id: 'rec-1',
+      eventId: 'event-1',
+      payeeOrMerchant: 'Merchant B',
+      date: DateTime(2026, 8, 18),
+      evidenceNumber: 'OR-001',
+      receiptType: ReceiptType.officialReceipt,
+      fundingMode: FundingMode.releasedFunds,
+      accountableOfficerId: 'officer-1',
+      attachment: _attachment,
+      isVoided: true,
+      voidReason: 'Cancelled',
+    );
+    final voidResult = await repository.voidReceiptAtomically(
+      voidedReceipt: voidedReceipt,
+      auditLog: AuditLogEntry(
+        id: 'log-3',
+        action: 'liquidation.void',
+        actor: 'auditor',
+        occurredAt: DateTime(2026, 8, 18, 2),
+        targetRecordId: 'rec-1',
+        amount: Money.centavos(10000),
+        reference: 'OR-001',
+        metadata: const {},
+      ),
+    );
+    expect(voidResult.isValid, isTrue);
+    final afterVoid = (await repository.listLiquidationReceipts()).single;
+    expect(afterVoid.isVoided, isTrue);
+    expect(afterVoid.voidReason, 'Cancelled');
   });
 }
 

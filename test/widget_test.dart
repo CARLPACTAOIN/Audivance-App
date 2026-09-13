@@ -622,6 +622,64 @@ void main() {
     expect(find.text('0 archived'), findsOneWidget);
   });
 
+  testWidgets(
+    'Officer with custody balance cannot be archived and displays custody warning',
+    (tester) async {
+      final harness = _WidgetHarness();
+      addTearDown(harness.close);
+      await harness.seedSetup();
+      await harness.seedOfficer();
+      await harness.repository.saveFundMovement(
+        movement: FundMovement(
+          id: 'mov-custody-widget',
+          reference: 'REL-001',
+          type: FundMovementType.fundRelease,
+          date: DateTime(2026, 8, 18),
+          amount: Money.php(500),
+          holderOfficerId: 'officer-1',
+          purpose: 'Event supplies',
+          isSystemGenerated: false,
+        ),
+      );
+      await harness.unlockService.configurePin('123456');
+
+      await tester.pumpWidget(harness.app());
+      await tester.pumpAndSettle();
+      await _openOrganization(tester);
+
+      // Verify custody badge is visible
+      expect(find.text('Custody: PHP 500'), findsOneWidget);
+
+      // Tap archive button
+      await _tapVisible(
+        tester,
+        find.byKey(const Key('profileOfficerArchiveofficer-1')),
+      );
+      await tester.pumpAndSettle();
+
+      // Expect dialog warning status panel
+      expect(find.text('Officer cannot be archived'), findsOneWidget);
+      expect(
+        find.textContaining('currently holds PHP 500 in custody'),
+        findsWidgets,
+      );
+
+      // Confirm button must be disabled
+      final confirmButton = tester.widget<FilledButton>(
+        find.byKey(const Key('profileArchiveConfirmButton')),
+      );
+      expect(confirmButton.onPressed, isNull);
+
+      // Close dialog
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      // Officer is still active
+      expect(find.text('1 active'), findsOneWidget);
+      expect(find.text('0 archived'), findsOneWidget);
+    },
+  );
+
   testWidgets('archived officers are not available for new liquidation', (
     tester,
   ) async {

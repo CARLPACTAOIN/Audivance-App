@@ -773,8 +773,7 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
   @override
   void initState() {
     super.initState();
-    _fromOfficerId =
-        widget.officers.isEmpty ? null : widget.officers.first.id;
+    _fromOfficerId = widget.officers.isEmpty ? null : widget.officers.first.id;
     _toOfficerId = widget.officers.length > 1 ? widget.officers[1].id : null;
     _officerId = widget.officers.isEmpty ? null : widget.officers.first.id;
     _toFundSourceId = widget.sources.isEmpty ? null : widget.sources.first.id;
@@ -791,8 +790,9 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
 
   Future<void> _refreshCustodyWarning() async {
     if (_type == FundMovementType.returnRefund && _eventId != null) {
-      final custody =
-          await widget.service.totalOfficerCustodyForEvent(_eventId!);
+      final custody = await widget.service.totalOfficerCustodyForEvent(
+        _eventId!,
+      );
       if (mounted) {
         setState(() {
           _officerCustodyWarning = custody;
@@ -1188,10 +1188,12 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
         remarks: _remarksController.text,
         eventId: _eventId,
         holderOfficerId: holderOfficerId,
-        toHolderOfficerId:
-            _type == FundMovementType.transfer ? _toOfficerId : null,
-        toFundSourceId:
-            _type == FundMovementType.returnRefund ? _toFundSourceId : null,
+        toHolderOfficerId: _type == FundMovementType.transfer
+            ? _toOfficerId
+            : null,
+        toFundSourceId: _type == FundMovementType.returnRefund
+            ? _toFundSourceId
+            : null,
       ),
     );
     if (!mounted) {
@@ -1207,7 +1209,6 @@ class _ManualMovementDialogState extends State<_ManualMovementDialog> {
     Navigator.pop(context, result);
   }
 }
-
 
 class _EmptyPanelMessage extends StatelessWidget {
   const _EmptyPanelMessage({required this.icon, required this.text});

@@ -25,8 +25,13 @@ enum FundMovementType {
   returnRefund,
   liquidationSubmitted,
   reimbursementPayment,
+
   /// Officer returns unused custody funds back to an event's Approved Budget.
   officerReturn,
+
+  /// System-generated credit that reverses a previously posted liquidation receipt
+  /// when it is financially edited or voided. Always protected (isSystemGenerated = true).
+  liquidationReversal,
 }
 
 enum ReceiptType {
@@ -39,7 +44,14 @@ enum ReceiptType {
 
 enum FundingMode { releasedFunds, outOfPocket, mixed }
 
-enum ReimbursementStatus { pending, paid }
+enum ReimbursementStatus {
+  pending,
+  paid,
+
+  /// The original claim was superseded by a financial edit to the source receipt.
+  /// Superseded claims cannot be paid and are excluded from open-claim totals.
+  superseded,
+}
 
 enum ExportReadinessSeverity { warning, blocker }
 
@@ -218,9 +230,17 @@ class FundMovement {
     this.fromFundSourceId,
     this.toFundSourceId,
     this.holderOfficerId,
+
     /// For officer-to-officer transfers: the officer receiving the funds.
     this.toHolderOfficerId,
     this.supportingAttachment,
+
+    /// The liquidation receipt that caused this movement (for liquidationSubmitted
+    /// and liquidationReversal types). Used to trace reversals back to receipts.
+    this.sourceLiquidationReceiptId,
+
+    /// Links this movement to the edit event that created it.
+    this.correctionId,
   });
 
   final StableId id;
@@ -234,10 +254,17 @@ class FundMovement {
   final StableId? fromFundSourceId;
   final StableId? toFundSourceId;
   final StableId? holderOfficerId;
+
   /// For officer-to-officer transfers: the officer receiving the funds.
   final StableId? toHolderOfficerId;
   final AttachmentRef? supportingAttachment;
   final bool isSystemGenerated;
+
+  /// The liquidation receipt that caused this movement.
+  final StableId? sourceLiquidationReceiptId;
+
+  /// Edit event ID that created this movement (for edit/void audit trails).
+  final StableId? correctionId;
 }
 
 class LiquidationReceipt {
@@ -253,6 +280,10 @@ class LiquidationReceipt {
     required this.attachment,
     this.releasedFundsAmount,
     this.outOfPocketAmount,
+    this.remarks,
+    this.isVoided = false,
+    this.voidedAt,
+    this.voidReason,
   });
 
   final StableId id;
@@ -264,10 +295,25 @@ class LiquidationReceipt {
   final FundingMode fundingMode;
   final StableId accountableOfficerId;
   final AttachmentRef attachment;
+
   /// For mixed funding: the portion covered from officer custody.
   final Money? releasedFundsAmount;
+
   /// For mixed funding: the portion paid out-of-pocket (reimbursable).
   final Money? outOfPocketAmount;
+
+  /// Optional free-text remark saved with the receipt.
+  final String? remarks;
+
+  /// True when this receipt has been voided. Voided receipts are excluded
+  /// from all financial totals and official reports but remain in the DB.
+  final bool isVoided;
+
+  /// UTC timestamp of when the receipt was voided. Null for active receipts.
+  final DateTime? voidedAt;
+
+  /// Reason supplied by the actor when voiding. Null for active receipts.
+  final String? voidReason;
 }
 
 class LiquidationLine {
@@ -296,6 +342,7 @@ class ReimbursementClaim {
     required this.amount,
     required this.status,
     required this.sourceLiquidationLineId,
+    this.correctionId,
   });
 
   final StableId id;
@@ -304,6 +351,9 @@ class ReimbursementClaim {
   final Money amount;
   final ReimbursementStatus status;
   final StableId sourceLiquidationLineId;
+
+  /// Edit event ID that superseded or replaced this claim.
+  final StableId? correctionId;
 }
 
 class AuditorReviewSnapshot {

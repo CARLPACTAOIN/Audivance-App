@@ -454,16 +454,7 @@ Future<PdfReportFile> _buildLiquidationReport(
           (lineSum, line) => lineSum + line.total,
         ),
   );
-  final receiptTotals = {
-    for (final receipt in receipts)
-      receipt.id: (linesByReceipt[receipt.id] ?? const <LiquidationLine>[])
-          .fold(Money.zero, (sum, line) => sum + line.total),
-  };
-  final remarksByReceipt = _remarksByReceipt(
-    receipts: receipts,
-    receiptTotals: receiptTotals,
-    movements: input.movements,
-  );
+  final remarksByReceipt = _remarksByReceipt(receipts: receipts);
   final items = <UsmOsaF46LineItem>[];
   var itemNumber = 1;
   for (final receipt in receipts) {
@@ -1077,22 +1068,12 @@ Future<pw.MemoryImage?> _loadLogo(String assetPath) async {
 
 Map<StableId, String> _remarksByReceipt({
   required List<LiquidationReceipt> receipts,
-  required Map<StableId, Money> receiptTotals,
-  required List<FundMovement> movements,
 }) {
   final remarksByReceipt = <StableId, String>{};
   for (final receipt in receipts) {
-    final total = receiptTotals[receipt.id] ?? Money.zero;
-    for (final movement in movements) {
-      if (movement.type == FundMovementType.liquidationSubmitted &&
-          movement.eventId == receipt.eventId &&
-          movement.holderOfficerId == receipt.accountableOfficerId &&
-          _sameDate(movement.date, receipt.date) &&
-          movement.amount == total &&
-          movement.remarks?.trim().isNotEmpty == true) {
-        remarksByReceipt[receipt.id] = movement.remarks!.trim();
-        break;
-      }
+    final remark = receipt.remarks?.trim();
+    if (remark != null && remark.isNotEmpty) {
+      remarksByReceipt[receipt.id] = remark;
     }
   }
   return remarksByReceipt;

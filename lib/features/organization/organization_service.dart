@@ -1,9 +1,11 @@
 import '../../core/domain/identity.dart';
+import '../../core/domain/money.dart';
 import '../../core/domain/stable_id_generator.dart';
 import '../../core/domain/validation_result.dart';
 import '../audit/data/audit_repository.dart';
 import '../audit/domain/audit_models.dart';
 import '../audit/domain/audit_rules.dart';
+import '../treasury/treasury_formatters.dart';
 
 class OrganizationService {
   OrganizationService({
@@ -19,6 +21,7 @@ class OrganizationService {
   Future<OrganizationWorkspaceSnapshot> loadSnapshot() async {
     final organizations = await repository.listOrganizations();
     final officers = await repository.listOfficers();
+    final movements = await repository.listFundMovements();
     final organization = organizations.isEmpty ? null : organizations.first;
     final sortedOfficers = [...officers]
       ..sort(
@@ -26,11 +29,27 @@ class OrganizationService {
       );
     final activeOfficers = sortedOfficers
         .where((officer) => !officer.isArchived)
-        .map(OfficerRowView.fromOfficer)
+        .map(
+          (officer) => OfficerRowView.fromOfficer(
+            officer,
+            custodyBalance: OfficerRules.calculateOfficerCustodyBalance(
+              movements: movements,
+              officerId: officer.id,
+            ),
+          ),
+        )
         .toList(growable: false);
     final archivedOfficers = sortedOfficers
         .where((officer) => officer.isArchived)
-        .map(OfficerRowView.fromOfficer)
+        .map(
+          (officer) => OfficerRowView.fromOfficer(
+            officer,
+            custodyBalance: OfficerRules.calculateOfficerCustodyBalance(
+              movements: movements,
+              officerId: officer.id,
+            ),
+          ),
+        )
         .toList(growable: false);
 
     return OrganizationWorkspaceSnapshot(
@@ -121,6 +140,21 @@ class OrganizationService {
     }
     if (existing.isArchived == isArchived) {
       return const ValidationResult.valid();
+    }
+
+    if (isArchived) {
+      final movements = await repository.listFundMovements();
+      final custody = OfficerRules.calculateOfficerCustodyBalance(
+        movements: movements,
+        officerId: officerId,
+      );
+      final validation = OfficerRules.validateArchiveOfficer(
+        officer: existing,
+        custodyBalance: custody,
+      );
+      if (validation.isInvalid) {
+        return validation;
+      }
     }
 
     final updated = Officer(
@@ -289,9 +323,13 @@ class OfficerRowView {
     required this.committee,
     required this.committeeLabel,
     required this.isArchived,
+    this.custodyBalance = Money.zero,
   });
 
-  factory OfficerRowView.fromOfficer(Officer officer) {
+  factory OfficerRowView.fromOfficer(
+    Officer officer, {
+    Money custodyBalance = Money.zero,
+  }) {
     return OfficerRowView(
       id: officer.id,
       fullName: officer.fullName,
@@ -300,6 +338,7 @@ class OfficerRowView {
       committee: officer.committee,
       committeeLabel: officer.committee?.label ?? 'No committee',
       isArchived: officer.isArchived,
+      custodyBalance: custodyBalance,
     );
   }
 
@@ -310,6 +349,10 @@ class OfficerRowView {
   final Committee? committee;
   final String committeeLabel;
   final bool isArchived;
+  final Money custodyBalance;
+
+  bool get hasCustody => custodyBalance.isPositive;
+  String get custodyBalanceLabel => formatPhpMoney(custodyBalance);
 }
 
 class CommitteeSummaryView {

@@ -639,7 +639,9 @@ class _OfficerRow extends StatelessWidget {
                     ),
                     tooltip: officer.isArchived
                         ? 'Restore officer'
-                        : 'Archive officer',
+                        : (officer.hasCustody
+                              ? 'Cannot archive officer holding funds (${officer.custodyBalanceLabel})'
+                              : 'Archive officer'),
                     onPressed: onArchive,
                     icon: Icon(
                       officer.isArchived
@@ -669,6 +671,12 @@ class _OfficerRow extends StatelessWidget {
                         ? InlineStatusTone.warning
                         : InlineStatusTone.success,
                   ),
+                  if (officer.hasCustody)
+                    StatusBadge(
+                      label: 'Custody: ${officer.custodyBalanceLabel}',
+                      icon: Icons.account_balance_wallet_outlined,
+                      tone: InlineStatusTone.warning,
+                    ),
                   MetadataChip(
                     icon: Icons.assignment_ind_outlined,
                     label: officer.positionLabel,
@@ -1019,10 +1027,18 @@ class _OfficerArchiveDialogState extends State<_OfficerArchiveDialog> {
   @override
   Widget build(BuildContext context) {
     final action = widget.isArchived ? 'Archive' : 'Restore';
+    final hasCustodyBlock = widget.isArchived && widget.officer.hasCustody;
     return AppDialogFrame(
       title: '$action Officer',
       status: _serviceError == null
-          ? null
+          ? (hasCustodyBlock
+                ? InlineStatusPanel(
+                    title: 'Officer cannot be archived',
+                    message:
+                        '${widget.officer.fullName} currently holds ${widget.officer.custodyBalanceLabel} in custody. Return or liquidate the remaining funds before archiving.',
+                    tone: InlineStatusTone.warning,
+                  )
+                : null)
           : InlineStatusPanel(
               title: 'Officer status could not be changed',
               message: _serviceError!,
@@ -1039,7 +1055,7 @@ class _OfficerArchiveDialogState extends State<_OfficerArchiveDialog> {
                 ? 'profileArchiveConfirmButton'
                 : 'profileRestoreConfirmButton',
           ),
-          onPressed: _isSubmitting ? null : _submit,
+          onPressed: (_isSubmitting || hasCustodyBlock) ? null : _submit,
           icon: _isSubmitting
               ? const SizedBox.square(
                   dimension: 18,
@@ -1056,7 +1072,9 @@ class _OfficerArchiveDialogState extends State<_OfficerArchiveDialog> {
       children: [
         Text(
           widget.isArchived
-              ? 'Archive ${widget.officer.fullName}? Historical records will keep this officer, but they will no longer appear in new liquidation selections.'
+              ? (hasCustodyBlock
+                    ? '${widget.officer.fullName} currently holds ${widget.officer.custodyBalanceLabel} in custody. An officer cannot be archived while holding active organization funds.'
+                    : 'Archive ${widget.officer.fullName}? Historical records will keep this officer, but they will no longer appear in new liquidation selections.')
               : 'Restore ${widget.officer.fullName} to the active officer roster?',
         ),
       ],

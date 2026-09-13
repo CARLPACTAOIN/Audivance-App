@@ -3510,6 +3510,28 @@ class $FundMovementsTable extends FundMovements
       'CHECK ("is_system_generated" IN (0, 1))',
     ),
   );
+  static const VerificationMeta _sourceLiquidationReceiptIdMeta =
+      const VerificationMeta('sourceLiquidationReceiptId');
+  @override
+  late final GeneratedColumn<String> sourceLiquidationReceiptId =
+      GeneratedColumn<String>(
+        'source_liquidation_receipt_id',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _correctionIdMeta = const VerificationMeta(
+    'correctionId',
+  );
+  @override
+  late final GeneratedColumn<String> correctionId = GeneratedColumn<String>(
+    'correction_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3530,6 +3552,8 @@ class $FundMovementsTable extends FundMovements
     attachmentSizeBytes,
     attachmentChecksum,
     isSystemGenerated,
+    sourceLiquidationReceiptId,
+    correctionId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3695,6 +3719,24 @@ class $FundMovementsTable extends FundMovements
     } else if (isInserting) {
       context.missing(_isSystemGeneratedMeta);
     }
+    if (data.containsKey('source_liquidation_receipt_id')) {
+      context.handle(
+        _sourceLiquidationReceiptIdMeta,
+        sourceLiquidationReceiptId.isAcceptableOrUnknown(
+          data['source_liquidation_receipt_id']!,
+          _sourceLiquidationReceiptIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('correction_id')) {
+      context.handle(
+        _correctionIdMeta,
+        correctionId.isAcceptableOrUnknown(
+          data['correction_id']!,
+          _correctionIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3776,6 +3818,14 @@ class $FundMovementsTable extends FundMovements
         DriftSqlType.bool,
         data['${effectivePrefix}is_system_generated'],
       )!,
+      sourceLiquidationReceiptId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_liquidation_receipt_id'],
+      ),
+      correctionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}correction_id'],
+      ),
     );
   }
 
@@ -3807,6 +3857,12 @@ class FundMovementRecord extends DataClass
   final int? attachmentSizeBytes;
   final String? attachmentChecksum;
   final bool isSystemGenerated;
+
+  /// The receipt that caused this movement (liquidationSubmitted / liquidationReversal).
+  final String? sourceLiquidationReceiptId;
+
+  /// Edit event ID that created this movement (links to the audit log entry).
+  final String? correctionId;
   const FundMovementRecord({
     required this.id,
     required this.reference,
@@ -3826,6 +3882,8 @@ class FundMovementRecord extends DataClass
     this.attachmentSizeBytes,
     this.attachmentChecksum,
     required this.isSystemGenerated,
+    this.sourceLiquidationReceiptId,
+    this.correctionId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3870,6 +3928,14 @@ class FundMovementRecord extends DataClass
       map['attachment_checksum'] = Variable<String>(attachmentChecksum);
     }
     map['is_system_generated'] = Variable<bool>(isSystemGenerated);
+    if (!nullToAbsent || sourceLiquidationReceiptId != null) {
+      map['source_liquidation_receipt_id'] = Variable<String>(
+        sourceLiquidationReceiptId,
+      );
+    }
+    if (!nullToAbsent || correctionId != null) {
+      map['correction_id'] = Variable<String>(correctionId);
+    }
     return map;
   }
 
@@ -3915,6 +3981,13 @@ class FundMovementRecord extends DataClass
           ? const Value.absent()
           : Value(attachmentChecksum),
       isSystemGenerated: Value(isSystemGenerated),
+      sourceLiquidationReceiptId:
+          sourceLiquidationReceiptId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceLiquidationReceiptId),
+      correctionId: correctionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(correctionId),
     );
   }
 
@@ -3952,6 +4025,10 @@ class FundMovementRecord extends DataClass
         json['attachmentChecksum'],
       ),
       isSystemGenerated: serializer.fromJson<bool>(json['isSystemGenerated']),
+      sourceLiquidationReceiptId: serializer.fromJson<String?>(
+        json['sourceLiquidationReceiptId'],
+      ),
+      correctionId: serializer.fromJson<String?>(json['correctionId']),
     );
   }
   @override
@@ -3976,6 +4053,10 @@ class FundMovementRecord extends DataClass
       'attachmentSizeBytes': serializer.toJson<int?>(attachmentSizeBytes),
       'attachmentChecksum': serializer.toJson<String?>(attachmentChecksum),
       'isSystemGenerated': serializer.toJson<bool>(isSystemGenerated),
+      'sourceLiquidationReceiptId': serializer.toJson<String?>(
+        sourceLiquidationReceiptId,
+      ),
+      'correctionId': serializer.toJson<String?>(correctionId),
     };
   }
 
@@ -3998,6 +4079,8 @@ class FundMovementRecord extends DataClass
     Value<int?> attachmentSizeBytes = const Value.absent(),
     Value<String?> attachmentChecksum = const Value.absent(),
     bool? isSystemGenerated,
+    Value<String?> sourceLiquidationReceiptId = const Value.absent(),
+    Value<String?> correctionId = const Value.absent(),
   }) => FundMovementRecord(
     id: id ?? this.id,
     reference: reference ?? this.reference,
@@ -4033,6 +4116,10 @@ class FundMovementRecord extends DataClass
         ? attachmentChecksum.value
         : this.attachmentChecksum,
     isSystemGenerated: isSystemGenerated ?? this.isSystemGenerated,
+    sourceLiquidationReceiptId: sourceLiquidationReceiptId.present
+        ? sourceLiquidationReceiptId.value
+        : this.sourceLiquidationReceiptId,
+    correctionId: correctionId.present ? correctionId.value : this.correctionId,
   );
   FundMovementRecord copyWithCompanion(FundMovementsCompanion data) {
     return FundMovementRecord(
@@ -4076,6 +4163,12 @@ class FundMovementRecord extends DataClass
       isSystemGenerated: data.isSystemGenerated.present
           ? data.isSystemGenerated.value
           : this.isSystemGenerated,
+      sourceLiquidationReceiptId: data.sourceLiquidationReceiptId.present
+          ? data.sourceLiquidationReceiptId.value
+          : this.sourceLiquidationReceiptId,
+      correctionId: data.correctionId.present
+          ? data.correctionId.value
+          : this.correctionId,
     );
   }
 
@@ -4099,7 +4192,9 @@ class FundMovementRecord extends DataClass
           ..write('attachmentLocalPath: $attachmentLocalPath, ')
           ..write('attachmentSizeBytes: $attachmentSizeBytes, ')
           ..write('attachmentChecksum: $attachmentChecksum, ')
-          ..write('isSystemGenerated: $isSystemGenerated')
+          ..write('isSystemGenerated: $isSystemGenerated, ')
+          ..write('sourceLiquidationReceiptId: $sourceLiquidationReceiptId, ')
+          ..write('correctionId: $correctionId')
           ..write(')'))
         .toString();
   }
@@ -4124,6 +4219,8 @@ class FundMovementRecord extends DataClass
     attachmentSizeBytes,
     attachmentChecksum,
     isSystemGenerated,
+    sourceLiquidationReceiptId,
+    correctionId,
   );
   @override
   bool operator ==(Object other) =>
@@ -4146,7 +4243,9 @@ class FundMovementRecord extends DataClass
           other.attachmentLocalPath == this.attachmentLocalPath &&
           other.attachmentSizeBytes == this.attachmentSizeBytes &&
           other.attachmentChecksum == this.attachmentChecksum &&
-          other.isSystemGenerated == this.isSystemGenerated);
+          other.isSystemGenerated == this.isSystemGenerated &&
+          other.sourceLiquidationReceiptId == this.sourceLiquidationReceiptId &&
+          other.correctionId == this.correctionId);
 }
 
 class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
@@ -4168,6 +4267,8 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
   final Value<int?> attachmentSizeBytes;
   final Value<String?> attachmentChecksum;
   final Value<bool> isSystemGenerated;
+  final Value<String?> sourceLiquidationReceiptId;
+  final Value<String?> correctionId;
   final Value<int> rowid;
   const FundMovementsCompanion({
     this.id = const Value.absent(),
@@ -4188,6 +4289,8 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     this.attachmentSizeBytes = const Value.absent(),
     this.attachmentChecksum = const Value.absent(),
     this.isSystemGenerated = const Value.absent(),
+    this.sourceLiquidationReceiptId = const Value.absent(),
+    this.correctionId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   FundMovementsCompanion.insert({
@@ -4209,6 +4312,8 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     this.attachmentSizeBytes = const Value.absent(),
     this.attachmentChecksum = const Value.absent(),
     required bool isSystemGenerated,
+    this.sourceLiquidationReceiptId = const Value.absent(),
+    this.correctionId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        reference = Value(reference),
@@ -4236,6 +4341,8 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     Expression<int>? attachmentSizeBytes,
     Expression<String>? attachmentChecksum,
     Expression<bool>? isSystemGenerated,
+    Expression<String>? sourceLiquidationReceiptId,
+    Expression<String>? correctionId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4260,6 +4367,9 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
         'attachment_size_bytes': attachmentSizeBytes,
       if (attachmentChecksum != null) 'attachment_checksum': attachmentChecksum,
       if (isSystemGenerated != null) 'is_system_generated': isSystemGenerated,
+      if (sourceLiquidationReceiptId != null)
+        'source_liquidation_receipt_id': sourceLiquidationReceiptId,
+      if (correctionId != null) 'correction_id': correctionId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4283,6 +4393,8 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     Value<int?>? attachmentSizeBytes,
     Value<String?>? attachmentChecksum,
     Value<bool>? isSystemGenerated,
+    Value<String?>? sourceLiquidationReceiptId,
+    Value<String?>? correctionId,
     Value<int>? rowid,
   }) {
     return FundMovementsCompanion(
@@ -4304,6 +4416,9 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
       attachmentSizeBytes: attachmentSizeBytes ?? this.attachmentSizeBytes,
       attachmentChecksum: attachmentChecksum ?? this.attachmentChecksum,
       isSystemGenerated: isSystemGenerated ?? this.isSystemGenerated,
+      sourceLiquidationReceiptId:
+          sourceLiquidationReceiptId ?? this.sourceLiquidationReceiptId,
+      correctionId: correctionId ?? this.correctionId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -4367,6 +4482,14 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
     if (isSystemGenerated.present) {
       map['is_system_generated'] = Variable<bool>(isSystemGenerated.value);
     }
+    if (sourceLiquidationReceiptId.present) {
+      map['source_liquidation_receipt_id'] = Variable<String>(
+        sourceLiquidationReceiptId.value,
+      );
+    }
+    if (correctionId.present) {
+      map['correction_id'] = Variable<String>(correctionId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -4394,6 +4517,8 @@ class FundMovementsCompanion extends UpdateCompanion<FundMovementRecord> {
           ..write('attachmentSizeBytes: $attachmentSizeBytes, ')
           ..write('attachmentChecksum: $attachmentChecksum, ')
           ..write('isSystemGenerated: $isSystemGenerated, ')
+          ..write('sourceLiquidationReceiptId: $sourceLiquidationReceiptId, ')
+          ..write('correctionId: $correctionId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4564,6 +4689,54 @@ class $LiquidationReceiptsTable extends LiquidationReceipts
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _remarksMeta = const VerificationMeta(
+    'remarks',
+  );
+  @override
+  late final GeneratedColumn<String> remarks = GeneratedColumn<String>(
+    'remarks',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isVoidedMeta = const VerificationMeta(
+    'isVoided',
+  );
+  @override
+  late final GeneratedColumn<bool> isVoided = GeneratedColumn<bool>(
+    'is_voided',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_voided" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _voidedAtMeta = const VerificationMeta(
+    'voidedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> voidedAt = GeneratedColumn<DateTime>(
+    'voided_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _voidReasonMeta = const VerificationMeta(
+    'voidReason',
+  );
+  @override
+  late final GeneratedColumn<String> voidReason = GeneratedColumn<String>(
+    'void_reason',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -4581,6 +4754,10 @@ class $LiquidationReceiptsTable extends LiquidationReceipts
     attachmentChecksum,
     releasedFundsCentavos,
     outOfPocketCentavos,
+    remarks,
+    isVoided,
+    voidedAt,
+    voidReason,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4739,6 +4916,30 @@ class $LiquidationReceiptsTable extends LiquidationReceipts
         ),
       );
     }
+    if (data.containsKey('remarks')) {
+      context.handle(
+        _remarksMeta,
+        remarks.isAcceptableOrUnknown(data['remarks']!, _remarksMeta),
+      );
+    }
+    if (data.containsKey('is_voided')) {
+      context.handle(
+        _isVoidedMeta,
+        isVoided.isAcceptableOrUnknown(data['is_voided']!, _isVoidedMeta),
+      );
+    }
+    if (data.containsKey('voided_at')) {
+      context.handle(
+        _voidedAtMeta,
+        voidedAt.isAcceptableOrUnknown(data['voided_at']!, _voidedAtMeta),
+      );
+    }
+    if (data.containsKey('void_reason')) {
+      context.handle(
+        _voidReasonMeta,
+        voidReason.isAcceptableOrUnknown(data['void_reason']!, _voidReasonMeta),
+      );
+    }
     return context;
   }
 
@@ -4811,6 +5012,22 @@ class $LiquidationReceiptsTable extends LiquidationReceipts
         DriftSqlType.int,
         data['${effectivePrefix}out_of_pocket_centavos'],
       ),
+      remarks: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}remarks'],
+      ),
+      isVoided: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_voided'],
+      )!,
+      voidedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}voided_at'],
+      ),
+      voidReason: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}void_reason'],
+      ),
     );
   }
 
@@ -4841,6 +5058,18 @@ class LiquidationReceiptRecord extends DataClass
 
   /// For mixed funding: the out-of-pocket portion (centavos).
   final int? outOfPocketCentavos;
+
+  /// Optional free-text remark added at submission or edit time.
+  final String? remarks;
+
+  /// True when this receipt has been voided via an explicit void action.
+  final bool isVoided;
+
+  /// UTC timestamp of when the receipt was voided. Null for active receipts.
+  final DateTime? voidedAt;
+
+  /// Reason provided by the actor when voiding. Null for active receipts.
+  final String? voidReason;
   const LiquidationReceiptRecord({
     required this.id,
     required this.eventId,
@@ -4857,6 +5086,10 @@ class LiquidationReceiptRecord extends DataClass
     this.attachmentChecksum,
     this.releasedFundsCentavos,
     this.outOfPocketCentavos,
+    this.remarks,
+    required this.isVoided,
+    this.voidedAt,
+    this.voidReason,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4883,6 +5116,16 @@ class LiquidationReceiptRecord extends DataClass
     }
     if (!nullToAbsent || outOfPocketCentavos != null) {
       map['out_of_pocket_centavos'] = Variable<int>(outOfPocketCentavos);
+    }
+    if (!nullToAbsent || remarks != null) {
+      map['remarks'] = Variable<String>(remarks);
+    }
+    map['is_voided'] = Variable<bool>(isVoided);
+    if (!nullToAbsent || voidedAt != null) {
+      map['voided_at'] = Variable<DateTime>(voidedAt);
+    }
+    if (!nullToAbsent || voidReason != null) {
+      map['void_reason'] = Variable<String>(voidReason);
     }
     return map;
   }
@@ -4912,6 +5155,16 @@ class LiquidationReceiptRecord extends DataClass
       outOfPocketCentavos: outOfPocketCentavos == null && nullToAbsent
           ? const Value.absent()
           : Value(outOfPocketCentavos),
+      remarks: remarks == null && nullToAbsent
+          ? const Value.absent()
+          : Value(remarks),
+      isVoided: Value(isVoided),
+      voidedAt: voidedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voidedAt),
+      voidReason: voidReason == null && nullToAbsent
+          ? const Value.absent()
+          : Value(voidReason),
     );
   }
 
@@ -4950,6 +5203,10 @@ class LiquidationReceiptRecord extends DataClass
       outOfPocketCentavos: serializer.fromJson<int?>(
         json['outOfPocketCentavos'],
       ),
+      remarks: serializer.fromJson<String?>(json['remarks']),
+      isVoided: serializer.fromJson<bool>(json['isVoided']),
+      voidedAt: serializer.fromJson<DateTime?>(json['voidedAt']),
+      voidReason: serializer.fromJson<String?>(json['voidReason']),
     );
   }
   @override
@@ -4971,6 +5228,10 @@ class LiquidationReceiptRecord extends DataClass
       'attachmentChecksum': serializer.toJson<String?>(attachmentChecksum),
       'releasedFundsCentavos': serializer.toJson<int?>(releasedFundsCentavos),
       'outOfPocketCentavos': serializer.toJson<int?>(outOfPocketCentavos),
+      'remarks': serializer.toJson<String?>(remarks),
+      'isVoided': serializer.toJson<bool>(isVoided),
+      'voidedAt': serializer.toJson<DateTime?>(voidedAt),
+      'voidReason': serializer.toJson<String?>(voidReason),
     };
   }
 
@@ -4990,6 +5251,10 @@ class LiquidationReceiptRecord extends DataClass
     Value<String?> attachmentChecksum = const Value.absent(),
     Value<int?> releasedFundsCentavos = const Value.absent(),
     Value<int?> outOfPocketCentavos = const Value.absent(),
+    Value<String?> remarks = const Value.absent(),
+    bool? isVoided,
+    Value<DateTime?> voidedAt = const Value.absent(),
+    Value<String?> voidReason = const Value.absent(),
   }) => LiquidationReceiptRecord(
     id: id ?? this.id,
     eventId: eventId ?? this.eventId,
@@ -5014,6 +5279,10 @@ class LiquidationReceiptRecord extends DataClass
     outOfPocketCentavos: outOfPocketCentavos.present
         ? outOfPocketCentavos.value
         : this.outOfPocketCentavos,
+    remarks: remarks.present ? remarks.value : this.remarks,
+    isVoided: isVoided ?? this.isVoided,
+    voidedAt: voidedAt.present ? voidedAt.value : this.voidedAt,
+    voidReason: voidReason.present ? voidReason.value : this.voidReason,
   );
   LiquidationReceiptRecord copyWithCompanion(
     LiquidationReceiptsCompanion data,
@@ -5058,6 +5327,12 @@ class LiquidationReceiptRecord extends DataClass
       outOfPocketCentavos: data.outOfPocketCentavos.present
           ? data.outOfPocketCentavos.value
           : this.outOfPocketCentavos,
+      remarks: data.remarks.present ? data.remarks.value : this.remarks,
+      isVoided: data.isVoided.present ? data.isVoided.value : this.isVoided,
+      voidedAt: data.voidedAt.present ? data.voidedAt.value : this.voidedAt,
+      voidReason: data.voidReason.present
+          ? data.voidReason.value
+          : this.voidReason,
     );
   }
 
@@ -5078,7 +5353,11 @@ class LiquidationReceiptRecord extends DataClass
           ..write('attachmentSizeBytes: $attachmentSizeBytes, ')
           ..write('attachmentChecksum: $attachmentChecksum, ')
           ..write('releasedFundsCentavos: $releasedFundsCentavos, ')
-          ..write('outOfPocketCentavos: $outOfPocketCentavos')
+          ..write('outOfPocketCentavos: $outOfPocketCentavos, ')
+          ..write('remarks: $remarks, ')
+          ..write('isVoided: $isVoided, ')
+          ..write('voidedAt: $voidedAt, ')
+          ..write('voidReason: $voidReason')
           ..write(')'))
         .toString();
   }
@@ -5100,6 +5379,10 @@ class LiquidationReceiptRecord extends DataClass
     attachmentChecksum,
     releasedFundsCentavos,
     outOfPocketCentavos,
+    remarks,
+    isVoided,
+    voidedAt,
+    voidReason,
   );
   @override
   bool operator ==(Object other) =>
@@ -5119,7 +5402,11 @@ class LiquidationReceiptRecord extends DataClass
           other.attachmentSizeBytes == this.attachmentSizeBytes &&
           other.attachmentChecksum == this.attachmentChecksum &&
           other.releasedFundsCentavos == this.releasedFundsCentavos &&
-          other.outOfPocketCentavos == this.outOfPocketCentavos);
+          other.outOfPocketCentavos == this.outOfPocketCentavos &&
+          other.remarks == this.remarks &&
+          other.isVoided == this.isVoided &&
+          other.voidedAt == this.voidedAt &&
+          other.voidReason == this.voidReason);
 }
 
 class LiquidationReceiptsCompanion
@@ -5139,6 +5426,10 @@ class LiquidationReceiptsCompanion
   final Value<String?> attachmentChecksum;
   final Value<int?> releasedFundsCentavos;
   final Value<int?> outOfPocketCentavos;
+  final Value<String?> remarks;
+  final Value<bool> isVoided;
+  final Value<DateTime?> voidedAt;
+  final Value<String?> voidReason;
   final Value<int> rowid;
   const LiquidationReceiptsCompanion({
     this.id = const Value.absent(),
@@ -5156,6 +5447,10 @@ class LiquidationReceiptsCompanion
     this.attachmentChecksum = const Value.absent(),
     this.releasedFundsCentavos = const Value.absent(),
     this.outOfPocketCentavos = const Value.absent(),
+    this.remarks = const Value.absent(),
+    this.isVoided = const Value.absent(),
+    this.voidedAt = const Value.absent(),
+    this.voidReason = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   LiquidationReceiptsCompanion.insert({
@@ -5174,6 +5469,10 @@ class LiquidationReceiptsCompanion
     this.attachmentChecksum = const Value.absent(),
     this.releasedFundsCentavos = const Value.absent(),
     this.outOfPocketCentavos = const Value.absent(),
+    this.remarks = const Value.absent(),
+    this.isVoided = const Value.absent(),
+    this.voidedAt = const Value.absent(),
+    this.voidReason = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        eventId = Value(eventId),
@@ -5202,6 +5501,10 @@ class LiquidationReceiptsCompanion
     Expression<String>? attachmentChecksum,
     Expression<int>? releasedFundsCentavos,
     Expression<int>? outOfPocketCentavos,
+    Expression<String>? remarks,
+    Expression<bool>? isVoided,
+    Expression<DateTime>? voidedAt,
+    Expression<String>? voidReason,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -5226,6 +5529,10 @@ class LiquidationReceiptsCompanion
         'released_funds_centavos': releasedFundsCentavos,
       if (outOfPocketCentavos != null)
         'out_of_pocket_centavos': outOfPocketCentavos,
+      if (remarks != null) 'remarks': remarks,
+      if (isVoided != null) 'is_voided': isVoided,
+      if (voidedAt != null) 'voided_at': voidedAt,
+      if (voidReason != null) 'void_reason': voidReason,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -5246,6 +5553,10 @@ class LiquidationReceiptsCompanion
     Value<String?>? attachmentChecksum,
     Value<int?>? releasedFundsCentavos,
     Value<int?>? outOfPocketCentavos,
+    Value<String?>? remarks,
+    Value<bool>? isVoided,
+    Value<DateTime?>? voidedAt,
+    Value<String?>? voidReason,
     Value<int>? rowid,
   }) {
     return LiquidationReceiptsCompanion(
@@ -5265,6 +5576,10 @@ class LiquidationReceiptsCompanion
       releasedFundsCentavos:
           releasedFundsCentavos ?? this.releasedFundsCentavos,
       outOfPocketCentavos: outOfPocketCentavos ?? this.outOfPocketCentavos,
+      remarks: remarks ?? this.remarks,
+      isVoided: isVoided ?? this.isVoided,
+      voidedAt: voidedAt ?? this.voidedAt,
+      voidReason: voidReason ?? this.voidReason,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5323,6 +5638,18 @@ class LiquidationReceiptsCompanion
     if (outOfPocketCentavos.present) {
       map['out_of_pocket_centavos'] = Variable<int>(outOfPocketCentavos.value);
     }
+    if (remarks.present) {
+      map['remarks'] = Variable<String>(remarks.value);
+    }
+    if (isVoided.present) {
+      map['is_voided'] = Variable<bool>(isVoided.value);
+    }
+    if (voidedAt.present) {
+      map['voided_at'] = Variable<DateTime>(voidedAt.value);
+    }
+    if (voidReason.present) {
+      map['void_reason'] = Variable<String>(voidReason.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5347,6 +5674,10 @@ class LiquidationReceiptsCompanion
           ..write('attachmentChecksum: $attachmentChecksum, ')
           ..write('releasedFundsCentavos: $releasedFundsCentavos, ')
           ..write('outOfPocketCentavos: $outOfPocketCentavos, ')
+          ..write('remarks: $remarks, ')
+          ..write('isVoided: $isVoided, ')
+          ..write('voidedAt: $voidedAt, ')
+          ..write('voidReason: $voidReason, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5795,6 +6126,17 @@ class $ReimbursementClaimsTable extends ReimbursementClaims
         type: DriftSqlType.string,
         requiredDuringInsert: true,
       );
+  static const VerificationMeta _correctionIdMeta = const VerificationMeta(
+    'correctionId',
+  );
+  @override
+  late final GeneratedColumn<String> correctionId = GeneratedColumn<String>(
+    'correction_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -5803,6 +6145,7 @@ class $ReimbursementClaimsTable extends ReimbursementClaims
     amountCentavos,
     status,
     sourceLiquidationLineId,
+    correctionId,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -5867,6 +6210,15 @@ class $ReimbursementClaimsTable extends ReimbursementClaims
     } else if (isInserting) {
       context.missing(_sourceLiquidationLineIdMeta);
     }
+    if (data.containsKey('correction_id')) {
+      context.handle(
+        _correctionIdMeta,
+        correctionId.isAcceptableOrUnknown(
+          data['correction_id']!,
+          _correctionIdMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -5903,6 +6255,10 @@ class $ReimbursementClaimsTable extends ReimbursementClaims
         DriftSqlType.string,
         data['${effectivePrefix}source_liquidation_line_id'],
       )!,
+      correctionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}correction_id'],
+      ),
     );
   }
 
@@ -5920,6 +6276,9 @@ class ReimbursementClaimRecord extends DataClass
   final int amountCentavos;
   final String status;
   final String sourceLiquidationLineId;
+
+  /// Edit event ID that superseded or created this claim.
+  final String? correctionId;
   const ReimbursementClaimRecord({
     required this.id,
     required this.eventId,
@@ -5927,6 +6286,7 @@ class ReimbursementClaimRecord extends DataClass
     required this.amountCentavos,
     required this.status,
     required this.sourceLiquidationLineId,
+    this.correctionId,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -5939,6 +6299,9 @@ class ReimbursementClaimRecord extends DataClass
     map['source_liquidation_line_id'] = Variable<String>(
       sourceLiquidationLineId,
     );
+    if (!nullToAbsent || correctionId != null) {
+      map['correction_id'] = Variable<String>(correctionId);
+    }
     return map;
   }
 
@@ -5950,6 +6313,9 @@ class ReimbursementClaimRecord extends DataClass
       amountCentavos: Value(amountCentavos),
       status: Value(status),
       sourceLiquidationLineId: Value(sourceLiquidationLineId),
+      correctionId: correctionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(correctionId),
     );
   }
 
@@ -5967,6 +6333,7 @@ class ReimbursementClaimRecord extends DataClass
       sourceLiquidationLineId: serializer.fromJson<String>(
         json['sourceLiquidationLineId'],
       ),
+      correctionId: serializer.fromJson<String?>(json['correctionId']),
     );
   }
   @override
@@ -5981,6 +6348,7 @@ class ReimbursementClaimRecord extends DataClass
       'sourceLiquidationLineId': serializer.toJson<String>(
         sourceLiquidationLineId,
       ),
+      'correctionId': serializer.toJson<String?>(correctionId),
     };
   }
 
@@ -5991,6 +6359,7 @@ class ReimbursementClaimRecord extends DataClass
     int? amountCentavos,
     String? status,
     String? sourceLiquidationLineId,
+    Value<String?> correctionId = const Value.absent(),
   }) => ReimbursementClaimRecord(
     id: id ?? this.id,
     eventId: eventId ?? this.eventId,
@@ -5999,6 +6368,7 @@ class ReimbursementClaimRecord extends DataClass
     status: status ?? this.status,
     sourceLiquidationLineId:
         sourceLiquidationLineId ?? this.sourceLiquidationLineId,
+    correctionId: correctionId.present ? correctionId.value : this.correctionId,
   );
   ReimbursementClaimRecord copyWithCompanion(
     ReimbursementClaimsCompanion data,
@@ -6014,6 +6384,9 @@ class ReimbursementClaimRecord extends DataClass
       sourceLiquidationLineId: data.sourceLiquidationLineId.present
           ? data.sourceLiquidationLineId.value
           : this.sourceLiquidationLineId,
+      correctionId: data.correctionId.present
+          ? data.correctionId.value
+          : this.correctionId,
     );
   }
 
@@ -6025,7 +6398,8 @@ class ReimbursementClaimRecord extends DataClass
           ..write('officerId: $officerId, ')
           ..write('amountCentavos: $amountCentavos, ')
           ..write('status: $status, ')
-          ..write('sourceLiquidationLineId: $sourceLiquidationLineId')
+          ..write('sourceLiquidationLineId: $sourceLiquidationLineId, ')
+          ..write('correctionId: $correctionId')
           ..write(')'))
         .toString();
   }
@@ -6038,6 +6412,7 @@ class ReimbursementClaimRecord extends DataClass
     amountCentavos,
     status,
     sourceLiquidationLineId,
+    correctionId,
   );
   @override
   bool operator ==(Object other) =>
@@ -6048,7 +6423,8 @@ class ReimbursementClaimRecord extends DataClass
           other.officerId == this.officerId &&
           other.amountCentavos == this.amountCentavos &&
           other.status == this.status &&
-          other.sourceLiquidationLineId == this.sourceLiquidationLineId);
+          other.sourceLiquidationLineId == this.sourceLiquidationLineId &&
+          other.correctionId == this.correctionId);
 }
 
 class ReimbursementClaimsCompanion
@@ -6059,6 +6435,7 @@ class ReimbursementClaimsCompanion
   final Value<int> amountCentavos;
   final Value<String> status;
   final Value<String> sourceLiquidationLineId;
+  final Value<String?> correctionId;
   final Value<int> rowid;
   const ReimbursementClaimsCompanion({
     this.id = const Value.absent(),
@@ -6067,6 +6444,7 @@ class ReimbursementClaimsCompanion
     this.amountCentavos = const Value.absent(),
     this.status = const Value.absent(),
     this.sourceLiquidationLineId = const Value.absent(),
+    this.correctionId = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ReimbursementClaimsCompanion.insert({
@@ -6076,6 +6454,7 @@ class ReimbursementClaimsCompanion
     required int amountCentavos,
     required String status,
     required String sourceLiquidationLineId,
+    this.correctionId = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        eventId = Value(eventId),
@@ -6090,6 +6469,7 @@ class ReimbursementClaimsCompanion
     Expression<int>? amountCentavos,
     Expression<String>? status,
     Expression<String>? sourceLiquidationLineId,
+    Expression<String>? correctionId,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -6100,6 +6480,7 @@ class ReimbursementClaimsCompanion
       if (status != null) 'status': status,
       if (sourceLiquidationLineId != null)
         'source_liquidation_line_id': sourceLiquidationLineId,
+      if (correctionId != null) 'correction_id': correctionId,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -6111,6 +6492,7 @@ class ReimbursementClaimsCompanion
     Value<int>? amountCentavos,
     Value<String>? status,
     Value<String>? sourceLiquidationLineId,
+    Value<String?>? correctionId,
     Value<int>? rowid,
   }) {
     return ReimbursementClaimsCompanion(
@@ -6121,6 +6503,7 @@ class ReimbursementClaimsCompanion
       status: status ?? this.status,
       sourceLiquidationLineId:
           sourceLiquidationLineId ?? this.sourceLiquidationLineId,
+      correctionId: correctionId ?? this.correctionId,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -6148,6 +6531,9 @@ class ReimbursementClaimsCompanion
         sourceLiquidationLineId.value,
       );
     }
+    if (correctionId.present) {
+      map['correction_id'] = Variable<String>(correctionId.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -6163,6 +6549,7 @@ class ReimbursementClaimsCompanion
           ..write('amountCentavos: $amountCentavos, ')
           ..write('status: $status, ')
           ..write('sourceLiquidationLineId: $sourceLiquidationLineId, ')
+          ..write('correctionId: $correctionId, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -10588,6 +10975,8 @@ typedef $$FundMovementsTableCreateCompanionBuilder =
       Value<int?> attachmentSizeBytes,
       Value<String?> attachmentChecksum,
       required bool isSystemGenerated,
+      Value<String?> sourceLiquidationReceiptId,
+      Value<String?> correctionId,
       Value<int> rowid,
     });
 typedef $$FundMovementsTableUpdateCompanionBuilder =
@@ -10610,6 +10999,8 @@ typedef $$FundMovementsTableUpdateCompanionBuilder =
       Value<int?> attachmentSizeBytes,
       Value<String?> attachmentChecksum,
       Value<bool> isSystemGenerated,
+      Value<String?> sourceLiquidationReceiptId,
+      Value<String?> correctionId,
       Value<int> rowid,
     });
 
@@ -10709,6 +11100,16 @@ class $$FundMovementsTableFilterComposer
 
   ColumnFilters<bool> get isSystemGenerated => $composableBuilder(
     column: $table.isSystemGenerated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceLiquidationReceiptId => $composableBuilder(
+    column: $table.sourceLiquidationReceiptId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get correctionId => $composableBuilder(
+    column: $table.correctionId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -10811,6 +11212,16 @@ class $$FundMovementsTableOrderingComposer
     column: $table.isSystemGenerated,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sourceLiquidationReceiptId => $composableBuilder(
+    column: $table.sourceLiquidationReceiptId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get correctionId => $composableBuilder(
+    column: $table.correctionId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$FundMovementsTableAnnotationComposer
@@ -10897,6 +11308,16 @@ class $$FundMovementsTableAnnotationComposer
     column: $table.isSystemGenerated,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get sourceLiquidationReceiptId => $composableBuilder(
+    column: $table.sourceLiquidationReceiptId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get correctionId => $composableBuilder(
+    column: $table.correctionId,
+    builder: (column) => column,
+  );
 }
 
 class $$FundMovementsTableTableManager
@@ -10954,6 +11375,9 @@ class $$FundMovementsTableTableManager
                 Value<int?> attachmentSizeBytes = const Value.absent(),
                 Value<String?> attachmentChecksum = const Value.absent(),
                 Value<bool> isSystemGenerated = const Value.absent(),
+                Value<String?> sourceLiquidationReceiptId =
+                    const Value.absent(),
+                Value<String?> correctionId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => FundMovementsCompanion(
                 id: id,
@@ -10974,6 +11398,8 @@ class $$FundMovementsTableTableManager
                 attachmentSizeBytes: attachmentSizeBytes,
                 attachmentChecksum: attachmentChecksum,
                 isSystemGenerated: isSystemGenerated,
+                sourceLiquidationReceiptId: sourceLiquidationReceiptId,
+                correctionId: correctionId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -10996,6 +11422,9 @@ class $$FundMovementsTableTableManager
                 Value<int?> attachmentSizeBytes = const Value.absent(),
                 Value<String?> attachmentChecksum = const Value.absent(),
                 required bool isSystemGenerated,
+                Value<String?> sourceLiquidationReceiptId =
+                    const Value.absent(),
+                Value<String?> correctionId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => FundMovementsCompanion.insert(
                 id: id,
@@ -11016,6 +11445,8 @@ class $$FundMovementsTableTableManager
                 attachmentSizeBytes: attachmentSizeBytes,
                 attachmentChecksum: attachmentChecksum,
                 isSystemGenerated: isSystemGenerated,
+                sourceLiquidationReceiptId: sourceLiquidationReceiptId,
+                correctionId: correctionId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -11064,6 +11495,10 @@ typedef $$LiquidationReceiptsTableCreateCompanionBuilder =
       Value<String?> attachmentChecksum,
       Value<int?> releasedFundsCentavos,
       Value<int?> outOfPocketCentavos,
+      Value<String?> remarks,
+      Value<bool> isVoided,
+      Value<DateTime?> voidedAt,
+      Value<String?> voidReason,
       Value<int> rowid,
     });
 typedef $$LiquidationReceiptsTableUpdateCompanionBuilder =
@@ -11083,6 +11518,10 @@ typedef $$LiquidationReceiptsTableUpdateCompanionBuilder =
       Value<String?> attachmentChecksum,
       Value<int?> releasedFundsCentavos,
       Value<int?> outOfPocketCentavos,
+      Value<String?> remarks,
+      Value<bool> isVoided,
+      Value<DateTime?> voidedAt,
+      Value<String?> voidReason,
       Value<int> rowid,
     });
 
@@ -11167,6 +11606,26 @@ class $$LiquidationReceiptsTableFilterComposer
 
   ColumnFilters<int> get outOfPocketCentavos => $composableBuilder(
     column: $table.outOfPocketCentavos,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get remarks => $composableBuilder(
+    column: $table.remarks,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isVoided => $composableBuilder(
+    column: $table.isVoided,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get voidedAt => $composableBuilder(
+    column: $table.voidedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get voidReason => $composableBuilder(
+    column: $table.voidReason,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -11254,6 +11713,26 @@ class $$LiquidationReceiptsTableOrderingComposer
     column: $table.outOfPocketCentavos,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get remarks => $composableBuilder(
+    column: $table.remarks,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isVoided => $composableBuilder(
+    column: $table.isVoided,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get voidedAt => $composableBuilder(
+    column: $table.voidedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get voidReason => $composableBuilder(
+    column: $table.voidReason,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$LiquidationReceiptsTableAnnotationComposer
@@ -11333,6 +11812,20 @@ class $$LiquidationReceiptsTableAnnotationComposer
     column: $table.outOfPocketCentavos,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get remarks =>
+      $composableBuilder(column: $table.remarks, builder: (column) => column);
+
+  GeneratedColumn<bool> get isVoided =>
+      $composableBuilder(column: $table.isVoided, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get voidedAt =>
+      $composableBuilder(column: $table.voidedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get voidReason => $composableBuilder(
+    column: $table.voidReason,
+    builder: (column) => column,
+  );
 }
 
 class $$LiquidationReceiptsTableTableManager
@@ -11393,6 +11886,10 @@ class $$LiquidationReceiptsTableTableManager
                 Value<String?> attachmentChecksum = const Value.absent(),
                 Value<int?> releasedFundsCentavos = const Value.absent(),
                 Value<int?> outOfPocketCentavos = const Value.absent(),
+                Value<String?> remarks = const Value.absent(),
+                Value<bool> isVoided = const Value.absent(),
+                Value<DateTime?> voidedAt = const Value.absent(),
+                Value<String?> voidReason = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LiquidationReceiptsCompanion(
                 id: id,
@@ -11410,6 +11907,10 @@ class $$LiquidationReceiptsTableTableManager
                 attachmentChecksum: attachmentChecksum,
                 releasedFundsCentavos: releasedFundsCentavos,
                 outOfPocketCentavos: outOfPocketCentavos,
+                remarks: remarks,
+                isVoided: isVoided,
+                voidedAt: voidedAt,
+                voidReason: voidReason,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -11429,6 +11930,10 @@ class $$LiquidationReceiptsTableTableManager
                 Value<String?> attachmentChecksum = const Value.absent(),
                 Value<int?> releasedFundsCentavos = const Value.absent(),
                 Value<int?> outOfPocketCentavos = const Value.absent(),
+                Value<String?> remarks = const Value.absent(),
+                Value<bool> isVoided = const Value.absent(),
+                Value<DateTime?> voidedAt = const Value.absent(),
+                Value<String?> voidReason = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => LiquidationReceiptsCompanion.insert(
                 id: id,
@@ -11446,6 +11951,10 @@ class $$LiquidationReceiptsTableTableManager
                 attachmentChecksum: attachmentChecksum,
                 releasedFundsCentavos: releasedFundsCentavos,
                 outOfPocketCentavos: outOfPocketCentavos,
+                remarks: remarks,
+                isVoided: isVoided,
+                voidedAt: voidedAt,
+                voidReason: voidReason,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -11699,6 +12208,7 @@ typedef $$ReimbursementClaimsTableCreateCompanionBuilder =
       required int amountCentavos,
       required String status,
       required String sourceLiquidationLineId,
+      Value<String?> correctionId,
       Value<int> rowid,
     });
 typedef $$ReimbursementClaimsTableUpdateCompanionBuilder =
@@ -11709,6 +12219,7 @@ typedef $$ReimbursementClaimsTableUpdateCompanionBuilder =
       Value<int> amountCentavos,
       Value<String> status,
       Value<String> sourceLiquidationLineId,
+      Value<String?> correctionId,
       Value<int> rowid,
     });
 
@@ -11748,6 +12259,11 @@ class $$ReimbursementClaimsTableFilterComposer
 
   ColumnFilters<String> get sourceLiquidationLineId => $composableBuilder(
     column: $table.sourceLiquidationLineId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get correctionId => $composableBuilder(
+    column: $table.correctionId,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -11790,6 +12306,11 @@ class $$ReimbursementClaimsTableOrderingComposer
     column: $table.sourceLiquidationLineId,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get correctionId => $composableBuilder(
+    column: $table.correctionId,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ReimbursementClaimsTableAnnotationComposer
@@ -11820,6 +12341,11 @@ class $$ReimbursementClaimsTableAnnotationComposer
 
   GeneratedColumn<String> get sourceLiquidationLineId => $composableBuilder(
     column: $table.sourceLiquidationLineId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get correctionId => $composableBuilder(
+    column: $table.correctionId,
     builder: (column) => column,
   );
 }
@@ -11873,6 +12399,7 @@ class $$ReimbursementClaimsTableTableManager
                 Value<int> amountCentavos = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String> sourceLiquidationLineId = const Value.absent(),
+                Value<String?> correctionId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ReimbursementClaimsCompanion(
                 id: id,
@@ -11881,6 +12408,7 @@ class $$ReimbursementClaimsTableTableManager
                 amountCentavos: amountCentavos,
                 status: status,
                 sourceLiquidationLineId: sourceLiquidationLineId,
+                correctionId: correctionId,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -11891,6 +12419,7 @@ class $$ReimbursementClaimsTableTableManager
                 required int amountCentavos,
                 required String status,
                 required String sourceLiquidationLineId,
+                Value<String?> correctionId = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ReimbursementClaimsCompanion.insert(
                 id: id,
@@ -11899,6 +12428,7 @@ class $$ReimbursementClaimsTableTableManager
                 amountCentavos: amountCentavos,
                 status: status,
                 sourceLiquidationLineId: sourceLiquidationLineId,
+                correctionId: correctionId,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

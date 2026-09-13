@@ -164,12 +164,13 @@ void main() {
       expect(find.text('Subtotal: PHP 500'), findsOneWidget);
       expect(find.text('Total: PHP 950'), findsOneWidget);
 
-      // 950 exceeds officer held custody (800) -> warning banner displays!
-      expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
-      expect(
-        find.textContaining('exceeds officer held custody'),
-        findsOneWidget,
-      );
+      // 950 exceeds officer held custody (800) -> auto-split breakdown displays without warning error!
+      expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
+      expect(find.text('Auto-split Funding'), findsOneWidget);
+      expect(find.text('• Released from custody:'), findsOneWidget);
+      expect(find.text('• Out-of-pocket (reimbursable):'), findsOneWidget);
+      expect(find.text('PHP 800'), findsWidgets);
+      expect(find.text('PHP 150'), findsWidgets);
 
       // Switch funding mode to Out of Pocket -> comparison changes to approved budget balance
       final outOfPocketFinder = find.byKey(
@@ -202,12 +203,8 @@ void main() {
       expect(find.byKey(const Key('liquidationSummaryCard')), findsOneWidget);
 
       // Add quantity and unit cost to trigger line subtotals, grand total, and custody warning
-      final qtyFinder = find.byKey(
-        const Key('liquidationLineQuantityField0'),
-      );
-      final costFinder = find.byKey(
-        const Key('liquidationLineUnitCostField0'),
-      );
+      final qtyFinder = find.byKey(const Key('liquidationLineQuantityField0'));
+      final costFinder = find.byKey(const Key('liquidationLineUnitCostField0'));
       await tester.ensureVisible(qtyFinder);
       await tester.enterText(qtyFinder, '10');
       await tester.ensureVisible(costFinder);
@@ -215,14 +212,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      final grandTotalFinder = find.byKey(const Key('liquidationGrandTotalText'));
+      final grandTotalFinder = find.byKey(
+        const Key('liquidationGrandTotalText'),
+      );
       await tester.ensureVisible(grandTotalFinder);
       expect(grandTotalFinder, findsOneWidget);
       expect(find.textContaining('1,255'), findsWidgets);
-      expect(
-        find.textContaining('exceeds officer held custody'),
-        findsOneWidget,
-      );
+      expect(find.text('Auto-split Funding'), findsOneWidget);
+      expect(find.byIcon(Icons.warning_amber_rounded), findsNothing);
     },
   );
 }

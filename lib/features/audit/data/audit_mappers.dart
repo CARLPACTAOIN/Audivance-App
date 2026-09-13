@@ -215,6 +215,8 @@ extension FundMovementMapper on domain.FundMovement {
       attachmentSizeBytes: Value(supportingAttachment?.sizeBytes),
       attachmentChecksum: Value(supportingAttachment?.checksum),
       isSystemGenerated: isSystemGenerated,
+      sourceLiquidationReceiptId: Value(sourceLiquidationReceiptId),
+      correctionId: Value(correctionId),
     );
   }
 }
@@ -242,6 +244,8 @@ extension FundMovementRecordMapper on FundMovementRecord {
         checksum: attachmentChecksum,
       ),
       isSystemGenerated: isSystemGenerated,
+      sourceLiquidationReceiptId: sourceLiquidationReceiptId,
+      correctionId: correctionId,
     );
   }
 }
@@ -264,6 +268,10 @@ extension LiquidationReceiptMapper on domain.LiquidationReceipt {
       attachmentChecksum: Value(attachment.checksum),
       releasedFundsCentavos: Value(releasedFundsAmount?.centavos),
       outOfPocketCentavos: Value(outOfPocketAmount?.centavos),
+      remarks: Value(remarks),
+      isVoided: Value(isVoided),
+      voidedAt: Value(voidedAt),
+      voidReason: Value(voidReason),
     );
   }
 }
@@ -292,6 +300,10 @@ extension LiquidationReceiptRecordMapper on LiquidationReceiptRecord {
       outOfPocketAmount: outOfPocketCentavos == null
           ? null
           : Money.centavos(outOfPocketCentavos!),
+      remarks: remarks,
+      isVoided: isVoided,
+      voidedAt: voidedAt,
+      voidReason: voidReason,
     );
   }
 }
@@ -329,6 +341,7 @@ extension ReimbursementClaimMapper on domain.ReimbursementClaim {
       amountCentavos: amount.centavos,
       status: status.name,
       sourceLiquidationLineId: sourceLiquidationLineId,
+      correctionId: Value(correctionId),
     );
   }
 }
@@ -342,6 +355,7 @@ extension ReimbursementClaimRecordMapper on ReimbursementClaimRecord {
       amount: Money.centavos(amountCentavos),
       status: _enumByName(domain.ReimbursementStatus.values, status),
       sourceLiquidationLineId: sourceLiquidationLineId,
+      correctionId: correctionId,
     );
   }
 }

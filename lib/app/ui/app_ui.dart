@@ -378,7 +378,9 @@ class MetadataChip extends StatelessWidget {
       );
     }
 
-    return tooltip == null ? content : Tooltip(message: tooltip!, child: content);
+    return tooltip == null
+        ? content
+        : Tooltip(message: tooltip!, child: content);
   }
 }
 

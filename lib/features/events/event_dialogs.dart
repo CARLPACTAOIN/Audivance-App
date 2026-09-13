@@ -482,9 +482,6 @@ class _EditEventDialogState extends State<EditEventDialog> {
     _resolutionAttachment = event.resolutionAttachment;
   }
 
-  static String _formatDateInput(DateTime date) =>
-      '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-
   @override
   void dispose() {
     _nameController.dispose();
@@ -1468,33 +1465,34 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: [
-                      FundingMode.releasedFunds,
-                      FundingMode.outOfPocket,
-                    ]
-                        .map(
-                          (mode) => ChoiceChip(
-                            key: Key(
-                              'liquidationFundingModeOption${mode.name}',
-                            ),
-                            label: Text(fundingModeDisplayLabel(mode)),
-                            selected: _fundingMode == mode,
-                            onSelected: (_) {
-                              setState(() {
-                                _fundingMode = mode;
-                                if (_fundingMode == FundingMode.releasedFunds) {
-                                  _officerId = _firstFundedOfficerId(_officers);
-                                } else {
-                                  _officerId ??= _officers.isEmpty
-                                      ? null
-                                      : _officers.first.id;
-                                }
-                                _officerGuidance = null;
-                              });
-                            },
-                          ),
-                        )
-                        .toList(growable: false),
+                    children:
+                        [FundingMode.releasedFunds, FundingMode.outOfPocket]
+                            .map(
+                              (mode) => ChoiceChip(
+                                key: Key(
+                                  'liquidationFundingModeOption${mode.name}',
+                                ),
+                                label: Text(fundingModeDisplayLabel(mode)),
+                                selected: _fundingMode == mode,
+                                onSelected: (_) {
+                                  setState(() {
+                                    _fundingMode = mode;
+                                    if (_fundingMode ==
+                                        FundingMode.releasedFunds) {
+                                      _officerId = _firstFundedOfficerId(
+                                        _officers,
+                                      );
+                                    } else {
+                                      _officerId ??= _officers.isEmpty
+                                          ? null
+                                          : _officers.first.id;
+                                    }
+                                    _officerGuidance = null;
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(growable: false),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1544,38 +1542,6 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                     },
                   ),
                 ),
-                // Mixed-funding split preview panel.
-                if (_fundingMode == FundingMode.releasedFunds) ...[
-                  Builder(
-                    builder: (context) {
-                      final selectedOfficer = _officerById(_officers, _officerId);
-                      final custody = selectedOfficer?.fundCustodyBalance ?? Money.zero;
-                      final receiptTotal = _totalReceiptAmount;
-                      if (!receiptTotal.isPositive || custody >= receiptTotal) {
-                        return const SizedBox.shrink();
-                      }
-                      final released = custody.isPositive ? custody : Money.zero;
-                      final oop = Money.centavos(
-                        receiptTotal.centavos - released.centavos,
-                      );
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: AppSpacing.sm),
-                          InlineStatusPanel(
-                            tone: InlineStatusTone.info,
-                            title: 'Auto-split funding',
-                            message: 'Officer custody (${formatPhpMoney(custody)}) is less than '
-                                'the receipt total (${formatPhpMoney(receiptTotal)}). '
-                                'This will be recorded as:\n'
-                                '  • Released from custody: ${formatPhpMoney(released)}\n'
-                                '  • Out-of-pocket (reimbursable): ${formatPhpMoney(oop)}',
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
                 if (_officerGuidance != null) ...[
                   const SizedBox(height: AppSpacing.sm),
                   InlineStatusPanel(
@@ -1717,19 +1683,26 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
     final heldCustody = selectedOfficer?.fundCustodyBalance ?? Money.zero;
     final approvedBalance = widget.event.approvedBudgetBalance;
 
-    final exceedsHeldCustody =
+    final isSplitFunding =
         isReleasedFunds &&
         totalReceipt.isPositive &&
         selectedOfficer != null &&
+        heldCustody.isPositive &&
         totalReceipt > heldCustody;
 
-    final exceedsApprovedBudget =
-        !isReleasedFunds &&
-        totalReceipt.isPositive &&
-        totalReceipt > approvedBalance;
+    final releasedPortion = isSplitFunding ? heldCustody : totalReceipt;
+    final oopPortion = isSplitFunding
+        ? Money.centavos(totalReceipt.centavos - heldCustody.centavos)
+        : Money.zero;
 
-    final hasWarning = exceedsHeldCustody || exceedsApprovedBudget;
-    final warningColor = theme.colorScheme.error;
+    final exceedsApprovedBudget =
+        (!isReleasedFunds &&
+            totalReceipt.isPositive &&
+            totalReceipt > approvedBalance) ||
+        (isSplitFunding && oopPortion > approvedBalance);
+
+    final hasWarning = exceedsApprovedBudget;
+    final warningColor = AppColors.warning;
 
     return Container(
       key: const Key('liquidationSummaryCard'),
@@ -1818,30 +1791,112 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
               ),
             ],
           ),
-          if (exceedsHeldCustody) ...[
+          if (isSplitFunding) ...[
             const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.warning_amber_rounded,
-                  size: 16,
-                  color: warningColor,
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.brand.withValues(alpha: 0.08),
+                borderRadius: AppRadius.borderSm,
+                border: Border.all(
+                  color: AppColors.brand.withValues(alpha: 0.2),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Receipt total (${formatPhpMoney(totalReceipt)}) exceeds officer held custody (${selectedOfficer.fundCustodyBalanceLabel}). Reduce amount or switch to Out-of-Pocket for reimbursement.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: warningColor,
-                      height: 1.3,
-                    ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 15,
+                        color: AppColors.brandLight,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Auto-split Funding',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.brandLight,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand.withValues(alpha: 0.15),
+                          borderRadius: AppRadius.borderSm,
+                        ),
+                        child: const Text(
+                          'Mixed',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.brandLight,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '• Released from custody:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        formatPhpMoney(releasedPortion),
+                        key: const Key('liquidationReleasedPortionText'),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '• Out-of-pocket (reimbursable):',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        formatPhpMoney(oopPortion),
+                        key: const Key('liquidationOutOfPocketPortionText'),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                          color: AppColors.brandLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ] else if (exceedsApprovedBudget) ...[
+          ],
+          if (exceedsApprovedBudget) ...[
             const SizedBox(height: 8),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1854,7 +1909,9 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
-                    'Receipt total (${formatPhpMoney(totalReceipt)}) exceeds approved budget balance (${widget.event.approvedBudgetBalanceLabel}). An event budget increase resolution will be needed.',
+                    isSplitFunding
+                        ? 'Reimbursable portion (${formatPhpMoney(oopPortion)}) exceeds approved budget balance (${widget.event.approvedBudgetBalanceLabel}). An event budget increase resolution will be needed.'
+                        : 'Receipt total (${formatPhpMoney(totalReceipt)}) exceeds approved budget balance (${widget.event.approvedBudgetBalanceLabel}). An event budget increase resolution will be needed.',
                     style: const TextStyle(
                       fontSize: 12,
                       color: AppColors.warning,
@@ -1911,6 +1968,1103 @@ class _SubmitLiquidationDialogState extends State<SubmitLiquidationDialog> {
       return;
     }
     Navigator.pop(context, result);
+  }
+}
+
+class EditLiquidationReceiptDialog extends StatefulWidget {
+  const EditLiquidationReceiptDialog({
+    super.key,
+    required this.service,
+    required this.event,
+    required this.receipt,
+    required this.officers,
+    required this.attachmentPicker,
+    required this.attachmentStorage,
+    required this.organizationService,
+    this.treasuryService,
+  });
+
+  final LiquidationService service;
+  final LiquidationEventView event;
+  final LiquidationReceiptView receipt;
+  final List<OfficerOption> officers;
+  final AttachmentPicker attachmentPicker;
+  final AttachmentStorageService attachmentStorage;
+  final OrganizationService organizationService;
+  final TreasuryService? treasuryService;
+
+  @override
+  State<EditLiquidationReceiptDialog> createState() =>
+      _EditLiquidationReceiptDialogState();
+}
+
+class _EditLiquidationReceiptDialogState
+    extends State<EditLiquidationReceiptDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _payeeController;
+  late final TextEditingController _dateController;
+  late final TextEditingController _evidenceController;
+  late final TextEditingController _remarksController;
+  final List<_LiquidationLineInput> _lines = [];
+  AttachmentRef? _receiptAttachment;
+  late ReceiptType _receiptType;
+  late FundingMode _fundingMode;
+  late List<OfficerOption> _officers;
+  StableId? _officerId;
+  String? _serviceError;
+  var _isLoadingLines = true;
+  var _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _officers = [...widget.officers];
+    _payeeController = TextEditingController(
+      text: widget.receipt.payeeOrMerchant,
+    );
+    _dateController = TextEditingController(
+      text: _formatDateInput(widget.receipt.date),
+    );
+    _evidenceController = TextEditingController(
+      text: widget.receipt.evidenceNumber,
+    );
+    _remarksController = TextEditingController(
+      text: widget.receipt.remarks ?? '',
+    );
+    _receiptType = widget.receipt.receiptType;
+    _fundingMode = widget.receipt.fundingMode;
+    _officerId = widget.receipt.accountableOfficerId.isNotEmpty
+        ? widget.receipt.accountableOfficerId
+        : (_officers.isEmpty ? null : _officers.first.id);
+    _receiptAttachment = widget.receipt.attachment;
+    _loadLines();
+  }
+
+  Future<void> _loadLines() async {
+    final lines = await widget.service.loadReceiptLines(widget.receipt.id);
+    if (!mounted) return;
+    setState(() {
+      if (lines.isEmpty) {
+        _lines.add(
+          _LiquidationLineInput(
+            description: 'Item',
+            quantity: '1',
+            unitCost: (widget.receipt.total.centavos / 100).toStringAsFixed(2),
+          ),
+        );
+      } else {
+        for (final l in lines) {
+          _lines.add(
+            _LiquidationLineInput(
+              lineId: l.id,
+              description: l.description,
+              quantity: l.quantity.toString(),
+              unitCost: (l.unitCost.centavos / 100).toStringAsFixed(2),
+            ),
+          );
+        }
+      }
+      for (final line in _lines) {
+        _attachListeners(line);
+      }
+      _isLoadingLines = false;
+    });
+  }
+
+  void _attachListeners(_LiquidationLineInput line) {
+    line.quantityController.addListener(_onLineUpdated);
+    line.unitCostController.addListener(_onLineUpdated);
+  }
+
+  void _detachListeners(_LiquidationLineInput line) {
+    line.quantityController.removeListener(_onLineUpdated);
+    line.unitCostController.removeListener(_onLineUpdated);
+  }
+
+  void _onLineUpdated() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Money get _totalReceiptAmount {
+    return _lines.fold<Money>(Money.zero, (sum, line) => sum + line.subtotal);
+  }
+
+  @override
+  void dispose() {
+    _payeeController.dispose();
+    _dateController.dispose();
+    _evidenceController.dispose();
+    _remarksController.dispose();
+    for (final line in _lines) {
+      _detachListeners(line);
+      line.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addLine() {
+    setState(() {
+      final line = _LiquidationLineInput();
+      _attachListeners(line);
+      _lines.add(line);
+    });
+  }
+
+  void _removeLine(int index) {
+    if (_lines.length <= 1) return;
+    setState(() {
+      final removed = _lines.removeAt(index);
+      _detachListeners(removed);
+      removed.dispose();
+    });
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+    setState(() {
+      _isSubmitting = true;
+      _serviceError = null;
+    });
+
+    final command = EditReceiptCommand(
+      receiptId: widget.receipt.id,
+      eventId: widget.event.id,
+      payeeOrMerchant: _payeeController.text,
+      date: _parseDate(_dateController.text)!,
+      evidenceNumber: _evidenceController.text,
+      receiptType: _receiptType,
+      fundingMode: _fundingMode,
+      accountableOfficerId: _officerId!,
+      attachment: _receiptAttachment,
+      remarks: _remarksController.text,
+      lines: _lines
+          .map(
+            (line) => EditReceiptLineDraft(
+              existingLineId: line.lineId,
+              description: line.descriptionController.text.trim(),
+              quantity: int.parse(line.quantityController.text.trim()),
+              unitCost: parsePhpMoney(line.unitCostController.text)!,
+            ),
+          )
+          .toList(growable: false),
+    );
+
+    final result = await widget.service.editReceipt(command);
+    if (!mounted) return;
+    if (result.isInvalid) {
+      setState(() {
+        _isSubmitting = false;
+        _serviceError = result.summary;
+      });
+      return;
+    }
+    Navigator.pop(context, result);
+  }
+
+  Widget _buildSummaryCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final totalReceipt = _totalReceiptAmount;
+    final selectedOfficer = _officerById(_officers, _officerId);
+    final isReleasedFunds = _fundingMode == FundingMode.releasedFunds;
+    final heldCustody = selectedOfficer?.fundCustodyBalance ?? Money.zero;
+    final approvedBalance = widget.event.approvedBudgetBalance;
+
+    final isSplitFunding =
+        isReleasedFunds &&
+        totalReceipt.isPositive &&
+        selectedOfficer != null &&
+        heldCustody.isPositive &&
+        totalReceipt > heldCustody;
+
+    final releasedPortion = isSplitFunding ? heldCustody : totalReceipt;
+    final oopPortion = isSplitFunding
+        ? Money.centavos(totalReceipt.centavos - heldCustody.centavos)
+        : Money.zero;
+
+    final exceedsApprovedBudget =
+        (!isReleasedFunds &&
+            totalReceipt.isPositive &&
+            totalReceipt > approvedBalance) ||
+        (isSplitFunding && oopPortion > approvedBalance);
+
+    final hasWarning = exceedsApprovedBudget;
+    final warningColor = AppColors.warning;
+
+    return Container(
+      key: const Key('editLiquidationSummaryCard'),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm + 2,
+      ),
+      decoration: BoxDecoration(
+        color: hasWarning
+            ? warningColor.withValues(alpha: 0.08)
+            : AppColors.surfaceSubtle,
+        borderRadius: AppRadius.borderMd,
+        border: Border.all(
+          color: hasWarning
+              ? warningColor.withValues(alpha: 0.35)
+              : AppColors.borderSubtle,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.calculate_outlined,
+                    size: 18,
+                    color: AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Updated Total',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                'Total: ${formatPhpMoney(totalReceipt)}',
+                key: const Key('editLiquidationGrandTotalText'),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: hasWarning ? warningColor : AppColors.brandLight,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 4,
+            children: [
+              Text(
+                isReleasedFunds
+                    ? 'Officer held funds:'
+                    : 'Approved budget balance:',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              Text(
+                isReleasedFunds
+                    ? (selectedOfficer?.fundCustodyBalanceLabel ?? '₱0.00')
+                    : widget.event.approvedBudgetBalanceLabel,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: [FontFeature.tabularFigures()],
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          if (isSplitFunding) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.brand.withValues(alpha: 0.08),
+                borderRadius: AppRadius.borderSm,
+                border: Border.all(
+                  color: AppColors.brand.withValues(alpha: 0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        size: 15,
+                        color: AppColors.brandLight,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Auto-split Funding',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.brandLight,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.brand.withValues(alpha: 0.15),
+                          borderRadius: AppRadius.borderSm,
+                        ),
+                        child: const Text(
+                          'Mixed',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.brandLight,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '• Released from custody:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        formatPhpMoney(releasedPortion),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          '• Out-of-pocket (reimbursable):',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        formatPhpMoney(oopPortion),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: [FontFeature.tabularFigures()],
+                          color: AppColors.brandLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (exceedsApprovedBudget) ...[
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: warningColor,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    isSplitFunding
+                        ? 'Reimbursable portion (${formatPhpMoney(oopPortion)}) exceeds approved budget balance (${widget.event.approvedBudgetBalanceLabel}). An event budget increase resolution will be needed.'
+                        : 'Receipt total (${formatPhpMoney(totalReceipt)}) exceeds approved budget balance (${widget.event.approvedBudgetBalanceLabel}). An event budget increase resolution will be needed.',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.warning,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoadingLines) {
+      return const AlertDialog(
+        content: SizedBox(
+          height: 140,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Loading receipt details...'),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return AlertDialog(
+      insetPadding: const EdgeInsets.symmetric(
+        horizontal: 16.0,
+        vertical: 24.0,
+      ),
+      title: Row(
+        children: [
+          const Icon(Icons.edit_note, color: AppColors.brandLight, size: 24),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Edit Receipt Ref #${widget.receipt.evidenceNumber}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 620),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: AppColors.brand.withValues(alpha: 0.06),
+                    borderRadius: AppRadius.borderMd,
+                    border: Border.all(
+                      color: AppColors.brand.withValues(alpha: 0.2),
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        color: AppColors.brandLight,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Editing this receipt updates its record in-place. Financial adjustments (quantities, costs, officer, funding mode) will automatically reverse previous custody and apply updated fund movements.',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: AppColors.textSecondary,
+                                height: 1.35,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('editReceiptPayeeField'),
+                  controller: _payeeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Payee or merchant',
+                  ),
+                  validator: _requiredValidator,
+                ),
+                const SizedBox(height: 12),
+                AppDatePickerFormField(
+                  key: const Key('editReceiptDateField'),
+                  controller: _dateController,
+                  labelText: 'Receipt date',
+                  validator: _dateValidator,
+                  isEnabled: !_isSubmitting,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  key: const Key('editReceiptEvidenceField'),
+                  controller: _evidenceController,
+                  decoration: const InputDecoration(
+                    labelText: 'Evidence number',
+                  ),
+                  validator: _requiredValidator,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<ReceiptType>(
+                  key: const Key('editReceiptReceiptTypeField'),
+                  initialValue: _receiptType,
+                  isExpanded: true,
+                  decoration: const InputDecoration(labelText: 'Receipt type'),
+                  items: ReceiptType.values
+                      .map(
+                        (type) => DropdownMenuItem(
+                          value: type,
+                          child: Text(
+                            receiptTypeDisplayLabel(type),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _receiptType = value;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 12),
+                InputDecorator(
+                  key: const Key('editReceiptFundingModeField'),
+                  decoration: const InputDecoration(labelText: 'Funding mode'),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children:
+                        [FundingMode.releasedFunds, FundingMode.outOfPocket]
+                            .map(
+                              (mode) => ChoiceChip(
+                                label: Text(fundingModeDisplayLabel(mode)),
+                                selected: _fundingMode == mode,
+                                onSelected: (_) {
+                                  setState(() {
+                                    _fundingMode = mode;
+                                    if (_fundingMode ==
+                                        FundingMode.releasedFunds) {
+                                      _officerId = _firstFundedOfficerId(
+                                        _officers,
+                                      );
+                                    } else {
+                                      _officerId ??= _officers.isEmpty
+                                          ? null
+                                          : _officers.first.id;
+                                    }
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(growable: false),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                KeyedSubtree(
+                  key: const Key('editReceiptOfficerField'),
+                  child: DropdownButtonFormField<StableId>(
+                    key: ValueKey(
+                      'editReceiptOfficerDropdown-${_officerId ?? 'none'}-${_officers.length}',
+                    ),
+                    initialValue: _officerId,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Accountable officer',
+                    ),
+                    items: _officers
+                        .map(
+                          (officer) => DropdownMenuItem(
+                            value: officer.id,
+                            enabled:
+                                _fundingMode != FundingMode.releasedFunds ||
+                                officer.hasFundCustody ||
+                                officer.id ==
+                                    widget.receipt.accountableOfficerId,
+                            child: Text(
+                              _fundingMode == FundingMode.releasedFunds
+                                  ? '${officer.fullName} — holds ${officer.fundCustodyBalanceLabel}'
+                                  : officer.fullName,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        )
+                        .toList(growable: false),
+                    validator: (value) {
+                      if (value == null) {
+                        return 'Select an accountable officer.';
+                      }
+                      return null;
+                    },
+                    onChanged: (value) {
+                      setState(() {
+                        _officerId = value;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _SectionHeader(
+                  title: 'Receipt attachment',
+                  action: const SizedBox.shrink(),
+                ),
+                const SizedBox(height: 12),
+                FormField<AttachmentRef>(
+                  key: const Key('editReceiptAttachmentField'),
+                  validator: (_) => _receiptAttachment == null
+                      ? 'Select a receipt attachment.'
+                      : null,
+                  builder: (field) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AttachmentSelector(
+                        owner: AttachmentOwner(
+                          module: 'liquidation',
+                          purpose: 'receipt',
+                          contextLabel: widget.event.name,
+                        ),
+                        picker: widget.attachmentPicker,
+                        storage: widget.attachmentStorage,
+                        selectedAttachment: _receiptAttachment,
+                        isEnabled: !_isSubmitting,
+                        onChanged: (attachment) {
+                          setState(() {
+                            _receiptAttachment = attachment;
+                          });
+                          field.didChange(attachment);
+                        },
+                      ),
+                      if (field.hasError) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          field.errorText!,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _SectionHeader(
+                  title: 'Line items',
+                  action: OutlinedButton.icon(
+                    key: const Key('editReceiptAddLineButton'),
+                    onPressed: _addLine,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Row'),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                for (var index = 0; index < _lines.length; index += 1)
+                  _LiquidationLineRow(
+                    key: ValueKey(_lines[index]),
+                    input: _lines[index],
+                    index: index,
+                    canRemove: _lines.length > 1,
+                    onRemove: () => _removeLine(index),
+                  ),
+                const SizedBox(height: 8),
+                _buildSummaryCard(context),
+                const SizedBox(height: 16),
+                TextFormField(
+                  key: const Key('editReceiptRemarksField'),
+                  controller: _remarksController,
+                  decoration: const InputDecoration(labelText: 'Remarks'),
+                ),
+                if (_serviceError != null) ...[
+                  const SizedBox(height: 12),
+                  InlineStatusPanel(
+                    tone: InlineStatusTone.error,
+                    title: 'Update failed',
+                    message: _serviceError!,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('editReceiptSubmitButton'),
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Save Changes'),
+        ),
+      ],
+    );
+  }
+}
+
+class VoidReceiptDialog extends StatefulWidget {
+  const VoidReceiptDialog({
+    super.key,
+    required this.service,
+    required this.receipt,
+  });
+
+  final LiquidationService service;
+  final LiquidationReceiptView receipt;
+
+  @override
+  State<VoidReceiptDialog> createState() => _VoidReceiptDialogState();
+}
+
+class _VoidReceiptDialogState extends State<VoidReceiptDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _reasonController = TextEditingController();
+  var _isSubmitting = false;
+  String? _serviceError;
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _isSubmitting = true;
+      _serviceError = null;
+    });
+
+    final result = await widget.service.voidReceipt(
+      VoidReceiptCommand(
+        receiptId: widget.receipt.id,
+        reason: _reasonController.text.trim(),
+      ),
+    );
+
+    if (!mounted) return;
+    if (result.isInvalid) {
+      setState(() {
+        _isSubmitting = false;
+        _serviceError = result.summary;
+      });
+      return;
+    }
+    Navigator.pop(context, result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Row(
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: AppColors.error,
+            size: 22,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Void Receipt Ref #${widget.receipt.evidenceNumber}',
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 460),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  borderRadius: AppRadius.borderMd,
+                  border: Border.all(
+                    color: AppColors.error.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'This will void the receipt for ${widget.receipt.payeeOrMerchant} (${widget.receipt.totalLabel}).',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Any released custody funds will be credited back to the officer, and related pending reimbursement claims will be superseded. This action cannot be undone.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextFormField(
+                key: const Key('voidReceiptReasonField'),
+                controller: _reasonController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Reason for voiding *',
+                  hintText: 'e.g. Duplicate entry, wrong event, or cancelled transaction',
+                  alignLabelWithHint: true,
+                ),
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'A void reason is required.';
+                  }
+                  return null;
+                },
+              ),
+              if (_serviceError != null) ...[
+                const SizedBox(height: AppSpacing.sm),
+                InlineStatusPanel(
+                  tone: InlineStatusTone.error,
+                  title: 'Void failed',
+                  message: _serviceError!,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSubmitting ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const Key('voidReceiptConfirmButton'),
+          style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+          onPressed: _isSubmitting ? null : _submit,
+          child: _isSubmitting
+              ? const SizedBox.square(
+                  dimension: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Void Receipt'),
+        ),
+      ],
+    );
+  }
+}
+
+class ReceiptHistoryDialog extends StatelessWidget {
+  const ReceiptHistoryDialog({
+    super.key,
+    required this.service,
+    required this.receipt,
+  });
+
+  final LiquidationService service;
+  final LiquidationReceiptView receipt;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Row(
+        children: [
+          const Icon(Icons.history, color: AppColors.brandLight, size: 22),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Receipt Audit Ledger'),
+                Text(
+                  'Ref #${receipt.evidenceNumber} · ${receipt.payeeOrMerchant}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: FutureBuilder<List<AuditLogEntry>>(
+          future: service.loadReceiptEditHistory(receipt.id),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 150,
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final logs = snapshot.data ?? [];
+            if (logs.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(AppSpacing.xl),
+                  child: Text(
+                    'No audit log entries recorded for this receipt.',
+                  ),
+                ),
+              );
+            }
+            return SizedBox(
+              width: double.maxFinite,
+              height: 440,
+              child: ListView.separated(
+                itemCount: logs.length,
+                separatorBuilder: (_, _) =>
+                    const Divider(height: 1, color: AppColors.borderSubtle),
+                itemBuilder: (context, index) {
+                  final entry = logs[index];
+                  final isPost = entry.action == 'liquidation.post';
+                  final isEdit = entry.action == 'liquidation.edit';
+
+                  final Color toneColor = isPost
+                      ? AppColors.success
+                      : (isEdit ? AppColors.brandLight : AppColors.error);
+
+                  final IconData icon = isPost
+                      ? Icons.check_circle_outline
+                      : (isEdit ? Icons.edit_outlined : Icons.block_outlined);
+
+                  final String title = isPost
+                      ? 'Receipt Posted'
+                      : (isEdit ? 'Receipt Edited' : 'Receipt Voided');
+
+                  final classification =
+                      entry.metadata['classification'] as String?;
+                  final reason =
+                      entry.metadata['voidReason'] as String? ??
+                      entry.metadata['reason'] as String?;
+
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 10,
+                      horizontal: 4,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: toneColor.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(icon, size: 16, color: toneColor),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    title,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  if (classification != null) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceSubtle,
+                                        borderRadius: AppRadius.borderSm,
+                                        border: Border.all(
+                                          color: AppColors.borderSubtle,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        classification.toUpperCase(),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: classification == 'financial'
+                                              ? AppColors.warning
+                                              : AppColors.brandLight,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'By ${entry.actor} · ${entry.occurredAt.toLocal().toString().split('.').first}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              if (reason != null && reason.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Reason: $reason',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textPrimary,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
   }
 }
 
@@ -2454,11 +3608,19 @@ class _AllocationRow extends StatelessWidget {
 }
 
 class _LiquidationLineInput {
-  final TextEditingController descriptionController = TextEditingController();
-  final TextEditingController quantityController = TextEditingController(
-    text: '1',
-  );
-  final TextEditingController unitCostController = TextEditingController();
+  _LiquidationLineInput({
+    this.lineId,
+    String description = '',
+    String quantity = '1',
+    String unitCost = '',
+  }) : descriptionController = TextEditingController(text: description),
+       quantityController = TextEditingController(text: quantity),
+       unitCostController = TextEditingController(text: unitCost);
+
+  final StableId? lineId;
+  final TextEditingController descriptionController;
+  final TextEditingController quantityController;
+  final TextEditingController unitCostController;
 
   Money get subtotal {
     final qty = int.tryParse(quantityController.text.trim()) ?? 0;
@@ -2915,6 +4077,9 @@ String? _optionalDateValidator(String? value) {
   }
   return _dateValidator(text);
 }
+
+String _formatDateInput(DateTime date) =>
+    '${date.year.toString().padLeft(4, '0')}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
 String? _positiveIntValidator(String? value) {
   final parsed = int.tryParse(value?.trim() ?? '');

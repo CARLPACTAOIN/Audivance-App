@@ -182,10 +182,7 @@ class _AttachmentSelectorState extends State<AttachmentSelector> {
                     spacing: 8,
                     runSpacing: 8,
                     crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      buildSelectButton(),
-                      ?clearButton,
-                    ],
+                    children: [buildSelectButton(), ?clearButton],
                   ),
                 ],
               ),
@@ -480,10 +477,8 @@ void showAttachmentImagePreview(
 }) {
   showDialog<void>(
     context: context,
-    builder: (dialogContext) => AttachmentImagePreviewDialog(
-      attachment: attachment,
-      storage: storage,
-    ),
+    builder: (dialogContext) =>
+        AttachmentImagePreviewDialog(attachment: attachment, storage: storage),
   );
 }
 
@@ -500,10 +495,7 @@ class AttachmentImagePreviewDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      insetPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 24,
-      ),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 700, maxHeight: 800),
         child: Column(
@@ -540,9 +532,7 @@ class AttachmentImagePreviewDialog extends StatelessWidget {
                   future: storage.readBytes(attachment),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
+                      return const Center(child: CircularProgressIndicator());
                     }
                     if (snapshot.hasError ||
                         !snapshot.hasData ||

@@ -203,44 +203,49 @@ void main() {
 
     expect(result.isValid, isTrue);
     final movements = await repository.listFundMovements();
-    final transfer = movements.firstWhere((m) => m.type == FundMovementType.transfer);
+    final transfer = movements.firstWhere(
+      (m) => m.type == FundMovementType.transfer,
+    );
     expect(transfer.holderOfficerId, 'officer-1');
     expect(transfer.toHolderOfficerId, 'officer-2');
     expect(transfer.amount, Money.php(1500));
     expect(transfer.eventId, 'event-1');
   });
 
-  test('valid officer return moves custody back to event approved budget', () async {
-    await _seedOfficer(repository);
-    await _seedEvent(repository, approvedBudgetBalance: Money.php(3000));
-    // Release 2000 to officer-1 (approvedBudgetBalance becomes 1000)
-    await service.recordManualMovement(
-      ManualFundMovementCommand(
-        type: FundMovementType.fundRelease,
-        amount: Money.php(2000),
-        date: DateTime(2026, 8, 18),
-        purpose: 'Release to officer',
-        eventId: 'event-1',
-        holderOfficerId: 'officer-1',
-      ),
-    );
+  test(
+    'valid officer return moves custody back to event approved budget',
+    () async {
+      await _seedOfficer(repository);
+      await _seedEvent(repository, approvedBudgetBalance: Money.php(3000));
+      // Release 2000 to officer-1 (approvedBudgetBalance becomes 1000)
+      await service.recordManualMovement(
+        ManualFundMovementCommand(
+          type: FundMovementType.fundRelease,
+          amount: Money.php(2000),
+          date: DateTime(2026, 8, 18),
+          purpose: 'Release to officer',
+          eventId: 'event-1',
+          holderOfficerId: 'officer-1',
+        ),
+      );
 
-    // Officer returns 500 to event budget
-    final result = await service.recordManualMovement(
-      ManualFundMovementCommand(
-        type: FundMovementType.officerReturn,
-        amount: Money.php(500),
-        date: DateTime(2026, 8, 18),
-        purpose: 'Returning unused custody',
-        eventId: 'event-1',
-        holderOfficerId: 'officer-1',
-      ),
-    );
+      // Officer returns 500 to event budget
+      final result = await service.recordManualMovement(
+        ManualFundMovementCommand(
+          type: FundMovementType.officerReturn,
+          amount: Money.php(500),
+          date: DateTime(2026, 8, 18),
+          purpose: 'Returning unused custody',
+          eventId: 'event-1',
+          holderOfficerId: 'officer-1',
+        ),
+      );
 
-    expect(result.isValid, isTrue);
-    final event = (await repository.listAuditEvents()).single;
-    expect(event.approvedBudgetBalance, Money.php(1500));
-  });
+      expect(result.isValid, isTrue);
+      final event = (await repository.listAuditEvents()).single;
+      expect(event.approvedBudgetBalance, Money.php(1500));
+    },
+  );
 
   test('valid return or refund decreases event approved budget and increases target source', () async {
     await _seedSource(repository, id: 'source-1', balance: Money.php(5000));

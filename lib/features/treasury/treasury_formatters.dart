@@ -75,6 +75,7 @@ String fundMovementTypeLabel(FundMovementType type) {
     FundMovementType.liquidationSubmitted => 'Liquidation Submitted',
     FundMovementType.reimbursementPayment => 'Reimbursement Payment',
     FundMovementType.officerReturn => 'Return to Event Budget',
+    FundMovementType.liquidationReversal => 'Liquidation Reversal',
   };
 }
 

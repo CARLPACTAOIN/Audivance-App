@@ -144,7 +144,7 @@ void main() {
       contains(FundMovementType.liquidationSubmitted),
     );
     expect(movements.last.isSystemGenerated, isTrue);
-    expect(logs.single.action, 'liquidation.submit');
+    expect(logs.single.action, 'liquidation.post');
     expect(event.approvedBudgetBalance, Money.php(500));
 
     final officerOptions = await service.listOfficerOptionsForEvent('event-1');
@@ -269,6 +269,288 @@ void main() {
     expect(result.isValid, isTrue);
     expect(snapshot.events.single.status, AuditEventStatus.liquidated);
   });
+
+  test('editReceipt applies metadata edit in place without changing movements or balances', () async {
+    await _seedOfficer(repository);
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+    await _seedFundRelease(repository, amount: Money.php(500));
+    await service.submitLiquidation(_command());
+
+    final initialReceipt = (await repository.listLiquidationReceipts()).single;
+    final initialMovements = await repository.listFundMovements();
+
+    final editResult = await service.editReceipt(
+      EditReceiptCommand(
+        receiptId: initialReceipt.id,
+        payeeOrMerchant: 'Bookstore Pro',
+        evidenceNumber: 'OR-555',
+        remarks: 'Corrected merchant name',
+      ),
+    );
+
+    expect(editResult.isValid, isTrue);
+
+    final updatedReceipt = (await repository.listLiquidationReceipts()).single;
+    expect(updatedReceipt.payeeOrMerchant, 'Bookstore Pro');
+    expect(updatedReceipt.evidenceNumber, 'OR-555');
+    expect(updatedReceipt.remarks, 'Corrected merchant name');
+
+    // Fund movements should remain unchanged for metadata-only edits.
+    final postMovements = await repository.listFundMovements();
+    expect(postMovements.length, equals(initialMovements.length));
+
+    // Officer custody should remain 300 (500 release - 200 receipt).
+    final officerOptions = await service.listOfficerOptionsForEvent('event-1');
+    expect(officerOptions.single.fundCustodyBalance, Money.php(300));
+
+    // Audit log should contain liquidation.edit with metadata classification.
+    final logs = await repository.listAuditLogs();
+    final editLog = logs.firstWhere((l) => l.action == 'liquidation.edit');
+    expect(editLog.metadata['classification'], equals('metadata'));
+  });
+
+  test('editReceipt applies financial edit with reversal movement and updated custody balance', () async {
+    await _seedOfficer(repository);
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+    await _seedFundRelease(repository, amount: Money.php(500));
+    await service.submitLiquidation(_command());
+
+    final receipt = (await repository.listLiquidationReceipts()).single;
+    final lines = await repository.listLiquidationLines();
+
+    // Change line quantity from 2 to 3 (200 -> 300 total).
+    final editResult = await service.editReceipt(
+      EditReceiptCommand(
+        receiptId: receipt.id,
+        lines: [
+          EditReceiptLineDraft(
+            existingLineId: lines.single.id,
+            description: 'Meals',
+            quantity: 3,
+            unitCost: Money.centavos(10000),
+          ),
+        ],
+      ),
+    );
+
+    expect(editResult.isValid, isTrue);
+
+    final movements = await repository.listFundMovements();
+    expect(
+      movements.map((m) => m.type),
+      containsAll([
+        FundMovementType.liquidationSubmitted,
+        FundMovementType.liquidationReversal,
+      ]),
+    );
+
+    // Reversal should be for the original 200, new submission for 300.
+    final reversal = movements.firstWhere(
+      (m) => m.type == FundMovementType.liquidationReversal,
+    );
+    expect(reversal.amount, equals(Money.php(200)));
+
+    // New officer custody balance: 500 release - 300 new liquidation = 200.
+    final officerOptions = await service.listOfficerOptionsForEvent('event-1');
+    expect(officerOptions.single.fundCustodyBalance, Money.php(200));
+
+    // Audit log should record financial edit.
+    final logs = await repository.listAuditLogs();
+    final editLog = logs.firstWhere((l) => l.action == 'liquidation.edit');
+    expect(editLog.metadata['classification'], equals('financial'));
+  });
+
+  test('editReceipt on out-of-pocket receipt supersedes pending claim and creates replacement claim', () async {
+    await _seedOfficer(repository);
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+    await service.submitLiquidation(
+      _command(fundingMode: FundingMode.outOfPocket),
+    );
+
+    final receipt = (await repository.listLiquidationReceipts()).single;
+    final initialClaims = await repository.listReimbursementClaims();
+    expect(initialClaims, hasLength(1));
+    expect(initialClaims.single.status, ReimbursementStatus.pending);
+    expect(initialClaims.single.amount, Money.php(200));
+
+    final lines = await repository.listLiquidationLines();
+
+    // Increase line quantity from 2 to 4 (200 -> 400).
+    final editResult = await service.editReceipt(
+      EditReceiptCommand(
+        receiptId: receipt.id,
+        lines: [
+          EditReceiptLineDraft(
+            existingLineId: lines.single.id,
+            description: 'Meals',
+            quantity: 4,
+            unitCost: Money.centavos(10000),
+          ),
+        ],
+      ),
+    );
+
+    expect(editResult.isValid, isTrue);
+
+    final claims = await repository.listReimbursementClaims();
+    expect(claims, hasLength(2));
+
+    final supersededClaim = claims.firstWhere(
+      (c) => c.status == ReimbursementStatus.superseded,
+    );
+    expect(supersededClaim.amount, Money.php(200));
+
+    final activeClaim = claims.firstWhere(
+      (c) => c.status == ReimbursementStatus.pending,
+    );
+    expect(activeClaim.amount, Money.php(400));
+  });
+
+  test('editReceipt blocks financial edit when event is liquidated or claim is paid, but allows metadata edit', () async {
+    await _seedOfficer(repository);
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+    await _seedFundRelease(repository, amount: Money.php(500));
+    await service.submitLiquidation(_command());
+
+    final receipt = (await repository.listLiquidationReceipts()).single;
+    await service.markEventLiquidated('event-1');
+
+    // Financial edit should be blocked because event is liquidated.
+    final financialResult = await service.editReceipt(
+      EditReceiptCommand(
+        receiptId: receipt.id,
+        fundingMode: FundingMode.outOfPocket,
+      ),
+    );
+    expect(financialResult.isInvalid, isTrue);
+    expect(financialResult.summary, contains('liquidated'));
+
+    // Metadata edit should still succeed.
+    final metadataResult = await service.editReceipt(
+      EditReceiptCommand(
+        receiptId: receipt.id,
+        payeeOrMerchant: 'Allowed Merchant Edit',
+      ),
+    );
+    expect(metadataResult.isValid, isTrue);
+  });
+
+  test('voidReceipt marks receipt voided, creates reversal movement, and restores custody balance', () async {
+    await _seedOfficer(repository);
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+    await _seedFundRelease(repository, amount: Money.php(500));
+    await service.submitLiquidation(_command());
+
+    final receipt = (await repository.listLiquidationReceipts()).single;
+
+    final voidResult = await service.voidReceipt(
+      VoidReceiptCommand(
+        receiptId: receipt.id,
+        reason: 'Duplicate submission by mistake',
+      ),
+    );
+
+    expect(voidResult.isValid, isTrue);
+
+    final updatedReceipt = (await repository.listLiquidationReceipts()).single;
+    expect(updatedReceipt.isVoided, isTrue);
+    expect(updatedReceipt.voidReason, 'Duplicate submission by mistake');
+
+    // Reversal movement should be created.
+    final movements = await repository.listFundMovements();
+    final reversal = movements.firstWhere(
+      (m) => m.type == FundMovementType.liquidationReversal,
+    );
+    expect(reversal.amount, Money.php(200));
+
+    // Officer custody should be fully restored to 500.
+    final officerOptions = await service.listOfficerOptionsForEvent('event-1');
+    expect(officerOptions.single.fundCustodyBalance, Money.php(500));
+
+    // Snapshot should exclude the voided receipt from active receipts.
+    final snapshot = await service.loadSnapshot(asOf: DateTime(2026, 8, 18));
+    expect(snapshot.receipts, isEmpty);
+
+    // Audit log should contain liquidation.void.
+    final logs = await repository.listAuditLogs();
+    expect(logs.any((l) => l.action == 'liquidation.void'), isTrue);
+  });
+
+  test(
+    'voidReceipt supersedes pending claims on out-of-pocket receipts',
+    () async {
+      await _seedOfficer(repository);
+      await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+      await service.submitLiquidation(
+        _command(fundingMode: FundingMode.outOfPocket),
+      );
+
+      final receipt = (await repository.listLiquidationReceipts()).single;
+
+      final voidResult = await service.voidReceipt(
+        VoidReceiptCommand(receiptId: receipt.id, reason: 'Cancelled purchase'),
+      );
+
+      expect(voidResult.isValid, isTrue);
+
+      final claims = await repository.listReimbursementClaims();
+      expect(claims.single.status, ReimbursementStatus.superseded);
+    },
+  );
+
+  test('voidReceipt rejects voiding an already voided receipt or when event is liquidated', () async {
+    await _seedOfficer(repository);
+    await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+    await _seedFundRelease(repository, amount: Money.php(500));
+    await service.submitLiquidation(_command());
+
+    final receipt = (await repository.listLiquidationReceipts()).single;
+
+    final firstVoid = await service.voidReceipt(
+      VoidReceiptCommand(receiptId: receipt.id, reason: 'Initial void'),
+    );
+    expect(firstVoid.isValid, isTrue);
+
+    // Second void attempt should be rejected.
+    final secondVoid = await service.voidReceipt(
+      VoidReceiptCommand(receiptId: receipt.id, reason: 'Second void attempt'),
+    );
+    expect(secondVoid.isInvalid, isTrue);
+    expect(secondVoid.summary, contains('already been voided'));
+  });
+
+  test(
+    'loadReceiptEditHistory returns full audit history for a receipt',
+    () async {
+      await _seedOfficer(repository);
+      await _seedEvent(repository, approvedBudgetBalance: Money.php(1000));
+      await _seedFundRelease(repository, amount: Money.php(500));
+      await service.submitLiquidation(_command());
+
+      final receipt = (await repository.listLiquidationReceipts()).single;
+
+      await service.editReceipt(
+        EditReceiptCommand(
+          receiptId: receipt.id,
+          payeeOrMerchant: 'Edited Payee',
+        ),
+      );
+
+      await service.voidReceipt(
+        VoidReceiptCommand(receiptId: receipt.id, reason: 'Voiding after edit'),
+      );
+
+      final history = await service.loadReceiptEditHistory(receipt.id);
+      expect(
+        history.map((h) => h.action),
+        containsAll([
+          'liquidation.post',
+          'liquidation.edit',
+          'liquidation.void',
+        ]),
+      );
+    },
+  );
 }
 
 SubmitLiquidationCommand _command({

@@ -103,6 +103,7 @@ class FundMovements extends Table {
   TextColumn get fromFundSourceId => text().nullable()();
   TextColumn get toFundSourceId => text().nullable()();
   TextColumn get holderOfficerId => text().nullable()();
+
   /// For officer-to-officer transfers: the receiving officer.
   TextColumn get toHolderOfficerId => text().nullable()();
   TextColumn get attachmentId => text().nullable()();
@@ -111,6 +112,12 @@ class FundMovements extends Table {
   IntColumn get attachmentSizeBytes => integer().nullable()();
   TextColumn get attachmentChecksum => text().nullable()();
   BoolColumn get isSystemGenerated => boolean()();
+
+  /// The receipt that caused this movement (liquidationSubmitted / liquidationReversal).
+  TextColumn get sourceLiquidationReceiptId => text().nullable()();
+
+  /// Edit event ID that created this movement (links to the audit log entry).
+  TextColumn get correctionId => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -131,10 +138,24 @@ class LiquidationReceipts extends Table {
   TextColumn get attachmentLocalPath => text()();
   IntColumn get attachmentSizeBytes => integer().nullable()();
   TextColumn get attachmentChecksum => text().nullable()();
+
   /// For mixed funding: the portion from officer custody (centavos).
   IntColumn get releasedFundsCentavos => integer().nullable()();
+
   /// For mixed funding: the out-of-pocket portion (centavos).
   IntColumn get outOfPocketCentavos => integer().nullable()();
+
+  /// Optional free-text remark added at submission or edit time.
+  TextColumn get remarks => text().nullable()();
+
+  /// True when this receipt has been voided via an explicit void action.
+  BoolColumn get isVoided => boolean().withDefault(const Constant(false))();
+
+  /// UTC timestamp of when the receipt was voided. Null for active receipts.
+  DateTimeColumn get voidedAt => dateTime().nullable()();
+
+  /// Reason provided by the actor when voiding. Null for active receipts.
+  TextColumn get voidReason => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -160,6 +181,9 @@ class ReimbursementClaims extends Table {
   IntColumn get amountCentavos => integer()();
   TextColumn get status => text()();
   TextColumn get sourceLiquidationLineId => text()();
+
+  /// Edit event ID that superseded or created this claim.
+  TextColumn get correctionId => text().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -257,7 +281,7 @@ class BackupHistoryEntries extends Table {
 class AuditDatabase extends _$AuditDatabase {
   AuditDatabase(super.executor);
 
-  static const currentSchemaVersion = 6;
+  static const currentSchemaVersion = 7;
 
   @override
   int get schemaVersion => currentSchemaVersion;
@@ -308,6 +332,36 @@ class AuditDatabase extends _$AuditDatabase {
           await migrator.addColumn(
             liquidationReceipts,
             liquidationReceipts.outOfPocketCentavos,
+          );
+        }
+        if (from < 7) {
+          // LiquidationReceipts — editable receipt fields.
+          await migrator.addColumn(
+            liquidationReceipts,
+            liquidationReceipts.remarks,
+          );
+          await migrator.addColumn(
+            liquidationReceipts,
+            liquidationReceipts.isVoided,
+          );
+          await migrator.addColumn(
+            liquidationReceipts,
+            liquidationReceipts.voidedAt,
+          );
+          await migrator.addColumn(
+            liquidationReceipts,
+            liquidationReceipts.voidReason,
+          );
+          // FundMovements — receipt linkage for reversals.
+          await migrator.addColumn(
+            fundMovements,
+            fundMovements.sourceLiquidationReceiptId,
+          );
+          await migrator.addColumn(fundMovements, fundMovements.correctionId);
+          // ReimbursementClaims — correction linkage.
+          await migrator.addColumn(
+            reimbursementClaims,
+            reimbursementClaims.correctionId,
           );
         }
       },

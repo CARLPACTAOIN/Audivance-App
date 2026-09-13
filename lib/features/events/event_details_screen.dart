@@ -175,6 +175,9 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
               onMarkLiquidated: () => _markLiquidated(data),
               onPayReimbursement: _showPayReimbursement,
               onCreateOfficer: _showOfficerEditor,
+              onEditReceipt: (receipt) => _showEditReceipt(data, receipt),
+              onVoidReceipt: _showVoidReceipt,
+              onViewReceiptHistory: _showReceiptHistory,
             );
           }
           return AppCrossfade(child: child);
@@ -312,6 +315,72 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     }
     _refresh();
   }
+
+  Future<void> _showEditReceipt(
+    _EventDetailsData data,
+    LiquidationReceiptView receipt,
+  ) async {
+    if (data.liquidationEvent == null) {
+      return;
+    }
+    final result = await showDialog<ValidationResult>(
+      context: context,
+      builder: (context) => EditLiquidationReceiptDialog(
+        service: widget.liquidationService,
+        event: data.liquidationEvent!,
+        receipt: receipt,
+        officers: data.officerOptions,
+        attachmentPicker: widget.attachmentPicker,
+        attachmentStorage: widget.attachmentStorage,
+        organizationService: widget.organizationService,
+        treasuryService: widget.effectiveTreasuryService,
+      ),
+    );
+    if (!mounted || result == null || result.isInvalid) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Receipt Ref #${receipt.evidenceNumber} updated.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    _refresh();
+  }
+
+  Future<void> _showVoidReceipt(LiquidationReceiptView receipt) async {
+    final result = await showDialog<ValidationResult>(
+      context: context,
+      builder: (context) => VoidReceiptDialog(
+        service: widget.liquidationService,
+        receipt: receipt,
+      ),
+    );
+    if (!mounted || result == null || result.isInvalid) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Receipt Ref #${receipt.evidenceNumber} voided.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    _refresh();
+  }
+
+  Future<void> _showReceiptHistory(LiquidationReceiptView receipt) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => ReceiptHistoryDialog(
+        service: widget.liquidationService,
+        receipt: receipt,
+      ),
+    );
+  }
 }
 
 class _EventDetailsData {
@@ -347,6 +416,9 @@ class _EventDetailsContent extends StatelessWidget {
     required this.onMarkLiquidated,
     required this.onPayReimbursement,
     required this.onCreateOfficer,
+    required this.onEditReceipt,
+    required this.onVoidReceipt,
+    required this.onViewReceiptHistory,
   });
 
   final _EventDetailsData data;
@@ -359,6 +431,9 @@ class _EventDetailsContent extends StatelessWidget {
   final VoidCallback onMarkLiquidated;
   final ValueChanged<ReimbursementClaimView> onPayReimbursement;
   final VoidCallback onCreateOfficer;
+  final ValueChanged<LiquidationReceiptView> onEditReceipt;
+  final ValueChanged<LiquidationReceiptView> onVoidReceipt;
+  final ValueChanged<LiquidationReceiptView> onViewReceiptHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -412,6 +487,9 @@ class _EventDetailsContent extends StatelessWidget {
                       attachmentStorage: attachmentStorage,
                       officerCount: data.officerOptions.length,
                       onCreateOfficer: onCreateOfficer,
+                      onEditReceipt: onEditReceipt,
+                      onVoidReceipt: onVoidReceipt,
+                      onViewReceiptHistory: onViewReceiptHistory,
                     ),
                   ),
                   const SizedBox(height: 14),
@@ -827,12 +905,18 @@ class _LiquidationSection extends StatefulWidget {
     required this.attachmentStorage,
     required this.officerCount,
     required this.onCreateOfficer,
+    required this.onEditReceipt,
+    required this.onVoidReceipt,
+    required this.onViewReceiptHistory,
   });
 
   final List<LiquidationReceiptView> receipts;
   final AttachmentStorageService attachmentStorage;
   final int officerCount;
   final VoidCallback onCreateOfficer;
+  final ValueChanged<LiquidationReceiptView> onEditReceipt;
+  final ValueChanged<LiquidationReceiptView> onVoidReceipt;
+  final ValueChanged<LiquidationReceiptView> onViewReceiptHistory;
 
   @override
   State<_LiquidationSection> createState() => _LiquidationSectionState();
@@ -919,6 +1003,9 @@ class _LiquidationSectionState extends State<_LiquidationSection> {
                     receipt: pagedReceipts[i],
                     attachmentStorage: widget.attachmentStorage,
                     showDivider: i < pagedReceipts.length - 1,
+                    onEdit: () => widget.onEditReceipt(pagedReceipts[i]),
+                    onVoid: () => widget.onVoidReceipt(pagedReceipts[i]),
+                    onHistory: () => widget.onViewReceiptHistory(pagedReceipts[i]),
                   ),
               ],
             ),
@@ -958,11 +1045,17 @@ class _ReceiptRow extends StatelessWidget {
     required this.receipt,
     required this.attachmentStorage,
     required this.showDivider,
+    required this.onEdit,
+    required this.onVoid,
+    required this.onHistory,
   });
 
   final LiquidationReceiptView receipt;
   final AttachmentStorageService attachmentStorage;
   final bool showDivider;
+  final VoidCallback onEdit;
+  final VoidCallback onVoid;
+  final VoidCallback onHistory;
 
   @override
   Widget build(BuildContext context) {
@@ -993,18 +1086,18 @@ class _ReceiptRow extends StatelessWidget {
           borderRadius: AppRadius.borderSm,
           border: Border.all(color: AppColors.borderSubtle),
         ),
-        child: const Center(
+        child: Center(
           child: Icon(
             Icons.description_outlined,
-            color: Color(0xFF10B981),
+            color: receipt.isVoided ? AppColors.textMuted : const Color(0xFF10B981),
             size: 20,
           ),
         ),
       );
     } else {
-      leadingWidget = const Icon(
-        Icons.receipt_long,
-        color: Color(0xFF10B981),
+      leadingWidget = Icon(
+        receipt.isVoided ? Icons.block : Icons.receipt_long,
+        color: receipt.isVoided ? AppColors.textMuted : const Color(0xFF10B981),
         size: 18,
       );
     }
@@ -1015,10 +1108,11 @@ class _ReceiptRow extends StatelessWidget {
         receipt.payeeOrMerchant,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.w700,
           fontSize: 13,
-          color: Color(0xFFF8FAFC),
+          color: receipt.isVoided ? AppColors.textMuted : const Color(0xFFF8FAFC),
+          decoration: receipt.isVoided ? TextDecoration.lineThrough : null,
         ),
       ),
       subtitle: Text(
@@ -1027,50 +1121,227 @@ class _ReceiptRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 11.5),
       ),
-      trailing: Text(
-        receipt.totalLabel,
-        style: const TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: 13,
-          color: Color(0xFF10B981),
-        ),
-      ),
-      expandedContent: Wrap(
-        spacing: 6,
-        runSpacing: 6,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          MetadataChip(
-            icon: Icons.payments_outlined,
-            label: receipt.fundingModeLabel,
-          ),
-          MetadataChip(
-            icon: Icons.person_outline,
-            label: 'Custodian: ${receipt.accountableOfficerName}',
-          ),
-          MetadataChip(
-            icon: Icons.tag,
-            label: 'Evidence #${receipt.evidenceNumber}',
-          ),
-          if (attachment != null)
-            MetadataChip(
-              key: Key('receiptAttachmentChip_${receipt.id}'),
-              icon: attachment.isImage
-                  ? Icons.photo_outlined
-                  : Icons.attach_file,
-              label: attachment.isImage
-                  ? 'Receipt: ${attachment.fileName} (Inspect)'
-                  : 'Attachment: ${attachment.fileName}',
-              tooltip: attachment.isImage
-                  ? 'Tap to inspect full receipt photo'
-                  : attachment.fileName,
-              onTap: attachment.isImage
-                  ? () => showAttachmentImagePreview(
-                        context,
-                        attachment: attachment,
-                        storage: attachmentStorage,
-                      )
-                  : null,
+          if (receipt.isVoided) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              margin: const EdgeInsets.only(right: 6),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.15),
+                borderRadius: AppRadius.borderSm,
+                border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.block, size: 10, color: AppColors.error),
+                  SizedBox(width: 3),
+                  Text(
+                    'VOIDED',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.error,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ],
+          Text(
+            receipt.totalLabel,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              color: receipt.isVoided ? AppColors.textMuted : const Color(0xFF10B981),
+              decoration: receipt.isVoided ? TextDecoration.lineThrough : null,
+            ),
+          ),
+          const SizedBox(width: 4),
+          PopupMenuButton<String>(
+            key: Key('receiptOverflowMenu_${receipt.id}'),
+            icon: const Icon(
+              Icons.more_vert,
+              size: 20,
+              color: AppColors.textSecondary,
+            ),
+            tooltip: 'Receipt options',
+            padding: EdgeInsets.zero,
+            onSelected: (action) {
+              if (action == 'edit') onEdit();
+              if (action == 'void') onVoid();
+              if (action == 'history') onHistory();
+            },
+            itemBuilder: (context) => [
+              if (!receipt.isVoided) ...[
+                const PopupMenuItem(
+                  key: Key('receiptMenuEditItem'),
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 18, color: AppColors.brandLight),
+                      SizedBox(width: 10),
+                      Text('Edit Receipt'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  key: Key('receiptMenuVoidItem'),
+                  value: 'void',
+                  child: Row(
+                    children: [
+                      Icon(Icons.block, size: 18, color: AppColors.error),
+                      SizedBox(width: 10),
+                      Text('Void Receipt', style: TextStyle(color: AppColors.error)),
+                    ],
+                  ),
+                ),
+              ],
+              const PopupMenuItem(
+                key: Key('receiptMenuHistoryItem'),
+                value: 'history',
+                child: Row(
+                  children: [
+                    Icon(Icons.history, size: 18, color: AppColors.textSecondary),
+                    SizedBox(width: 10),
+                    Text('Audit History'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      expandedContent: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (receipt.isVoided) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.error.withValues(alpha: 0.1),
+                borderRadius: AppRadius.borderSm,
+                border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.block, size: 14, color: AppColors.error),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Voided: ${receipt.voidReason ?? 'No reason provided'}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              MetadataChip(
+                icon: Icons.payments_outlined,
+                label: receipt.fundingModeLabel,
+              ),
+              MetadataChip(
+                icon: Icons.person_outline,
+                label: 'Custodian: ${receipt.accountableOfficerName}',
+              ),
+              MetadataChip(
+                icon: Icons.tag,
+                label: 'Evidence #${receipt.evidenceNumber}',
+              ),
+              if (receipt.remarks != null && receipt.remarks!.isNotEmpty)
+                MetadataChip(
+                  icon: Icons.notes_outlined,
+                  label: 'Remarks: ${receipt.remarks}',
+                ),
+              if (attachment != null)
+                MetadataChip(
+                  key: Key('receiptAttachmentChip_${receipt.id}'),
+                  icon: attachment.isImage
+                      ? Icons.photo_outlined
+                      : Icons.attach_file,
+                  label: attachment.isImage
+                      ? 'Receipt: ${attachment.fileName} (Inspect)'
+                      : 'Attachment: ${attachment.fileName}',
+                  tooltip: attachment.isImage
+                      ? 'Tap to inspect full receipt photo'
+                      : attachment.fileName,
+                  onTap: attachment.isImage
+                      ? () => showAttachmentImagePreview(
+                          context,
+                          attachment: attachment,
+                          storage: attachmentStorage,
+                        )
+                      : null,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (!receipt.isVoided) ...[
+                OutlinedButton.icon(
+                  key: Key('editReceiptButton_${receipt.id}'),
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Edit Receipt'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  key: Key('voidReceiptButton_${receipt.id}'),
+                  onPressed: onVoid,
+                  icon: const Icon(Icons.block, size: 16, color: AppColors.error),
+                  label: const Text(
+                    'Void Receipt',
+                    style: TextStyle(color: AppColors.error),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 36),
+                    foregroundColor: AppColors.error,
+                    side: const BorderSide(color: AppColors.error),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                ),
+              ],
+              OutlinedButton.icon(
+                key: Key('receiptHistoryButton_${receipt.id}'),
+                onPressed: onHistory,
+                icon: const Icon(Icons.history, size: 16),
+                label: const Text('Audit History'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       showDivider: showDivider,
@@ -1160,20 +1431,28 @@ class _ReimbursementClaimRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPending = claim.status == ReimbursementStatus.pending;
+    final isSuperseded = claim.status == ReimbursementStatus.superseded;
     return ExpandableListRow(
       leading: Icon(
-        isPending ? Icons.schedule : Icons.check_circle_outline,
-        color: isPending ? AppColors.warning : AppColors.success,
+        isPending
+            ? Icons.schedule
+            : (isSuperseded
+                ? Icons.cancel_outlined
+                : Icons.check_circle_outline),
+        color: isPending
+            ? AppColors.warning
+            : (isSuperseded ? AppColors.textMuted : AppColors.success),
         size: 18,
       ),
       title: Text(
         claim.officerName,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
+        style: TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 13,
-          color: AppColors.textPrimary,
+          color: isSuperseded ? AppColors.textMuted : AppColors.textPrimary,
+          decoration: isSuperseded ? TextDecoration.lineThrough : null,
         ),
       ),
       subtitle: Text(
@@ -1187,10 +1466,11 @@ class _ReimbursementClaimRow extends StatelessWidget {
         children: [
           Text(
             claim.amountLabel,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 13,
-              color: AppColors.warning,
+              color: isSuperseded ? AppColors.textMuted : AppColors.warning,
+              decoration: isSuperseded ? TextDecoration.lineThrough : null,
             ),
           ),
           if (claim.canPay) ...[
